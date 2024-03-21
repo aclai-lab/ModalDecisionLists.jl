@@ -76,7 +76,7 @@ end
 # end
 
 function sortantecedents(
-    antecedenslist::AbstractVector{Tuple{RuleAntecedent, BitVector}},
+    antecedenslist::Vector{Tuple{RuleAntecedent, BitVector}},
     y::AbstractVector{CLabel},
     beam_width::Int64,
     quality_evaluator::F,
@@ -90,24 +90,23 @@ function sortantecedents(
             quality_evaluator(y[satinds])
     end, antecedenslist)
 
-    i_newstar = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
-    bestantecedent_quality = antsquality[i_newstar[1]]
-    return (i_newstar, bestantecedent_quality)
+    newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
+    bestantecedent_quality = antsquality[newstar_perm[1]]
+
+    return (newstar_perm, bestantecedent_quality)
 end
 
 
 
 function newconditions(
     X::PropositionalLogiset,
-    antecedent_param::Tuple{RuleAntecedent, BitVector}
-)
+    antecedent_decorated::Tuple{RuleAntecedent, BitVector}
+)::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
 
-    (antecedent, satindexes) = antecedent_param
+    (antecedent, satindexes) = antecedent_decorated
 
     coveredX = slicedataset(X, satindexes; return_view = true)
     # @show coveredX
-
-
     conditions = Atom{ScalarCondition}.(atoms(alphabet(coveredX)))
     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
     possible_conditions = [(a, interpret(a, X)) for a in conditions if a ∉ atoms(antecedent)]
@@ -119,37 +118,39 @@ end
 pushchildren!(φ::RuleAntecedent, a::Atom) = push!(φ.children, a)
 
 function specializeantecedents(
-    star::AbstractVector{Tuple{RuleAntecedent, BitVector}},
+    ants_tospecialize::Vector{Tuple{RuleAntecedent,BitVector}},
     X::PropositionalLogiset,
 )::Vector{Tuple{RuleAntecedent, BitVector}}
 
-    if isempty(star)
+    if isempty(ants_tospecialize)
         conditions =  map(sc->Atom{ScalarCondition}(sc), alphabet(X))
         return  map(a->(RuleAntecedent([a]), interpret(a, X)), conditions)
     else
-        newstar = Vector{Tuple{RuleAntecedent, BitVector}}([])
-        for i_ant ∈ star
+        specialized_ants = Tuple{RuleAntecedent, BitVector}[]
+        for _ant ∈ ants_tospecialize
 
-            # Vector{Tuple{Atom, BitVector}}
-            i_possibleconditions = newconditions(X, i_ant)
+            # i_possibleconditions refer to all the conditions (Atoms) that can be
+            # joined to the i-th antecedent. These are calculated only for the values ​​
+            # of the instances already covered by the antecedent.
+            possibleconditions = newconditions(X, _ant)
 
             # @showlc atoms(i_ant[1]) :red
             # @showlc i_possibleconditions :blue
 
-            isempty(i_possibleconditions) && continue
+            isempty(possibleconditions) && continue
 
-            for (j_atom, j_cov) ∈ i_possibleconditions
+            for (_atom, _cov) ∈ possibleconditions
 
-                (i_formula, i_coverage) = deepcopy(i_ant)
+                (antformula, antcoverage) = deepcopy(_ant)
 
-                pushchildren!(i_formula, j_atom)
-                newcoverage = i_coverage .& j_cov
+                new_antcformula = antformula ∧ _atom |> LeftmostConjunctiveForm
+                new_antcoverage = antcoverage .& _cov
 
-                push!(newstar, (i_formula, newcoverage))
+                push!(specialized_ants, (new_antcformula, new_antcoverage))
             end
         end
     end
-    return newstar
+    return specialized_ants
 end
 
 function beamsearch(
@@ -157,41 +158,42 @@ function beamsearch(
     y::AbstractVector{<:CLabel},
     beam_width::Integer,
     quality_evaluator::F
-)::LeftmostConjunctiveForm where{
+)::Tuple{LeftmostConjunctiveForm,BitVector} where {
     F<:Function
 }
 
     bestantecedent = (LeftmostConjunctiveForm([⊤]), ones(Int64, nrow(X)))
     bestantecedent_entropy = quality_evaluator(y)
 
-    newstar = Tuple{RuleAntecedent, BitVector}[]
+    newcandidates = Tuple{RuleAntecedent, BitVector}[]
     while true
-        (star, newstar) = newstar, Tuple{RuleAntecedent, BitVector}[]
-        newstar = specializeantecedents(star, X)
-        # @showlc star :green
+        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, BitVector}[]
+        newcandidates = specializeantecedents(candidates, X)
+        # @showlc candidates :green
 
-        isempty(newstar) && break
+        isempty(newcandidates) && break
 
-        (perm_, candidateantecedent_entropy) = sortantecedents(newstar, y, beam_width, quality_evaluator)
-        newstar = newstar[perm_]
-        if candidateantecedent_entropy < bestantecedent_entropy
-            bestantecedent = newstar[1]
-            bestantecedent_entropy = candidateantecedent_entropy
+        (perm_, bestcandidate_entropy) = sortantecedents(newcandidates, y, beam_width, quality_evaluator)
+        newcandidates = newcandidates[perm_]
+        if bestcandidate_entropy < bestantecedent_entropy
+            bestantecedent = newcandidates[1]
+            bestantecedent_entropy = bestcandidate_entropy
         end
 
         # readline()
         # print("\033c")
     end
     # @show bestantecedent
-    return bestantecedent[begin]
+    return bestantecedent
 end
 
 function sequentialcovering(
     X::PropositionalLogiset,
-    y::AbstractVector{CLabel};
+    y::AbstractVector{<:CLabel};
     beam_width::Integer = 3,
     quality_evaluator::Function = soleentropy,
 )::DecisionList
+
     length(y) != nrow(X) && error("size of X and y mismatch")
     uncoveredslice = collect(1:ninstances(X))
 
@@ -201,11 +203,10 @@ function sequentialcovering(
     rulelist = Rule[]
     while true
 
-        bestantecedent = beamsearch(uncoveredX, uncoveredy, beam_width, quality_evaluator)
+        bestantecedent, bestantecedent_coverage = beamsearch(uncoveredX, uncoveredy, beam_width, quality_evaluator)
         istop(bestantecedent) && break
 
-        antecedentcoverage  = interpret(bestantecedent, uncoveredX) |> findall
-        consequent = uncoveredy[antecedentcoverage] |> mode
+        consequent = uncoveredy[bestantecedent_coverage] |> mode
         info_cm = (;
             supporting_labels = collect(uncoveredy)
         )
@@ -213,7 +214,7 @@ function sequentialcovering(
 
         push!(rulelist, Rule(bestantecedent, consequent_cm))
 
-        setdiff!(uncoveredslice, uncoveredslice[antecedentcoverage])
+        setdiff!(uncoveredslice, uncoveredslice[bestantecedent_coverage])
         uncoveredX = slicedataset(X, uncoveredslice; return_view = true)
         uncoveredy = @view y[uncoveredslice]
     end
