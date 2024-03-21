@@ -5,19 +5,23 @@ version = "1.0.0-DEV"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
+MultiData = "8cc5100c-b3d1-4f82-90cb-0ea93d317aba"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-MultiData = "8cc5100c-b3d1-4f82-90cb-0ea93d317aba"
 SoleBase = "4475fa32-7023-44a0-aa70-4813b230e492"
 SoleData = "123f1ae1-6307-4526-ab5b-aab3a92a2b8c"
 SoleLogics = "b002da8f-3cb3-4d91-bbe3-2953433912b5"
 SoleModels = "4249d9c7-3290-4ddd-961c-e1d3ec2467f8"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+
 [compat]
 julia = "1"
 
 [extras]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]

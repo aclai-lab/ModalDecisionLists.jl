@@ -14,6 +14,10 @@ include("core.jl")
 
 export RuleAntecedent
 
+include("myhelp.jl")
+
+export @showlc
+
 module BaseCN2
 include("algorithms/base-cn2.jl")
 end
@@ -22,7 +26,7 @@ module SoleCN2
 include("algorithms/sole-cn2.jl")
 end
 
-export CN2
-
+export SoleCN2
+export BaseCN2
 
 end

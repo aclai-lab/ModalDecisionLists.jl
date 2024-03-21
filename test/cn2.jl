@@ -1,13 +1,13 @@
 using Test
 
 using SoleBase: CLabel
-using SoleRules
 using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list
 using SoleData
 using MLJ
 using StatsBase
 using Random
+import SoleData: PropositionalLogiset
 
 module BaseCN2
 include("../src/algorithms/base-cn2.jl")
