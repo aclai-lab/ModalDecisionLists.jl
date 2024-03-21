@@ -6,7 +6,7 @@ import SoleData: ScalarCondition, PropositionalLogiset, BoundedScalarConditions
 import SoleData: alphabet
 using SoleModels: DecisionList, Rule, ConstantModel
 using DataFrames
-using StatsBase: mode, countmap
+using StatsBase: mode, countmap, counts
 using ModalDecisionLists
 
 
@@ -25,30 +25,19 @@ function maptointeger(y::AbstractVector{<:CLabel})
     return integer_y
 end
 
-# function distribution(y::AbstractVector{<:CLabel})::Vector{Int}
+function soleentropy(y::AbstractVector{Int64};)::Float32
 
-# end
+    isempty(y) && return Inf
 
-function soleentropy(y::AbstractVector{<:CLabel};)::Float32
+    distribution = counts(y)
 
-    distribution = values(countmap(y))
-    isempty(distribution) &&
-        return Inf
-    length(distribution) == 1 &&
-        return 0.0
+    length(distribution) == 1 && return 0.0
 
     prob = distribution ./ sum(distribution)
     return -sum(prob .* log2.(prob))
 end
 
 # Check condition equivalence
-function checkconditionsequivalence(
-    φ1::RuleAntecedent,
-    φ2::RuleAntecedent,
-)::Bool
-    return  length(φ1) == length(φ2) &&
-            !any(iszero, map( x-> x ∈ atoms(φ1), atoms(φ2)))
-end
 
 
 # function feature(
@@ -224,11 +213,12 @@ function sequentialcovering(
 )::DecisionList
 
     length(y) != nrow(X) && error("size of X and y mismatch")
+    y = y |> maptointeger
+
     uncoveredslice = collect(1:ninstances(X))
 
     uncoveredX = slicedataset(X, uncoveredslice; return_view = true)
-    y = maptointeger(y)
-    uncoveredy = y[:]
+    uncoveredy = y
 
     rulelist = Rule[]
     while true
