@@ -14,9 +14,22 @@ istop(lmlf::LeftmostLinearForm) = children(lmlf) == [⊤]
 
 pushchildren!(φ::RuleAntecedent, a::Atom) = push!(φ.children, a)
 
-function soleentropy(
-    y::AbstractVector{<:CLabel};
-)::Float32
+function maptointeger(y::AbstractVector{<:CLabel})
+
+    values = unique(y)
+    integer_y = zeros(Int64, length(y))
+
+    for (i,v) in enumerate(values)
+        integer_y[y .== v] .= i
+    end
+    return integer_y
+end
+
+# function distribution(y::AbstractVector{<:CLabel})::Vector{Int}
+
+# end
+
+function soleentropy(y::AbstractVector{<:CLabel};)::Float32
 
     distribution = values(countmap(y))
     isempty(distribution) &&
@@ -72,13 +85,16 @@ value of the best one
 
 """
 function sortantecedents(
-    antecedenslist::Vector{Tuple{RuleAntecedent, BitVector}},
-    y::AbstractVector{CLabel},
+    antecedenslist::Vector{T},
+    y::AbstractVector{Int64},
     beam_width::Integer,
     quality_evaluator::F,
-) where {
+)::Tuple{Vector{Int},<:Real} where {
+    T<:Tuple{RuleAntecedent, BitVector},
     F<:Function
 }
+
+
     isempty(antecedenslist) && return [], Inf
 
     antsquality = map(antd->begin
@@ -132,9 +148,11 @@ Specializes rule antecedents in *ants_tospecialize* based on available instances
 
 """
 function specializeantecedents(
-    ants_tospecialize::Vector{Tuple{RuleAntecedent,BitVector}},
+    ants_tospecialize::Vector{T},
     X::PropositionalLogiset,
-)::Vector{Tuple{RuleAntecedent, BitVector}}
+)::Vector{T} where{
+    T<:Tuple{RuleAntecedent,BitVector}
+}
 
     if isempty(ants_tospecialize)
         conditions =  map(sc->Atom{ScalarCondition}(sc), alphabet(X))
@@ -143,9 +161,6 @@ function specializeantecedents(
         specialized_ants = Tuple{RuleAntecedent, BitVector}[]
         for _ant ∈ ants_tospecialize
 
-            # i_possibleconditions refer to all the conditions (Atoms) that can be
-            # joined to the i-th antecedent. These are calculated only for the values ​​
-            # of the instances already covered by the antecedent.
             possibleconditions = newconditions(X, _ant)
 
             # @showlc atoms(i_ant[1]) :red
@@ -169,7 +184,7 @@ end
 
 function beamsearch(
     X::PropositionalLogiset,
-    y::AbstractVector{<:CLabel},
+    y::AbstractVector{Int64},
     beam_width::Integer,
     quality_evaluator::F
 )::Tuple{LeftmostConjunctiveForm,BitVector} where {
@@ -203,7 +218,7 @@ end
 
 function sequentialcovering(
     X::PropositionalLogiset,
-    y::AbstractVector{<:CLabel};
+    y::AbstractVector{CLabel};
     beam_width::Integer = 3,
     quality_evaluator::Function = soleentropy,
 )::DecisionList
@@ -212,7 +227,8 @@ function sequentialcovering(
     uncoveredslice = collect(1:ninstances(X))
 
     uncoveredX = slicedataset(X, uncoveredslice; return_view = true)
-    uncoveredy = y[uncoveredslice]
+    y = maptointeger(y)
+    uncoveredy = y[:]
 
     rulelist = Rule[]
     while true
