@@ -12,6 +12,7 @@ using ModalDecisionLists
 
 istop(lmlf::LeftmostLinearForm) = children(lmlf) == [⊤]
 
+pushchildren!(φ::RuleAntecedent, a::Atom) = push!(φ.children, a)
 
 function soleentropy(
     y::AbstractVector{<:CLabel};
@@ -54,31 +55,26 @@ end
 #     return conds == [] ? false : BoundedScalarConditions{ScalarCondition}(conds)
 # end
 
+"""
+    function sortantecedents(
+        antecedenslist::Vector{Tuple{RuleAntecedent, BitVector}},
+        y::AbstractVector{CLabel},
+        beam_width::Integer,
+        quality_evaluator<:Function,
 
-# function sortantecedents(
-#     star::AbstractVector{Tuple{RuleAntecedent, BitVector}},
-#     y::AbstractVector{CLabel},
-#     beam_width::Int64,
-#     quality_evaluator::F,
-# ) where {
-#     F<:Function
-# }
-#     isempty(star) && return [], Inf
 
-#     antsquality = map(antd->begin
-#             satinds = interpret(antd, X) |> findall
-#             quality_evaluator(y[satinds])
-#     end, star)
+Sorts rule antecedents based on their quality using a specified evaluation function.
 
-#     i_newstar = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
-#     bestantecedent_quality = antsquality[i_newstar[1]]
-#     return (i_newstar, bestantecedent_quality)
-# end
+Takes an *antecedentslist*, each decorated by a BitVector indicating his coverage bitmask.
+Each antecedent is evaluated on his covered y using the provided *quality evaluator* function.
+Then the permutation of the bests *beam_search* sorted antecedent is returned with the quality
+value of the best one
 
+"""
 function sortantecedents(
     antecedenslist::Vector{Tuple{RuleAntecedent, BitVector}},
     y::AbstractVector{CLabel},
-    beam_width::Int64,
+    beam_width::Integer,
     quality_evaluator::F,
 ) where {
     F<:Function
@@ -96,14 +92,23 @@ function sortantecedents(
     return (newstar_perm, bestantecedent_quality)
 end
 
+"""
+    newconditions(
+        X::PropositionalLogiset,
+        antecedent_info::Tuple{RuleAntecedent, BitVector}
+    )::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
 
+Returns a list of all possible conditions (atoms) that can be generated from instances of X
+and can further specialize the input formula. Each condition is decorated by a bitmask
+indicating which examples in X satisfy that condition."
 
+"""
 function newconditions(
     X::PropositionalLogiset,
-    antecedent_decorated::Tuple{RuleAntecedent, BitVector}
+    antecedent_info::Tuple{RuleAntecedent, BitVector}
 )::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
 
-    (antecedent, satindexes) = antecedent_decorated
+    (antecedent, satindexes) = antecedent_info
 
     coveredX = slicedataset(X, satindexes; return_view = true)
     # @show coveredX
@@ -115,8 +120,17 @@ function newconditions(
 end
 
 
-pushchildren!(φ::RuleAntecedent, a::Atom) = push!(φ.children, a)
 
+
+"""
+    function specializeantecedents(
+        ants_tospecialize::Vector{Tuple{RuleAntecedent,BitVector}},
+        X::PropositionalLogiset,
+    )::Vector{Tuple{RuleAntecedent, BitVector}}
+
+Specializes rule antecedents in *ants_tospecialize* based on available instances in *X*.
+
+"""
 function specializeantecedents(
     ants_tospecialize::Vector{Tuple{RuleAntecedent,BitVector}},
     X::PropositionalLogiset,
