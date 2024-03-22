@@ -1,5 +1,4 @@
 using Test
-
 using SoleBase: CLabel
 using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list

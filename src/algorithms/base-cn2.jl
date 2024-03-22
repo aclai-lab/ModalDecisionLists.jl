@@ -7,8 +7,8 @@ using StatsBase: countmap
 import SoleLogics: LogicalInstance, Formula, LeftmostLinearForm
 import SoleModels: Rule, AbstractModel, ConstantModel
 import SoleBase: CLabel
-import SoleData: PropositionalLogiset, BoundedScalarConditions
-import SoleData: features, UnivariateSymbolValue
+import SoleData: PropositionalLogiset, BoundedScalarConditions, UnivariateSymbolValue
+import SoleData: features
 
 struct Selector
     att::Symbol # simil Feature
