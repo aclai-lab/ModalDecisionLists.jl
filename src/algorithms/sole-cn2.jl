@@ -9,6 +9,8 @@ using DataFrames
 using StatsBase: mode, countmap
 using ModalDecisionLists
 
+const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
+const SatMask = BitVector
 
 istop(lmlf::LeftmostLinearForm) = children(lmlf) == [⊤]
 
@@ -57,7 +59,7 @@ end
 
 """
     function sortantecedents(
-        antecedenslist::Vector{Tuple{RuleAntecedent, BitVector}},
+        antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
         y::AbstractVector{CLabel},
         beam_width::Integer,
         quality_evaluator<:Function,
@@ -65,26 +67,26 @@ end
 
 Sorts rule antecedents based on their quality using a specified evaluation function.
 
-Takes an *antecedentslist*, each decorated by a BitVector indicating his coverage bitmask.
+Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
 Each antecedent is evaluated on his covered y using the provided *quality evaluator* function.
 Then the permutation of the bests *beam_search* sorted antecedent is returned with the quality
 value of the best one
 
 """
 function sortantecedents(
-    antecedenslist::Vector{Tuple{RuleAntecedent, BitVector}},
+    antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
     y::AbstractVector{CLabel},
     beam_width::Integer,
     quality_evaluator::F,
 ) where {
     F<:Function
 }
-    isempty(antecedenslist) && return [], Inf
+    isempty(antecedents) && return [], Inf
 
     antsquality = map(antd->begin
             satinds = antd[2]
             quality_evaluator(y[satinds])
-    end, antecedenslist)
+    end, antecedents)
 
     newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
     bestantecedent_quality = antsquality[newstar_perm[1]]
@@ -93,71 +95,95 @@ function sortantecedents(
 end
 
 """
-    newconditions(
+    newatoms(
         X::PropositionalLogiset,
-        antecedent_info::Tuple{RuleAntecedent, BitVector}
-    )::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
+        antecedent::Tuple{RuleAntecedent, SatMask}
+    )::Vector{Tuple{Atom, SatMask}}
 
 Returns a list of all possible conditions (atoms) that can be generated from instances of X
 and can further specialize the input formula. Each condition is decorated by a bitmask
 indicating which examples in X satisfy that condition."
 
 """
-function newconditions(
+function newatoms(
     X::PropositionalLogiset,
-    antecedent_info::Tuple{RuleAntecedent, BitVector}
-)::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
+    antecedent::Tuple{RuleAntecedent, SatMask}
+)::Vector{Tuple{Atom, SatMask}}
 
-    (antecedent, satindexes) = antecedent_info
+    (antecedent, satindexes) = antecedent
 
     coveredX = slicedataset(X, satindexes; return_view = true)
     # @show coveredX
-    conditions = Atom{ScalarCondition}.(atoms(alphabet(coveredX)))
     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
-    possible_conditions = [(a, interpret(a, X)) for a in conditions if a ∉ atoms(antecedent)]
+    possible_conditions = perform_optimization ? filteralphabetoptimized(X, alphabet(coveredX), antecedent) : filteralphabet(X, alphabet(coveredX), antecedent)
 
     return possible_conditions
 end
 
+function filteralphabet(
+    X::PropositionalLogiset,
+    alphabet::Alphabet,
+    antecedent::Tuple{RuleAntecedent, SatMask}
+)::Vector{Tuple{Atom, SatMask}}
+    return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
+end
+
+function filteralphabetoptimized(
+    X::PropositionalLogiset,
+    alphabet::Alphabet,
+    antecedent::Tuple{RuleAntecedent, SatMask}
+)::Vector{Tuple{Atom, SatMask}}
+    return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
+end
+
+function filteralphabetoptimized(
+    X::PropositionalLogiset,
+    alphabet::BoundedScalarConditions,
+    antecedent::Tuple{RuleAntecedent,SatMask}
+)::Vector{Tuple{Atom,SatMask}}
+    alphabet.grouped_featconditions
+    return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
+end
 
 
 
 """
     function specializeantecedents(
-        ants_tospecialize::Vector{Tuple{RuleAntecedent,BitVector}},
+        antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
         X::PropositionalLogiset,
-    )::Vector{Tuple{RuleAntecedent, BitVector}}
+    )::Vector{Tuple{RuleAntecedent, SatMask}}
 
-Specializes rule antecedents in *ants_tospecialize* based on available instances in *X*.
+Specializes rule antecedents in *antecedents* based on available instances in *X*.
 
 """
 function specializeantecedents(
-    ants_tospecialize::Vector{Tuple{RuleAntecedent,BitVector}},
+    antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
     X::PropositionalLogiset,
-)::Vector{Tuple{RuleAntecedent, BitVector}}
+)::Vector{Tuple{RuleAntecedent, SatMask}}
 
-    if isempty(ants_tospecialize)
-        conditions =  map(sc->Atom{ScalarCondition}(sc), alphabet(X))
-        return  map(a->(RuleAntecedent([a]), interpret(a, X)), conditions)
+    if isempty(antecedents)
+        return map(a->(RuleAntecedent([a]), interpret(a, X)), alphabet(X))
     else
-        specialized_ants = Tuple{RuleAntecedent, BitVector}[]
-        for _ant ∈ ants_tospecialize
+        specialized_ants = Tuple{RuleAntecedent, SatMask}[]
+        for _ant ∈ antecedents
 
-            # i_possibleconditions refer to all the conditions (Atoms) that can be
+            # i_conjunctibleatoms refer to all the conditions (Atoms) that can be
             # joined to the i-th antecedent. These are calculated only for the values ​​
             # of the instances already covered by the antecedent.
-            possibleconditions = newconditions(X, _ant)
+            conjunctibleatoms = newatoms(X, _ant)
 
             # @showlc atoms(i_ant[1]) :red
-            # @showlc i_possibleconditions :blue
+            # @showlc i_conjunctibleatoms :blue
 
-            isempty(possibleconditions) && continue
+            isempty(conjunctibleatoms) && continue
 
-            for (_atom, _cov) ∈ possibleconditions
+            for (_atom, _cov) ∈ conjunctibleatoms
 
-                (antformula, antcoverage) = deepcopy(_ant)
+                (antformula, antcoverage) = _ant
+                antformula = deepcopy(antformula)
 
-                new_antcformula = antformula ∧ _atom |> LeftmostConjunctiveForm
+                # new_antcformula = antformula ∧ _atom |> LeftmostConjunctiveForm
+                new_antcformula = push!(antformula, _atom)
                 new_antcoverage = antcoverage .& _cov
 
                 push!(specialized_ants, (new_antcformula, new_antcoverage))
@@ -172,16 +198,16 @@ function beamsearch(
     y::AbstractVector{<:CLabel},
     beam_width::Integer,
     quality_evaluator::F
-)::Tuple{LeftmostConjunctiveForm,BitVector} where {
+)::Tuple{LeftmostConjunctiveForm,SatMask} where {
     F<:Function
 }
 
     bestantecedent = (LeftmostConjunctiveForm([⊤]), ones(Int64, nrow(X)))
     bestantecedent_entropy = quality_evaluator(y)
 
-    newcandidates = Tuple{RuleAntecedent, BitVector}[]
+    newcandidates = Tuple{RuleAntecedent, SatMask}[]
     while true
-        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, BitVector}[]
+        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, SatMask}[]
         newcandidates = specializeantecedents(candidates, X)
         # @showlc candidates :green
 
@@ -206,6 +232,8 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel};
     beam_width::Integer = 3,
     quality_evaluator::Function = soleentropy,
+    max_rule_length::Union{Nothing,Integer} = nothing,
+    max_rulebase_length::Union{Nothing,Integer}=nothing,
 )::DecisionList
 
     length(y) != nrow(X) && error("size of X and y mismatch")
@@ -214,10 +242,16 @@ function sequentialcovering(
     uncoveredX = slicedataset(X, uncoveredslice; return_view = true)
     uncoveredy = y[uncoveredslice]
 
-    rulelist = Rule[]
+    rulebase = Rule[]
     while true
 
-        bestantecedent, bestantecedent_coverage = beamsearch(uncoveredX, uncoveredy, beam_width, quality_evaluator)
+        bestantecedent, bestantecedent_coverage = beamsearch(
+            uncoveredX,
+            uncoveredy,
+            beam_width;
+            quality_evaluator=quality_evaluator,
+            max_rule_length=max_rule_length
+        )
         istop(bestantecedent) && break
 
         consequent = uncoveredy[bestantecedent_coverage] |> mode
@@ -226,7 +260,11 @@ function sequentialcovering(
         )
         consequent_cm = ConstantModel(consequent, info_cm)
 
-        push!(rulelist, Rule(bestantecedent, consequent_cm))
+        push!(rulebase, Rule(bestantecedent, consequent_cm))
+        
+        if !isnothing(max_rulebase_length) && length(rulebase) > max_rulebase_length
+            break
+        end
 
         setdiff!(uncoveredslice, uncoveredslice[bestantecedent_coverage])
         uncoveredX = slicedataset(X, uncoveredslice; return_view = true)
@@ -235,8 +273,8 @@ function sequentialcovering(
     if !allunique(uncoveredy)
         error("Default class can't be created")
     end
-    defaultconsequent = uncoveredy[begin]
-    return DecisionList(rulelist, defaultconsequent)
+    defaultconsequent = SoleModels.bestguess(uncoveredy)
+    return DecisionList(rulebase, defaultconsequent)
 end
 
 sole_cn2 = sequentialcovering
