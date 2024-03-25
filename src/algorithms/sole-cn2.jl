@@ -148,7 +148,7 @@ function filteralphabet(
 )::Vector{Tuple{Atom, SatMask}}
 
     conditions = Atom{ScalarCondition}.(atoms(alph))
-    possible_conditions = [(a, interpret(a, X)) for a in conditions if a ∉ atoms(antecedent)]
+    possible_conditions = [(a, check(a, X)) for a in conditions if a ∉ atoms(antecedent)]
 
     return possible_conditions
 end
@@ -158,7 +158,7 @@ function filteralphabetoptimized(
     alphabet::AbstractAlphabet,
     antecedent::Tuple{RuleAntecedent, SatMask}
 )::Vector{Tuple{Atom, SatMask}}
-    return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
+    return [(a, check(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
 end
 
 function filteralphabetoptimized(
@@ -166,8 +166,7 @@ function filteralphabetoptimized(
     alphabet::BoundedScalarConditions,
     antecedent::Tuple{RuleAntecedent,SatMask}
 )::Vector{Tuple{Atom,SatMask}}
-    alphabet.grouped_featconditions
-    return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
+    return [(a, check(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
 end
 
 # function newatoms(
@@ -181,7 +180,7 @@ end
 #     # @show coveredX
 #     conditions = Atom{ScalarCondition}.(atoms(alphabet(coveredX)))
 #     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
-#     possible_conditions = [(a, interpret(a, X)) for a in conditions if a ∉ atoms(antecedent)]
+#     possible_conditions = [(a, check(a, X)) for a in conditions if a ∉ atoms(antecedent)]
 
 #     return possible_conditions
 # end
@@ -199,15 +198,14 @@ function newatoms(
     alph = alphabet(coveredX)
 
     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
-    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent) :
-                                        filteralphabet(X, alph, antecedent)
+    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent) : filteralphabet(X, alph, antecedent)
     return possible_conditions
 end
 
 
 """
     function specializeantecedents(
-        antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
+        antecedents::Vector{Tuple{RuleAntecbedent,SatMask}},
         X::PropositionalLogiset,
     )::Vector{Tuple{RuleAntecedent, SatMask}}
 
@@ -220,7 +218,7 @@ function specializeantecedents(
 )::Vector{Tuple{RuleAntecedent, SatMask}}
 
     if isempty(antecedents)
-        return map(a->(RuleAntecedent([a]), interpret(a, X)), alphabet(X))
+        return map(a->(RuleAntecedent([a]), check(a, X)), alphabet(X))
     else
         specialized_ants = Tuple{RuleAntecedent, SatMask}[]
         for _ant ∈ antecedents
