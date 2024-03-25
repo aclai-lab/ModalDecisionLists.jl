@@ -2,19 +2,52 @@ import SoleBase: CLabel
 using SoleLogics
 import SoleLogics: children
 using SoleData
-import SoleData: ScalarCondition, PropositionalLogiset, BoundedScalarConditions
+import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, BoundedScalarConditions
 import SoleData: alphabet
 using SoleModels: DecisionList, Rule, ConstantModel
 using DataFrames
 using StatsBase: mode, countmap
 using ModalDecisionLists
 
+#=
+
+
+using Test
+using SoleBase: CLabel
+using DataFrames
+using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list
+using SoleData
+using MLJ
+using StatsBase
+using Random
+import SoleData: PropositionalLogiset
+
+module BaseCN2
+include("../src/algorithms/base-cn2.jl")
+end
+
+module SoleCN2
+include("../src/algorithms/sole-cn2.jl")
+end
+
+# Input
+X...,y = MLJ.load_iris()
+X_df = DataFrame(X)
+X = PropositionalLogiset(X_df)
+n_instances = ninstances(X)
+y = Vector{CLabel}(y)
+
+=#
+
+
+
+
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
 const SatMask = BitVector
 
 istop(lmlf::LeftmostLinearForm) = children(lmlf) == [⊤]
 
-pushchildren!(φ::RuleAntecedent, a::Atom) = push!(φ.children, a)
+pushchildren!(φ::RuleAntecedent, a::Atom) = push!(φ.children, a) |> RuleAntecedent
 
 function soleentropy(
     y::AbstractVector{<:CLabel};
@@ -94,6 +127,8 @@ function sortantecedents(
     return (newstar_perm, bestantecedent_quality)
 end
 
+
+
 """
     newatoms(
         X::PropositionalLogiset,
@@ -105,32 +140,22 @@ and can further specialize the input formula. Each condition is decorated by a b
 indicating which examples in X satisfy that condition."
 
 """
-function newatoms(
+
+function filteralphabet(
     X::PropositionalLogiset,
-    antecedent::Tuple{RuleAntecedent, SatMask}
+    alph::AbstractAlphabet,
+    antecedent::RuleAntecedent
 )::Vector{Tuple{Atom, SatMask}}
 
-    (antecedent, satindexes) = antecedent
-
-    coveredX = slicedataset(X, satindexes; return_view = true)
-    # @show coveredX
-    ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
-    possible_conditions = perform_optimization ? filteralphabetoptimized(X, alphabet(coveredX), antecedent) : filteralphabet(X, alphabet(coveredX), antecedent)
+    conditions = Atom{ScalarCondition}.(atoms(alph))
+    possible_conditions = [(a, interpret(a, X)) for a in conditions if a ∉ atoms(antecedent)]
 
     return possible_conditions
 end
 
-function filteralphabet(
-    X::PropositionalLogiset,
-    alphabet::Alphabet,
-    antecedent::Tuple{RuleAntecedent, SatMask}
-)::Vector{Tuple{Atom, SatMask}}
-    return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
-end
-
 function filteralphabetoptimized(
     X::PropositionalLogiset,
-    alphabet::Alphabet,
+    alphabet::AbstractAlphabet,
     antecedent::Tuple{RuleAntecedent, SatMask}
 )::Vector{Tuple{Atom, SatMask}}
     return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
@@ -145,6 +170,39 @@ function filteralphabetoptimized(
     return [(a, interpret(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
 end
 
+# function newatoms(
+#     X::PropositionalLogiset,
+#     antecedent_info::Tuple{RuleAntecedent, BitVector}
+# )::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
+
+#     (antecedent, satindexes) = antecedent_info
+
+#     coveredX = slicedataset(X, satindexes; return_view = true)
+#     # @show coveredX
+#     conditions = Atom{ScalarCondition}.(atoms(alphabet(coveredX)))
+#     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
+#     possible_conditions = [(a, interpret(a, X)) for a in conditions if a ∉ atoms(antecedent)]
+
+#     return possible_conditions
+# end
+
+
+function newatoms(
+    X::PropositionalLogiset,
+    antecedent_info::Tuple{RuleAntecedent, BitVector};
+    optimize = false
+)::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
+
+    (antecedent, satindexes) = antecedent_info
+    coveredX = slicedataset(X, satindexes; return_view = true)
+
+    alph = alphabet(coveredX)
+
+    ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
+    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent) :
+                                        filteralphabet(X, alph, antecedent)
+    return possible_conditions
+end
 
 
 """
@@ -172,7 +230,7 @@ function specializeantecedents(
             # of the instances already covered by the antecedent.
             conjunctibleatoms = newatoms(X, _ant)
 
-            # @showlc atoms(i_ant[1]) :red
+            # @showlc atoms(_ant[1]) :red
             # @showlc i_conjunctibleatoms :blue
 
             isempty(conjunctibleatoms) && continue
@@ -182,8 +240,8 @@ function specializeantecedents(
                 (antformula, antcoverage) = _ant
                 antformula = deepcopy(antformula)
 
-                # new_antcformula = antformula ∧ _atom |> LeftmostConjunctiveForm
-                new_antcformula = push!(antformula, _atom)
+                # new_antcformula = antformula ∧ _atom
+                new_antcformula = pushchildren!(antformula, _atom)
                 new_antcoverage = antcoverage .& _cov
 
                 push!(specialized_ants, (new_antcformula, new_antcoverage))
@@ -196,8 +254,9 @@ end
 function beamsearch(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    beam_width::Integer,
-    quality_evaluator::F
+    beam_width::Integer;
+    quality_evaluator::F,
+    max_rule_length
 )::Tuple{LeftmostConjunctiveForm,SatMask} where {
     F<:Function
 }
@@ -261,7 +320,7 @@ function sequentialcovering(
         consequent_cm = ConstantModel(consequent, info_cm)
 
         push!(rulebase, Rule(bestantecedent, consequent_cm))
-        
+
         if !isnothing(max_rulebase_length) && length(rulebase) > max_rulebase_length
             break
         end
