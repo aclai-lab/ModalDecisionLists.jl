@@ -109,8 +109,8 @@ value of the best one
 
 """
 function sortantecedents(
-    antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
-    y::AbstractVector{CLabel},
+    antecedents::AbstractVector{Tuple{RuleAntecedent, SatMask}},
+    y::AbstractVector{<:CLabel},
     beam_width::Integer,
     quality_evaluator::F,
 )::Tuple{Vector{Int},<:Real} where {
@@ -172,22 +172,6 @@ function filteralphabetoptimized(
     return [(a, check(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
 end
 
-# function newatoms(
-#     X::PropositionalLogiset,
-#     antecedent_info::Tuple{RuleAntecedent, BitVector}
-# )::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
-
-#     (antecedent, satindexes) = antecedent_info
-
-#     coveredX = slicedataset(X, satindexes; return_view = true)
-#     # @show coveredX
-#     conditions = Atom{ScalarCondition}.(atoms(alphabet(coveredX)))
-#     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
-#     possible_conditions = [(a, check(a, X)) for a in conditions if a ∉ atoms(antecedent)]
-
-#     return possible_conditions
-# end
-
 
 function newatoms(
     X::PropositionalLogiset,
@@ -221,7 +205,36 @@ function specializeantecedents(
 )::Vector{Tuple{RuleAntecedent, SatMask}}
 
     if isempty(antecedents)
-        return map(a->(RuleAntecedent([a]), check(a, X)), alphabet(X))
+
+        _alphabet = alphabet(X)
+        _ninstances = ninstances(X)
+
+        specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
+        for gfc in _alphabet.grouped_featconditions
+
+            atomslist = atoms(gfc)
+
+            (mc, _) = gfc
+            mc.test_operator == (>=) && reverse!(atomslist)
+
+            uncoveredslice = collect(1:_ninstances)
+            antecedent_cov = zeros(Bool, _ninstances)
+            partial_specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
+
+            for _atom in atomslist
+                atom_cov = check(_atom, slicedataset(X, uncoveredslice; return_view = false))
+
+                antecedent_cov[uncoveredslice] = atom_cov
+                uncoveredslice = uncoveredslice[map(!, atom_cov)]
+                push!(partial_specialized_ants, (RuleAntecedent([_atom]), antecedent_cov))
+            end
+            mc.test_operator == (>=) && reverse!(partial_specialized_ants)
+            append!(specialized_ants, partial_specialized_ants)
+
+        end
+        return specialized_ants
+
+        # return map(a->(RuleAntecedent([a]), check(a, X)), alphabet(X))
     else
         specialized_ants = Tuple{RuleAntecedent, SatMask}[]
         for _ant ∈ antecedents
@@ -248,8 +261,8 @@ function specializeantecedents(
                 push!(specialized_ants, (new_antcformula, new_antcoverage))
             end
         end
+        return specialized_ants
     end
-    return specialized_ants
 end
 
 function beamsearch(
