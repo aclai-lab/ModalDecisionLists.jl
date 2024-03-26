@@ -206,35 +206,38 @@ function specializeantecedents(
 
     if isempty(antecedents)
 
-        _alphabet = alphabet(X)
-        _ninstances = ninstances(X)
+        _alph = alphabet(X)
+        _nrow = ninstances(X)
 
         specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
-        for gfc in _alphabet.grouped_featconditions
+        for gfc in SoleData.featconditions(_alph)
 
             atomslist = atoms(gfc)
 
-            (mc, _) = gfc
-            mc.test_operator == (>=) && reverse!(atomslist)
+            (metacondition, _) = gfc
+            (metacondition.test_operator == (>=)) &&
+                reverse!(atomslist)
 
-            uncoveredslice = collect(1:_ninstances)
-            antecedent_cov = zeros(Bool, _ninstances)
-            partial_specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
+            uncoveredslice = collect(1:_nrow)
+            antecedent_satindexes = zeros(Bool, _nrow)
 
+            partial_antslist = Vector{Tuple{RuleAntecedent, SatMask}}([])
             for _atom in atomslist
-                atom_cov = check(_atom, slicedataset(X, uncoveredslice; return_view = false))
+                atom_satindexes = check(_atom, slicedataset(X, uncoveredslice; return_view = false))
 
-                antecedent_cov[uncoveredslice] = atom_cov
-                uncoveredslice = uncoveredslice[map(!, atom_cov)]
-                push!(partial_specialized_ants, (RuleAntecedent([_atom]), antecedent_cov))
+                antecedent_satindexes[uncoveredslice] = atom_satindexes
+                uncoveredslice = uncoveredslice[map(!, atom_satindexes)]
+                push!(partial_antslist, (RuleAntecedent([_atom]), antecedent_satindexes))
             end
-            mc.test_operator == (>=) && reverse!(partial_specialized_ants)
-            append!(specialized_ants, partial_specialized_ants)
 
+            metacondition.test_operator == (>=) &&
+                reverse!(partial_antslist)
+
+            append!(specialized_ants, partial_antslist)
         end
         return specialized_ants
 
-        # return map(a->(RuleAntecedent([a]), check(a, X)), alphabet(X))
+        return map(a->(RuleAntecedent([a]), check(a, X)), alphabet(X))
     else
         specialized_ants = Tuple{RuleAntecedent, SatMask}[]
         for _ant ∈ antecedents
