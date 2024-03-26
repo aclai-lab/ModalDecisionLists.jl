@@ -14,8 +14,7 @@ include("core.jl")
 
 export RuleAntecedent
 
-include("myhelp.jl")
-
+# Temporaneamente qui
 export @showlc
 
 module BaseCN2
