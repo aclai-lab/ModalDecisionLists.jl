@@ -11,7 +11,7 @@ using SoleModels: default_weights, balanced_weights, bestguess
 using DataFrames
 using StatsBase: mode, countmap
 using FillArrays
-
+using ModalDecisionLists
 #=
 
 
@@ -215,13 +215,13 @@ function specializeantecedents(
 
         specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
         for gfc in SoleData.grouped_featconditions(_alph)
-
             atomslist = SoleData._atoms(gfc) # TODO rename function _atoms
 
             (metacondition, _) = gfc
+
             op = metacondition.test_operator
             (SoleData.isordered(op) && SoleData.polarity(op)) &&
-                Iterators.reverse(atomslist)
+                (atomslist = Iterators.reverse(atomslist))
 
             uncoveredslice = collect(1:_ninst)
             antecedent_satindexes = zeros(Bool, _ninst)
@@ -232,11 +232,16 @@ function specializeantecedents(
 
                 antecedent_satindexes[uncoveredslice] = atom_satindexes
                 uncoveredslice = uncoveredslice[map(!, atom_satindexes)]
+
+                # @show _atom
+                # @show uncoveredslice
+                # readline()
+
                 push!(partial_antslist, (RuleAntecedent([_atom]), antecedent_satindexes))
             end
 
             (SoleData.isordered(op) && SoleData.polarity(op)) &&
-                Iterators.reverse(partial_antslist)
+                (partial_antslist = Iterators.reverse(partial_antslist))
 
             append!(specialized_ants, partial_antslist)
         end
@@ -331,12 +336,12 @@ function sequentialcovering(
     else
         w
     end
-    
+
     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
-    
+
     y = y |> maptointeger
-    
+
     # DEBUG
     # uncoveredslice = collect(1:ninstances(X))
 

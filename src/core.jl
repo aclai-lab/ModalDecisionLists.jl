@@ -1,7 +1,9 @@
 
+
+
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
-# const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom}
 const SatMask = BitVector
+
 
 ############################################################################################
 ############ helping function ##############################################################
