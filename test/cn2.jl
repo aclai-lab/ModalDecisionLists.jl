@@ -6,15 +6,9 @@ using SoleData
 using MLJ
 using StatsBase
 using Random
+using ModalDecisionLists
+using ModalDecisionLists: BaseCN2, SoleCN2
 import SoleData: PropositionalLogiset
-
-module BaseCN2
-include("../src/algorithms/base-cn2.jl")
-end
-
-module SoleCN2
-include("../src/algorithms/sole-cn2.jl")
-end
 
 # Input
 X...,y = MLJ.load_iris()
@@ -31,6 +25,9 @@ sole_decisionlist = SoleCN2.sole_cn2(X, y)
 
 @test base_decisionlist isa DecisionList
 @test sole_decisionlist isa DecisionList
+
+# Quick chec
+@test string(base_decisionlist) == string(sole_decisionlist)
 
 base_outcome_on_training = apply(base_decisionlist, X)
 sole_outcome_on_training = apply(sole_decisionlist, X)
@@ -99,6 +96,16 @@ imported_decisionlist = SoleModels.orange_decision_list(orange_decisionlist, tru
 antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
                         SoleModels.antecedent.(rulebase(sole_decisionlist)))
 
+
+# Check condition equivalence
+function checkconditionsequivalence(
+  φ1::LeftmostConjunctiveForm{<:Atom},
+  φ2::LeftmostConjunctiveForm{<:Atom},
+)::Bool
+  return length(φ1) == length(φ2) &&
+         !any(iszero, map(x -> x ∈ atoms(φ1), atoms(φ2)))
+end
+
 @test [checkconditionsequivalence(i_ant, s_ant) for (i_ant, s_ant) in antpairs] |> all
 
 
@@ -146,8 +153,11 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
 
 # ############################################################################################
 
-# using BenchmarkTools
-# # Time
+using BenchmarkTools
+# Time
+@benchmark BaseCN2.base_cn2(X_df, y)
+@benchmark SoleCN2.sole_cn2(X, y)
+
 # @btime BaseCN2.base_cn2(X_df, y)
 # @btime SoleCN2.sole_cn2(X, y)
 
