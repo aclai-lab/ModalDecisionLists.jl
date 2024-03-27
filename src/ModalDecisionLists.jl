@@ -12,16 +12,16 @@ using Reexport
 
 include("core.jl")
 
-export RuleAntecedent, BitMask
-
 # Temporaneamente qui
 export @showlc
 
 module BaseCN2
+using ModalDecisionLists: RuleAntecedent, SatMask
 include("algorithms/base-cn2.jl")
 end
 
 module SoleCN2
+using ModalDecisionLists: RuleAntecedent, SatMask
 include("algorithms/sole-cn2.jl")
 end
 

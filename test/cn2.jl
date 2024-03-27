@@ -6,8 +6,9 @@ using SoleData
 using MLJ
 using StatsBase
 using Random
-import SoleData: PropositionalLogiset
 using ModalDecisionLists
+using ModalDecisionLists: BaseCN2, SoleCN2
+import SoleData: PropositionalLogiset
 
 # Input
 X...,y = MLJ.load_iris()
@@ -18,8 +19,8 @@ y = Vector{CLabel}(y)
 
 # Check condition equivalence
 function checkconditionsequivalence(
-    φ1::RuleAntecedent,
-    φ2::RuleAntecedent,
+    φ1::LeftmostConjunctiveForm{<:Atom},
+    φ2::LeftmostConjunctiveForm{<:Atom},
 )::Bool
     return  length(φ1) == length(φ2) &&
             !any(iszero, map( x-> x ∈ atoms(φ1), atoms(φ2)))
@@ -32,6 +33,7 @@ end
 # base
 base_decisionlist = BaseCN2.base_cn2(X_df, y)
 @test base_decisionlist isa DecisionList
+
 base_outcome_on_training = apply(base_decisionlist, X)
 @test all(base_outcome_on_training .== y)
 
@@ -42,7 +44,11 @@ sole_decisionlist = SoleCN2.sole_cn2(X, y)
 sole_outcome_on_training = apply(sole_decisionlist, X)
 
 # Sole outomes are index (Int, not CLabel)
-# @test all(sole_outcome_on_training .== y)
+@test all(sole_outcome_on_training .== y)
+
+
+# Quick check
+@test string(base_decisionlist) == string(sole_decisionlist)
 
 
 orange_decisionlist = """
@@ -105,6 +111,7 @@ imported_decisionlist = SoleModels.orange_decision_list(orange_decisionlist, tru
 antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
                         SoleModels.antecedent.(rulebase(sole_decisionlist)))
 
+
 @test [checkconditionsequivalence(i_ant, s_ant) for (i_ant, s_ant) in antpairs] |> all
 
 
@@ -148,8 +155,11 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
 # ############################################################################################
 
 using BenchmarkTools
-# # Time
+# Time
+display(@benchmark BaseCN2.base_cn2(X_df, y))
+display(@benchmark SoleCN2.sole_cn2(X, y))
+
 # @btime BaseCN2.base_cn2(X_df, y)
-@benchmark SoleCN2.sole_cn2(X, y)
+# @btime SoleCN2.sole_cn2(X, y)
 
 # @test_broken outcome_on_training = apply(decision_list, X_pl_view)
