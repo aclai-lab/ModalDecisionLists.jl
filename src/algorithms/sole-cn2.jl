@@ -46,19 +46,11 @@ abstract type SearchMethod end
 
 struct BeamSearch <: SearchMethod end
 
-
-
-
-const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom}
-const SatMask = BitVector
-
-istop(lmlf::LeftmostLinearForm) = SoleLogics.children(lmlf) == [⊤]
-
 function soleentropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector = default_weights(length(y));
 )::Float32
-    distribution = values(countmap(y, w))
+    distribution = values((w isa Ones ? countmap(y) : countmap(y, w)))
     isempty(distribution) &&
         return Inf
     length(distribution) == 1 &&
@@ -149,20 +141,24 @@ function filteralphabet(
     return possible_conditions
 end
 
-function filteralphabetoptimized(
-    X::PropositionalLogiset,
-    alphabet::AbstractAlphabet,
-    antecedent::Tuple{RuleAntecedent, SatMask}
-)::Vector{Tuple{Atom, SatMask}}
-    return [(a, check(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
-end
 
 function filteralphabetoptimized(
     X::PropositionalLogiset,
-    alphabet::BoundedScalarConditions,
-    antecedent::Tuple{RuleAntecedent,SatMask}
+    alph::BoundedScalarConditions,
+    antecedent_info::Tuple{RuleAntecedent,SatMask}
 )::Vector{Tuple{Atom,SatMask}}
-    return [(a, check(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
+
+    antecedent, ant_mask = antecedent_info
+    conditions = Atom{ScalarCondition}.(atoms(alph))
+
+    filtered_conditions = [(a, check(a, X)) for a ∈ conditions if a ∉ atoms(antecedent)]
+
+    optimizd_conditions = [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions if
+                                            begin
+                                                new_antmask = ant_mask .& atom_mask
+                                                new_antmask != ant_mask
+                                            end]
+
 end
 
 # function newatoms(
@@ -194,7 +190,9 @@ function newatoms(
     alph = alphabet(coveredX)
 
     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
-    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent) : filteralphabet(X, alph, antecedent)
+    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent_info) :
+                                filteralphabet(X, alph, antecedent)
+
     return possible_conditions
 end
 
@@ -260,9 +258,9 @@ function findbestantecedent(
     beam_width::Integer = 3,
     quality_evaluator::Function = soleentropy,
     max_rule_length::Union{Nothing,Integer} = nothing,
-)::Tuple{LeftmostConjunctiveForm,SatMask}
+)::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
-    best = (LeftmostConjunctiveForm([⊤]), ones(Int64, nrow(X)))
+    best = (⊤, ones(Int64, nrow(X)))
     best_entropy = quality_evaluator(y, w)
 
     newcandidates = Tuple{RuleAntecedent, SatMask}[]
@@ -326,7 +324,7 @@ function sequentialcovering(
             uncoveredw;
             kwargs...
         )
-        istop(bestantecedent) && break
+        bestantecedent == ⊤ && break
 
         rule = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]

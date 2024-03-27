@@ -16,24 +16,37 @@ X_df = DataFrame(X)
 X = PropositionalLogiset(X_df)
 n_instances = ninstances(X)
 y = Vector{CLabel}(y)
+
+# Check condition equivalence
+function checkconditionsequivalence(
+    φ1::LeftmostConjunctiveForm{<:Atom},
+    φ2::LeftmostConjunctiveForm{<:Atom},
+)::Bool
+    return  length(φ1) == length(φ2) &&
+            !any(iszero, map( x-> x ∈ atoms(φ1), atoms(φ2)))
+end
 ############################################################################################
 
 
 # Test
+
+# base
 base_decisionlist = BaseCN2.base_cn2(X_df, y)
-sole_decisionlist = SoleCN2.sole_cn2(X, y)
-
 @test base_decisionlist isa DecisionList
-@test sole_decisionlist isa DecisionList
-
-# Quick chec
-@test string(base_decisionlist) == string(sole_decisionlist)
 
 base_outcome_on_training = apply(base_decisionlist, X)
-sole_outcome_on_training = apply(sole_decisionlist, X)
-
 @test all(base_outcome_on_training .== y)
+
+
+# sole
+sole_decisionlist = SoleCN2.sole_cn2(X, y)
+@test sole_decisionlist isa DecisionList
+sole_outcome_on_training = apply(sole_decisionlist, X)
 @test all(sole_outcome_on_training .== y)
+
+
+# Quick check
+@test string(base_decisionlist) == string(sole_decisionlist)
 
 
 orange_decisionlist = """
@@ -97,24 +110,10 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
                         SoleModels.antecedent.(rulebase(sole_decisionlist)))
 
 
-# Check condition equivalence
-function checkconditionsequivalence(
-  φ1::LeftmostConjunctiveForm{<:Atom},
-  φ2::LeftmostConjunctiveForm{<:Atom},
-)::Bool
-  return length(φ1) == length(φ2) &&
-         !any(iszero, map(x -> x ∈ atoms(φ1), atoms(φ2)))
-end
-
 @test [checkconditionsequivalence(i_ant, s_ant) for (i_ant, s_ant) in antpairs] |> all
 
 
 
-
-# @test SoleModels.antecedent.(listrules(sole_decisionlist)) == SoleModels.antecedent.(listrules(base_decisionlist))
-# @test SoleModels.consequent.(listrules(sole_decisionlist)) == SoleModels.consequent.(listrules(sole_decisionlist))
-
-# @test (listrules(sole_decisionlist)) == (listrules(base_decisionlist))
 
 ############################################################################################
 
