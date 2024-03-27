@@ -211,19 +211,20 @@ function specializeantecedents(
     if isempty(antecedents)
 
         _alph = alphabet(X)
-        _nrow = ninstances(X)
+        _ninst = ninstances(X)
 
         specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
-        for gfc in SoleData.featconditions(_alph)
+        for gfc in SoleData.grouped_featconditions(_alph)
 
-            atomslist = atoms(gfc)
+            atomslist = SoleData._atoms(gfc) # TODO rename function _atoms
 
             (metacondition, _) = gfc
-            (metacondition.test_operator == (>=)) &&
-                reverse!(atomslist)
+            op = metacondition.test_operator
+            (SoleData.isordered(op) && SoleData.polarity(op)) &&
+                Iterators.reverse(atomslist)
 
-            uncoveredslice = collect(1:_nrow)
-            antecedent_satindexes = zeros(Bool, _nrow)
+            uncoveredslice = collect(1:_ninst)
+            antecedent_satindexes = zeros(Bool, _ninst)
 
             partial_antslist = Vector{Tuple{RuleAntecedent, SatMask}}([])
             for _atom in atomslist
@@ -234,8 +235,8 @@ function specializeantecedents(
                 push!(partial_antslist, (RuleAntecedent([_atom]), antecedent_satindexes))
             end
 
-            metacondition.test_operator == (>=) &&
-                reverse!(partial_antslist)
+            (SoleData.isordered(op) && SoleData.polarity(op)) &&
+                Iterators.reverse(partial_antslist)
 
             append!(specialized_ants, partial_antslist)
         end
