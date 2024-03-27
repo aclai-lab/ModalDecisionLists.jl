@@ -42,9 +42,6 @@ y = Vector{CLabel}(y)
 
 
 
-const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
-const SatMask = BitVector
-
 istop(lmlf::LeftmostLinearForm) = children(lmlf) == [⊤]
 
 pushchildren!(φ::RuleAntecedent, a::Atom) = push!(φ.children, a) |> RuleAntecedent

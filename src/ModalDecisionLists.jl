@@ -12,7 +12,7 @@ using Reexport
 
 include("core.jl")
 
-export RuleAntecedent
+export RuleAntecedent, BitMask
 
 # Temporaneamente qui
 export @showlc

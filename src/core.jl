@@ -1,6 +1,6 @@
 
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
-
+const SatMask = BitVector
 function checkconditionsequivalence(
     φ1::RuleAntecedent,
     φ2::RuleAntecedent,
