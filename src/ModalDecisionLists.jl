@@ -13,6 +13,7 @@ using Reexport
 include("core.jl")
 
 export RuleAntecedent
+export SatMask
 
 # Temporaneamente qui
 export @showlc

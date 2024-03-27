@@ -42,8 +42,6 @@ y = Vector{CLabel}(y)
 
 
 
-const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
-const SatMask = BitVector
 
 istop(lmlf::LeftmostLinearForm) = children(lmlf) == [⊤]
 
@@ -145,20 +143,24 @@ function filteralphabet(
     return possible_conditions
 end
 
-function filteralphabetoptimized(
-    X::PropositionalLogiset,
-    alphabet::AbstractAlphabet,
-    antecedent::Tuple{RuleAntecedent, SatMask}
-)::Vector{Tuple{Atom, SatMask}}
-    return [(a, check(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
-end
 
 function filteralphabetoptimized(
     X::PropositionalLogiset,
-    alphabet::BoundedScalarConditions,
-    antecedent::Tuple{RuleAntecedent,SatMask}
+    alph::BoundedScalarConditions,
+    antecedent_info::Tuple{RuleAntecedent,SatMask}
 )::Vector{Tuple{Atom,SatMask}}
-    return [(a, check(a, X)) for a in alphabet if a ∉ atoms(antecedent)]
+
+    antecedent, ant_mask = antecedent_info
+    conditions = Atom{ScalarCondition}.(atoms(alph))
+
+    filtered_conditions = [(a, check(a, X)) for a ∈ conditions if a ∉ atoms(antecedent)]
+
+    optimizd_conditions = [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions if
+                                            begin
+                                                new_antmask = ant_mask .& atom_mask
+                                                new_antmask != ant_mask
+                                            end]
+
 end
 
 # function newatoms(
@@ -190,7 +192,9 @@ function newatoms(
     alph = alphabet(coveredX)
 
     ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
-    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent) : filteralphabet(X, alph, antecedent)
+    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent_info) :
+                                filteralphabet(X, alph, antecedent)
+
     return possible_conditions
 end
 

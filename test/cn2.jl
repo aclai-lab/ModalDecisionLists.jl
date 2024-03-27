@@ -147,7 +147,7 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
 
 using BenchmarkTools
 # # Time
-# @btime BaseCN2.base_cn2(X_df, y)
+@benchmark BaseCN2.base_cn2(X_df, y)
 @benchmark SoleCN2.sole_cn2(X, y)
 
 # @test_broken outcome_on_training = apply(decision_list, X_pl_view)
