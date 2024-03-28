@@ -4,7 +4,7 @@ using SoleLogics
 using SoleLogics: nconjuncts, pushconjunct!
 using SoleData
 import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, BoundedScalarConditions
-import SoleData: alphabet
+import SoleData: alphabet, test_operator, isordered, polarity, _atoms
 using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
 using SoleModels: default_weights, balanced_weights, bestguess
@@ -12,39 +12,13 @@ using DataFrames
 using StatsBase: mode, countmap, counts
 using FillArrays
 using ModalDecisionLists
-#=
 
-
-using Test
-using SoleBase: CLabel
-using DataFrames
-using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list
-using SoleData
-using MLJ
-using StatsBase
-using Random
-import SoleData: PropositionalLogiset
-
-module BaseCN2
-include("../src/algorithms/base-cn2.jl")
-end
-
-module SoleCN2
-include("../src/algorithms/sole-cn2.jl")
-end
-
-# Input
-X...,y = MLJ.load_iris()
-X_df = DataFrame(X)
-X = PropositionalLogiset(X_df)
-n_instances = ninstances(X)
-y = Vector{CLabel}(y)
-
-=#
 
 abstract type SearchMethod end
 
 struct BeamSearch <: SearchMethod end
+struct RandSearch <: SearchMethod end
+
 
 function maptointeger(y::AbstractVector{<:CLabel})
 
@@ -61,6 +35,8 @@ function soleentropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector = default_weights(length(y));
 )
+    isempty(y) && return Inf
+
     distribution = values((w isa Ones ? countmap(y) : countmap(y, w)))
     length(distribution) == 1 && return 0.0
 
@@ -73,16 +49,6 @@ end
 # )::AbstractVector{UnivariateSymbolValue}
 #     conditions = value.(atoms(φ))
 #     return feature.(conditions)
-# end
-# function conjunctibleconds(
-#     bsc::BoundedScalarConditions,
-#     φ::Formula
-# )::Union{Bool,BoundedScalarConditions}
-
-#     φ_features = feature(φ)
-#     conds = [(meta_cond, vals) for (meta_cond, vals) ∈ bsc.grouped_featconditions
-#                 if feature(meta_cond) ∉ φ_features]
-#     return conds == [] ? false : BoundedScalarConditions{ScalarCondition}(conds)
 # end
 
 """
@@ -209,36 +175,33 @@ function specializeantecedents(
 
         specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
         for gfc in SoleData.grouped_featconditions(_alph)
-            atomslist = SoleData._atoms(gfc) # TODO rename function _atoms
+            atomslist = _atoms(gfc) # TODO rename function _atoms
 
             (metacondition, _) = gfc
 
-            op = metacondition.test_operator
-            (SoleData.isordered(op) && SoleData.polarity(op)) &&
-                (atomslist = Iterators.reverse(atomslist))
+            op = test_operator(metacondition)
+            # In
+            (isordered(op) && polarity(op)) && (atomslist = Iterators.reverse(atomslist))
 
+            freshants_list = Vector{Tuple{RuleAntecedent, SatMask}}([])
             uncoveredslice = collect(1:_ninst)
-            antecedent_satindexes = zeros(Bool, _ninst)
+            ant_satindexes = zeros(Bool, _ninst)
 
-            partial_antslist = Vector{Tuple{RuleAntecedent, SatMask}}([])
             for _atom in atomslist
-                atom_satindexes = check(_atom, slicedataset(X, uncoveredslice; return_view = false))
 
-                antecedent_satindexes[uncoveredslice] = atom_satindexes
+                uncoveredX = slicedataset(X, uncoveredslice; return_view = false)
+                atom_satindexes = check(_atom, uncoveredX)
+
+                ant_satindexes[uncoveredslice] = atom_satindexes
                 uncoveredslice = uncoveredslice[map(!, atom_satindexes)]
 
-
-                push!(partial_antslist, (RuleAntecedent([_atom]), antecedent_satindexes))
+                push!(freshants_list, (RuleAntecedent([_atom]), ant_satindexes))
             end
+            # Out
+            (isordered(op) && polarity(op)) && (freshants_list = Iterators.reverse(freshants_list))
 
-            (SoleData.isordered(op) && SoleData.polarity(op)) &&
-                (partial_antslist = Iterators.reverse(partial_antslist))
-
-            append!(specialized_ants, partial_antslist)
+            append!(specialized_ants, freshants_list)
         end
-        return specialized_ants
-
-        return map(a->(RuleAntecedent([a]), check(a, X)), alphabet(X))
     else
         specialized_ants = Tuple{RuleAntecedent, SatMask}[]
         for _ant ∈ antecedents
@@ -266,10 +229,15 @@ function specializeantecedents(
                 push!(specialized_ants, (antformula, new_antcoverage))
             end
         end
-        return specialized_ants
     end
+
+    return specialized_ants
 end
 
+
+############################################################################################
+############## Beam search #################################################################
+############################################################################################
 
 function findbestantecedent(
     ::BeamSearch,
@@ -301,6 +269,44 @@ function findbestantecedent(
     end
     return best
 end
+
+############################################################################################
+############## Random search ###############################################################
+############################################################################################
+
+function findbestantecedent(
+    ::RandSearch,
+    X::PropositionalLogiset,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector;
+    cardinality::Integer = 10,
+    quality_evaluator::Function = soleentropy,
+    operators::AbstractVector = [NEGATION, CONJUNCTION]
+)::Tuple{Formula,SatMask}
+
+
+    if !allunique(y)
+        atoms_list = alphabet(X) |> atoms |> collect
+        conditions = Vector{Atom{ScalarCondition}}(atoms_list)
+
+        randformulas = [begin
+                            rfa = randformula(2, conditions, operators)
+                            (rfa, check(rfa, X))
+                        end for _ in 1:cardinality]
+
+        evaluations = map(rf->begin
+                            satinds = rf[2]
+                            quality_evaluator(y[satinds], w[satinds])
+                        end, randformulas)
+
+        bestantecedent = randformulas[partialsortperm(evaluations, 1)]
+    else
+        bestantecedent = (⊤, ones(Int, length(y)))
+    end
+    return bestantecedent
+end
+
+
 
 function sequentialcovering(
     X::PropositionalLogiset,
@@ -343,6 +349,9 @@ function sequentialcovering(
             uncoveredw;
             kwargs...
         )
+        # @showlc [bestantecedent] :green
+        # println(countmap(uncoveredy[bestantecedent_coverage]))
+        # readline()
         bestantecedent == ⊤ && break
 
         rule = begin
@@ -388,6 +397,15 @@ function sole_cn2(
     kwargs...
 )
     return sequentialcovering(X, y, w; search_method=BeamSearch(), kwargs...)
+end
+
+function sole_rand(
+    X::PropositionalLogiset,
+    y::AbstractVector{<:CLabel},
+    w::Union{Nothing,AbstractVector,Symbol} = default_weights(length(y));
+    kwargs...
+)
+    return sequentialcovering(X, y, w; search_method=RandSearch(), kwargs...)
 end
 
 #= Int.(values(currentrule_distribution)) =#

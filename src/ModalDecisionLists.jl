@@ -11,8 +11,9 @@ using Reexport
 @reexport using SoleData
 
 include("core.jl")
-
 # Temporaneamente qui
+
+include("myhelp.jl")
 export @showlc
 
 module BaseCN2
