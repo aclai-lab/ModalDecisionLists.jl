@@ -9,7 +9,7 @@ using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
 using SoleModels: default_weights, balanced_weights, bestguess
 using DataFrames
-using StatsBase: mode, countmap
+using StatsBase: mode, countmap, counts
 using FillArrays
 using ModalDecisionLists
 #=
@@ -61,7 +61,6 @@ function soleentropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector = default_weights(length(y));
 )
-    isempty(y) && return Inf
     distribution = values((w isa Ones ? countmap(y) : countmap(y, w)))
     length(distribution) == 1 && return 0.0
 
@@ -164,12 +163,8 @@ function filteralphabetoptimized(
 
     filtered_conditions = [(a, check(a, X)) for a ∈ conditions if a ∉ atoms(antecedent)]
 
-    optimizd_conditions = [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions if
-                                            begin
-                                                new_antmask = ant_mask .& atom_mask
-                                                new_antmask != ant_mask
-                                            end]
-
+    return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
+                if (ant_mask .& atom_mask) != ant_mask]
 end
 
 
@@ -184,7 +179,6 @@ function newatoms(
 
     alph = alphabet(coveredX)
 
-    ### la copertura dei nuovi atomi la calcolo su X e NON su coveredX ###
     possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent_info) :
                                 filteralphabet(X, alph, antecedent)
 
@@ -233,9 +227,6 @@ function specializeantecedents(
                 antecedent_satindexes[uncoveredslice] = atom_satindexes
                 uncoveredslice = uncoveredslice[map(!, atom_satindexes)]
 
-                # @show _atom
-                # @show uncoveredslice
-                # readline()
 
                 push!(partial_antslist, (RuleAntecedent([_atom]), antecedent_satindexes))
             end
@@ -255,10 +246,7 @@ function specializeantecedents(
             # i_conjunctibleatoms refer to all the conditions (Atoms) that can be
             # joined to the i-th antecedent. These are calculated only for the values ​​
             # of the instances already covered by the antecedent.
-            conjunctibleatoms = newatoms(X, _ant)
-
-            # @showlc atoms(_ant[1]) :red
-            # @showlc i_conjunctibleatoms :blue
+            conjunctibleatoms = newatoms(X, _ant, optimize=true)
 
             isempty(conjunctibleatoms) && continue
 
@@ -300,7 +288,6 @@ function findbestantecedent(
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, SatMask}[]
         newcandidates = specializeantecedents(candidates, X, max_rule_length)
-        # @showlc candidates :green
 
         isempty(newcandidates) && break
 
@@ -311,10 +298,7 @@ function findbestantecedent(
             best_entropy = bestcandidate_entropy
         end
 
-        # readline()
-        # print("\033c")
     end
-    # @show best
     return best
 end
 
@@ -395,10 +379,12 @@ function sequentialcovering(
     return DecisionList(rulebase, defaultconsequent)
 end
 
+
+
 function sole_cn2(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector,Symbol}=default_weights(length(y));
+    w::Union{Nothing,AbstractVector,Symbol} = default_weights(length(y));
     kwargs...
 )
     return sequentialcovering(X, y, w; search_method=BeamSearch(), kwargs...)
