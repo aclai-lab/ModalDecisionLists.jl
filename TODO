@@ -14,7 +14,7 @@ Main:
         ☐ entropyMDL
         ☐ Rule validation
         ☐ LRS
-☐ Weighted relative accuracy
+        ☐ Weighted relative accuracy
     
     Utility:
         ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
@@ -26,6 +26,7 @@ Main:
         ✔ Verificare 100% accuratezza sul dataset di trainig ? @done(24-03-01 03:02)
         ☐ Divisione train/test come nei test di ModalDecisionTrees.jl, (vedi iris)
         ☐ Time (@time) 
+        ☐ Aggiungi qualche test (su un altro file test dedicato, per pulizia) che per verificare la robustezza di sole_cn2 e sequential_covering;
     
     Future: 
         ✔ Differenziare caso attributi discreti/categoriali

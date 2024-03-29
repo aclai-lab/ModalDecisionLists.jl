@@ -252,6 +252,10 @@ function findbestantecedent(
     best = (⊤, ones(Int64, nrow(X)))
     best_entropy = quality_evaluator(y, w)
 
+    @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
+    !isnothing(max_rule_length) && @assert max_rule_length > 0  "Parameter 'max_rule_length' cannot be less" *
+                                                                "than one. Please provide a valid value."
+
     newcandidates = Tuple{RuleAntecedent, SatMask}[]
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, SatMask}[]
@@ -284,7 +288,6 @@ function findbestantecedent(
     operators::AbstractVector = [NEGATION, CONJUNCTION]
 )::Tuple{Formula,SatMask}
 
-
     if !allunique(y)
         atoms_list = alphabet(X) |> atoms |> collect
         conditions = Vector{Atom{ScalarCondition}}(atoms_list)
@@ -293,12 +296,10 @@ function findbestantecedent(
                             rfa = randformula(2, conditions, operators)
                             (rfa, check(rfa, X))
                         end for _ in 1:cardinality]
-
-        evaluations = map(rf->begin
+        evaluations =  [begin
                             satinds = rf[2]
                             quality_evaluator(y[satinds], w[satinds])
-                        end, randformulas)
-
+                        end for rf in randformulas]
         bestantecedent = randformulas[partialsortperm(evaluations, 1)]
     else
         bestantecedent = (⊤, ones(Int, length(y)))
@@ -315,7 +316,7 @@ function sequentialcovering(
     search_method::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     kwargs...
-)::DecisionList where {U}
+)::DecisionList where {U<:Real}
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
 
@@ -329,6 +330,8 @@ function sequentialcovering(
 
     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+
+    (ninstances(X) == 0) && error("Empty trainig set")
 
     y = y |> maptointeger
 
@@ -393,7 +396,7 @@ end
 function sole_cn2(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector,Symbol} = default_weights(length(y));
+    w::Union{Nothing,AbstractVector{<:Real},Symbol} = default_weights(length(y));
     kwargs...
 )
     return sequentialcovering(X, y, w; search_method=BeamSearch(), kwargs...)
@@ -402,7 +405,7 @@ end
 function sole_rand(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector,Symbol} = default_weights(length(y));
+    w::Union{Nothing,AbstractVector{<:Real},Symbol} = default_weights(length(y));
     kwargs...
 )
     return sequentialcovering(X, y, w; search_method=RandSearch(), kwargs...)
