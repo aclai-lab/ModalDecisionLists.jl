@@ -19,7 +19,8 @@ Main:
     Utility:
         ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
             ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-03-04 17:11)
-            # già scritta soluzione temporanea    
+            # già scritta soluzione temporanea
+        ☐ add alphabet parameter  
     
     Testing:
         ☐ Scrivere test che chiama CN2, e che valuta la qualità del risultato

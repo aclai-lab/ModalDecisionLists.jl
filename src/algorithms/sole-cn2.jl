@@ -4,7 +4,7 @@ using SoleLogics
 using SoleLogics: nconjuncts, pushconjunct!
 using SoleData
 import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, BoundedScalarConditions
-import SoleData: alphabet, test_operator, isordered, polarity, _atoms
+import SoleData: alphabet, test_operator, isordered, polarity, turnatoms, grouped_featconditions
 using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
 using SoleModels: default_weights, balanced_weights, bestguess
@@ -111,7 +111,7 @@ function filteralphabet(
     antecedent::RuleAntecedent
 )::Vector{Tuple{Atom, SatMask}}
 
-    conditions = Atom{ScalarCondition}.(atoms(alph))
+    conditions = Atom{ScalarCondition}.(turnatoms(alph))
     possible_conditions = [(a, check(a, X)) for a in conditions if a ∉ atoms(antecedent)]
 
     return possible_conditions
@@ -125,7 +125,7 @@ function filteralphabetoptimized(
 )::Vector{Tuple{Atom,SatMask}}
 
     antecedent, ant_mask = antecedent_info
-    conditions = Atom{ScalarCondition}.(atoms(alph))
+    conditions = Atom{ScalarCondition}.(turnatoms(alph))
 
     filtered_conditions = [(a, check(a, X)) for a ∈ conditions if a ∉ atoms(antecedent)]
 
@@ -166,44 +166,46 @@ function specializeantecedents(
     antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
     X::PropositionalLogiset,
     max_rule_length::Union{Nothing,Integer}=nothing,
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{RuleAntecedent, SatMask}}
 
+    !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
+
     if isempty(antecedents)
+        specializedants = Tuple{RuleAntecedent, SatMask}[]
 
-        _alph = alphabet(X)
-        _ninst = ninstances(X)
+        selectedalphabet = isnothing(default_alphabet) ? alphabet(X) : default_alphabet
+        for (metacond, ths) in grouped_featconditions(selectedalphabet)
 
-        specialized_ants = Vector{Tuple{RuleAntecedent, SatMask}}([])
-        for gfc in SoleData.grouped_featconditions(_alph)
-            atomslist = _atoms(gfc) # TODO rename function _atoms
+            op = test_operator(metacond)
+            atomslist = turnatoms((metacond, ths))
 
-            (metacondition, _) = gfc
+            (isordered(op) && polarity(op)) &&
+                    (atomslist = Iterators.reverse(atomslist))
 
-            op = test_operator(metacondition)
-            # In
-            (isordered(op) && polarity(op)) && (atomslist = Iterators.reverse(atomslist))
+            metacond_relativeants = Tuple{RuleAntecedent, SatMask}[]
+            cumulative_satmask = zeros(Bool, ninstances(X))
+            uncoveredslice = collect(1:ninstances(X))
 
-            freshants_list = Vector{Tuple{RuleAntecedent, SatMask}}([])
-            uncoveredslice = collect(1:_ninst)
-            ant_satindexes = zeros(Bool, _ninst)
+            for atom in atomslist
 
-            for _atom in atomslist
+                atom_satmask = begin
+                    uncoveredX = slicedataset(X, uncoveredslice; return_view = false)
+                    check(atom, uncoveredX)
+                end
+                cumulative_satmask[uncoveredslice] = atom_satmask
+                uncoveredslice = uncoveredslice[map(!, atom_satmask)]
 
-                uncoveredX = slicedataset(X, uncoveredslice; return_view = false)
-                atom_satindexes = check(_atom, uncoveredX)
-
-                ant_satindexes[uncoveredslice] = atom_satindexes
-                uncoveredslice = uncoveredslice[map(!, atom_satindexes)]
-
-                push!(freshants_list, (RuleAntecedent([_atom]), ant_satindexes))
+                push!(metacond_relativeants, (RuleAntecedent([atom]), cumulative_satmask))
             end
-            # Out
-            (isordered(op) && polarity(op)) && (freshants_list = Iterators.reverse(freshants_list))
 
-            append!(specialized_ants, freshants_list)
+            (isordered(op) && polarity(op)) &&
+                    (metacond_relativeants = Iterators.reverse(metacond_relativeants))
+
+            append!(specializedants, metacond_relativeants)
         end
     else
-        specialized_ants = Tuple{RuleAntecedent, SatMask}[]
+        specializedants = Tuple{RuleAntecedent, SatMask}[]
         for _ant ∈ antecedents
 
             # i_conjunctibleatoms refer to all the conditions (Atoms) that can be
@@ -226,12 +228,12 @@ function specializeantecedents(
                 pushconjunct!(antformula, _atom)
                 new_antcoverage = antcoverage .& _cov
 
-                push!(specialized_ants, (antformula, new_antcoverage))
+                push!(specializedants, (antformula, new_antcoverage))
             end
         end
     end
 
-    return specialized_ants
+    return specializedants
 end
 
 
@@ -247,6 +249,7 @@ function findbestantecedent(
     beam_width::Integer = 3,
     quality_evaluator::Function = soleentropy,
     max_rule_length::Union{Nothing,Integer} = nothing,
+    alphabet::Union{Nothing,AbstractAlphabet} = nothing
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     best = (⊤, ones(Int64, nrow(X)))
@@ -259,7 +262,7 @@ function findbestantecedent(
     newcandidates = Tuple{RuleAntecedent, SatMask}[]
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, SatMask}[]
-        newcandidates = specializeantecedents(candidates, X, max_rule_length)
+        newcandidates = specializeantecedents(candidates, X, max_rule_length, alphabet)
 
         isempty(newcandidates) && break
 
@@ -307,7 +310,25 @@ function findbestantecedent(
     return bestantecedent
 end
 
+############################################################################################
+############## Sequenial Covering ##########################################################
+############################################################################################
 
+
+# TODO @edo documentation
+"""
+    function sequentialcovering(
+        X::PropositionalLogiset,
+        y::AbstractVector{<:CLabel},
+        w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
+        search_method::SearchMethod=BeamSearch(),
+        max_rulebase_length::Union{Nothing,Integer}=nothing,
+        kwargs...
+    )::DecisionList where {U<:Real}
+
+Return the decision list that cover the entire input dataset. This involves repeatedly
+learning individual rules and removing covered examples from the dataset.
+"""
 
 function sequentialcovering(
     X::PropositionalLogiset,
