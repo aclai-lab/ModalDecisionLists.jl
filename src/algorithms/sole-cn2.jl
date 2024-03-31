@@ -91,8 +91,6 @@ function sortantecedents(
     return (newstar_perm, bestantecedent_quality)
 end
 
-
-
 """
     newatoms(
         X::PropositionalLogiset,
@@ -117,7 +115,6 @@ function filteralphabet(
     return possible_conditions
 end
 
-
 function filteralphabetoptimized(
     X::PropositionalLogiset,
     alph::BoundedScalarConditions,
@@ -128,11 +125,11 @@ function filteralphabetoptimized(
     conditions = Atom{ScalarCondition}.(turnatoms(alph))
 
     filtered_conditions = [(a, check(a, X)) for a ∈ conditions if a ∉ atoms(antecedent)]
-
+    # Return every atom that, attached to the antecedent, bring a change in the
+    # distribution of the examles covered by the antecedent itself.
     return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
                 if (ant_mask .& atom_mask) != ant_mask]
 end
-
 
 function newatoms(
     X::PropositionalLogiset,
@@ -150,7 +147,6 @@ function newatoms(
 
     return possible_conditions
 end
-
 
 """
     specializeantecedents(
@@ -172,35 +168,47 @@ function specializeantecedents(
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
 
     if isempty(antecedents)
-        specializedants = Tuple{RuleAntecedent, SatMask}[]
 
+        specializedants = Tuple{RuleAntecedent, SatMask}[]
         selectedalphabet = isnothing(default_alphabet) ? alphabet(X) : default_alphabet
+
         for (metacond, ths) in grouped_featconditions(selectedalphabet)
 
             op = test_operator(metacond)
             atomslist = turnatoms((metacond, ths))
 
+            # Optimization
+            # The order in which the atomslist is iterated varies based on the comparison
+            # operator of the metacondition.
+            # (≤) ascending order iteration
+            # (≥) descending order iteration
             (isordered(op) && polarity(op)) &&
-                    (atomslist = Iterators.reverse(atomslist))
+                (atomslist = Iterators.reverse(atomslist))
 
+            # Contain all the antecedents thats can be generated from the
+            # (metacondition, treshold) tuple relative to this iteration.
             metacond_relativeants = Tuple{RuleAntecedent, SatMask}[]
+
+            # Remember that tresholds are sorted !
             cumulative_satmask = zeros(Bool, ninstances(X))
+
             uncoveredslice = collect(1:ninstances(X))
-
             for atom in atomslist
-
+                # if uncoveredslice is empty, then all next atoms cover the totality of
+                # instances in X. This implies that such atoms have no predicting power.
+                isempty(uncoveredslice) && break
                 atom_satmask = begin
                     uncoveredX = slicedataset(X, uncoveredslice; return_view = false)
                     check(atom, uncoveredX)
                 end
                 cumulative_satmask[uncoveredslice] = atom_satmask
-                uncoveredslice = uncoveredslice[map(!, atom_satmask)]
+                uncoveredslice = uncoveredslice[(!).(atom_satmask)]
 
                 push!(metacond_relativeants, (RuleAntecedent([atom]), cumulative_satmask))
             end
-
+            # before being inserted, the antecedents are rearranged in their original order
             (isordered(op) && polarity(op)) &&
-                    (metacond_relativeants = Iterators.reverse(metacond_relativeants))
+                (metacond_relativeants = Iterators.reverse(metacond_relativeants))
 
             append!(specializedants, metacond_relativeants)
         end
@@ -253,7 +261,7 @@ function findbestantecedent(
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     best = (⊤, ones(Int64, nrow(X)))
-    best_entropy = quality_evaluator(y, w)
+    best_quality = quality_evaluator(y, w)
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0  "Parameter 'max_rule_length' cannot be less" *
@@ -262,17 +270,16 @@ function findbestantecedent(
     newcandidates = Tuple{RuleAntecedent, SatMask}[]
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, SatMask}[]
-        newcandidates = specializeantecedents(candidates, X, max_rule_length, alphabet)
 
+        newcandidates = specializeantecedents(candidates, X, max_rule_length, alphabet)
         isempty(newcandidates) && break
 
-        (perm_, bestcandidate_entropy) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
+        (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
         newcandidates = newcandidates[perm_]
-        if bestcandidate_entropy < best_entropy
+        if bestcandidate_quality < best_quality
             best = newcandidates[1]
-            best_entropy = bestcandidate_entropy
+            best_quality = bestcandidate_quality
         end
-
     end
     return best
 end
@@ -373,9 +380,6 @@ function sequentialcovering(
             uncoveredw;
             kwargs...
         )
-        # @showlc [bestantecedent] :green
-        # println(countmap(uncoveredy[bestantecedent_coverage]))
-        # readline()
         bestantecedent == ⊤ && break
 
         rule = begin
