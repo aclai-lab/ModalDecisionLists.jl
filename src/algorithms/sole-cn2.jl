@@ -249,7 +249,7 @@ function findbestantecedent(
     max_rule_length::Union{Nothing,Integer} = nothing,
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
-    best = (⊤, ones(Int64, nrow(X)))
+    best = (⊤, ones(Bool, nrow(X)))
     best_entropy = quality_evaluator(y, w)
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
@@ -285,24 +285,21 @@ function findbestantecedent(
     w::AbstractVector;
     cardinality::Integer = 10,
     quality_evaluator::Function = soleentropy,
-    operators::AbstractVector = [NEGATION, CONJUNCTION]
+    operators::AbstractVector = [NEGATION, CONJUNCTION, DISJUNCTION],
+    syntaxheight::Integer = 2,
 )::Tuple{Formula,SatMask}
-
-    if !allunique(y)
-        atoms_list = alphabet(X) |> atoms |> collect
-        conditions = Vector{Atom{ScalarCondition}}(atoms_list)
-
-        randformulas = [begin
-                            rfa = randformula(2, conditions, operators)
-                            (rfa, check(rfa, X))
-                        end for _ in 1:cardinality]
-        evaluations =  [begin
-                            satinds = rf[2]
-                            quality_evaluator(y[satinds], w[satinds])
-                        end for rf in randformulas]
-        bestantecedent = randformulas[partialsortperm(evaluations, 1)]
-    else
-        bestantecedent = (⊤, ones(Int, length(y)))
+    bestantecedent = begin
+        if !allunique(y)
+            randformulas = [begin
+                    rfa = randformula(syntaxheight, alphabet(X), operators)
+                    (rfa, check(rfa, X))
+                end for _ in 1:cardinality]
+            argmax(((rfa, satmask),) -> begin
+                quality_evaluator(y[satmask], w[satmask])
+            end, randformulas)[1]
+        else
+            (⊤, ones(Bool, length(y)))
+        end
     end
     return bestantecedent
 end
@@ -313,7 +310,7 @@ function sequentialcovering(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
-    search_method::SearchMethod=BeamSearch(),
+    searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     kwargs...
 )::DecisionList where {U<:Real}
@@ -346,7 +343,7 @@ function sequentialcovering(
     while true
 
         bestantecedent, bestantecedent_coverage = findbestantecedent(
-            search_method,
+            searchmethod,
             uncoveredX,
             uncoveredy,
             uncoveredw;
@@ -399,7 +396,7 @@ function sole_cn2(
     w::Union{Nothing,AbstractVector{<:Real},Symbol} = default_weights(length(y));
     kwargs...
 )
-    return sequentialcovering(X, y, w; search_method=BeamSearch(), kwargs...)
+    return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
 end
 
 function sole_rand(
@@ -408,7 +405,7 @@ function sole_rand(
     w::Union{Nothing,AbstractVector{<:Real},Symbol} = default_weights(length(y));
     kwargs...
 )
-    return sequentialcovering(X, y, w; search_method=RandSearch(), kwargs...)
+    return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
 end
 
 #= Int.(values(currentrule_distribution)) =#
