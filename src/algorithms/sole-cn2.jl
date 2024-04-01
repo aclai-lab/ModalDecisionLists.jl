@@ -9,7 +9,7 @@ using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
 using SoleModels: default_weights, balanced_weights, bestguess
 using DataFrames
-using StatsBase: mode, countmap, counts
+using StatsBase: mode, countmap, counts, Weights
 using FillArrays
 using ModalDecisionLists
 
@@ -37,12 +37,13 @@ function soleentropy(
 )
     isempty(y) && return Inf
 
-    distribution = values((w isa Ones ? countmap(y) : countmap(y, w)))
+    distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
     length(distribution) == 1 && return 0.0
 
     prob = distribution ./ sum(distribution)
     return -sum(prob .* log2.(prob))
 end
+
 
 # function feature(
 #     φ::RuleAntecedent
@@ -85,6 +86,55 @@ function sortantecedents(
             quality_evaluator(y[satinds], w[satinds])
     end, antecedents)
 
+    newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
+    bestantecedent_quality = antsquality[newstar_perm[1]]
+
+    return (newstar_perm, bestantecedent_quality)
+end
+
+function increment!(
+    v::AbstractVector{<:Integer},
+    c::AbstractVector{<:Integer},
+    Δ::Int64
+)
+    for i_c in c v[i_c] += Δ end
+end
+
+############################################################################################
+# NON FUNZIONA
+############################################################################################
+# O meglio funziona solo per le metaconditions (V, ≤)
+function sortantecedents_new(
+    antecedents::AbstractVector{T},
+    y::AbstractVector{<:CLabel},
+    beam_width::Integer,
+)::Tuple{Vector{Int},<:Real} where {
+    T<:Tuple{RuleAntecedent, BitVector},
+}
+    isempty(antecedents) && return [], Inf
+    n_class = unique(y) |> length
+
+    distribution = zeros(Int64, n_class)
+    distrib_mask = zeros(Bool, length(y))
+    antsquality = []
+    for _ant in antecedents
+        a_, mask = _ant
+        # @show a_
+
+        # antecedent covered examples classes
+        difference_mask = (!).(distrib_mask) .& mask
+        # @show difference_mask
+        antcoverage = y[difference_mask]
+        increment!(distribution, antcoverage, 1)
+        # @show distribution
+        readline()
+        entropy = begin
+            prob = distribution ./ sum(distribution)
+            -sum(prob .* log2.(prob))
+        end
+        push!(antsquality, entropy)
+        distrib_mask = distrib_mask .| difference_mask
+    end
     newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
     bestantecedent_quality = antsquality[newstar_perm[1]]
 
@@ -275,6 +325,7 @@ function findbestantecedent(
         isempty(newcandidates) && break
 
         (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
+        # (perm_, bestcandidate_quality) = sortantecedents_new(newcandidates, y, beam_width)
         newcandidates = newcandidates[perm_]
         if bestcandidate_quality < best_quality
             best = newcandidates[1]
