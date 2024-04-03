@@ -62,14 +62,12 @@ Then the permutation of the bests *beam_search* sorted antecedent is returned wi
 value of the best one
 """
 function sortantecedents(
-    antecedents::AbstractVector{T},
+    antecedents::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
     quality_evaluator::Function,
-)::Tuple{Vector{Int},<:Real} where {
-    T<:Tuple{RuleAntecedent, BitVector},
-}
+)::Tuple{Vector{Int},<:Real}
     isempty(antecedents) && return [], Inf
 
     antsquality = map(antd->begin
@@ -130,7 +128,7 @@ function filteralphabet(
     antecedent::RuleAntecedent
 )::Vector{Tuple{Atom, SatMask}}
 
-    conditions = Atom{ScalarCondition}.(turnatoms(alph))
+    conditions = Atom{ScalarCondition}.(atoms(alph))
     possible_conditions = [(a, check(a, X)) for a in conditions if a ∉ atoms(antecedent)]
 
     return possible_conditions
@@ -155,7 +153,7 @@ function filteralphabetoptimized(
 )::Vector{Tuple{Atom,SatMask}}
 
     antecedent, ant_mask = antecedent_info
-    conditions = Atom{ScalarCondition}.(turnatoms(alph))
+    conditions = Atom{ScalarCondition}.(atoms(alph))
 
     filtered_conditions = [(a, check(a, X)) for a ∈ conditions if a ∉ atoms(antecedent)]
     # Return every atom that, attached to the antecedent, bring a change in the
@@ -203,7 +201,7 @@ function specializeantecedents(
     antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
     X::PropositionalLogiset,
     max_rule_length::Union{Nothing,Integer}=nothing,
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Tuple{RuleAntecedent, SatMask}}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
@@ -216,7 +214,7 @@ function specializeantecedents(
         for (metacond, ths) in grouped_featconditions(selectedalphabet)
 
             op = test_operator(metacond)
-            atomslist = turnatoms((metacond, ths))
+            atomslist = SoleData._atoms((metacond, ths))
 
             # Optimization
             # The order in which the atomslist is iterated varies based on the comparison
@@ -381,11 +379,15 @@ end
         w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
         search_method::SearchMethod=BeamSearch(),
         max_rulebase_length::Union{Nothing,Integer}=nothing,
+        suppress_parity_warning::Bool=false,
         kwargs...
     )::DecisionList where {U<:Real}
 
 Return a decision list that cover the entire input dataset. This involves repeatedly
 learning individual rules and removing covered examples.
+
+# Arguments
+
 """
 function sequentialcovering(
     X::PropositionalLogiset,
@@ -393,6 +395,7 @@ function sequentialcovering(
     w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
+    suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
 
@@ -434,7 +437,7 @@ function sequentialcovering(
         rule = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]
             justcoveredw = uncoveredw[bestantecedent_coverage]
-            consequent = bestguess(justcoveredy, justcoveredw)
+            consequent = bestguess(justcoveredy, justcoveredw; suppress_parity_warning=suppress_parity_warning)
             info_cm = (;
                 supporting_labels=collect(justcoveredy),
                 supporting_weights=collect(justcoveredw)
@@ -461,7 +464,7 @@ function sequentialcovering(
 
     !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
 
-    defaultconsequent = SoleModels.bestguess(uncoveredy)
+    defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
     return DecisionList(rulebase, defaultconsequent)
 end
 
