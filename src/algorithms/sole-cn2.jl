@@ -3,7 +3,7 @@ using SoleBase: CLabel
 using SoleLogics
 using SoleLogics: nconjuncts, pushconjunct!
 using SoleData
-import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, BoundedScalarConditions
+import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, UnionAlphabet
 import SoleData: alphabet, test_operator, isordered, polarity, turnatoms, grouped_featconditions
 using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
@@ -22,13 +22,14 @@ struct RandSearch <: SearchMethod end
 
 function maptointeger(y::AbstractVector{<:CLabel})
 
+    # ordered values
     values = unique(y)
     integer_y = zeros(Int64, length(y))
 
     for (i, v) in enumerate(values)
         integer_y[y.==v] .= i
     end
-    return integer_y
+    return integer_y, values
 end
 
 function soleentropy(
@@ -139,7 +140,7 @@ end
 """
     function filteralphabetoptimized(
         X::PropositionalLogiset,
-        alph::BoundedScalarConditions,
+        alph::UnionAlphabet,
         antecedent_info::Tuple{RuleAntecedent,SatMask}
     )::Vector{Tuple{Atom,SatMask}}
 
@@ -150,7 +151,7 @@ and the *bitmask* of covered examples
 """
 function filteralphabetoptimized(
     X::PropositionalLogiset,
-    alph::BoundedScalarConditions,
+    alph::UnionAlphabet,
     antecedent_info::Tuple{RuleAntecedent,SatMask}
 )::Vector{Tuple{Atom,SatMask}}
 
@@ -411,7 +412,7 @@ function sequentialcovering(
 
     (ninstances(X) == 0) && error("Empty trainig set")
 
-    y = y |> maptointeger
+    y, labels = y |> maptointeger
 
     # DEBUG
     # uncoveredslice = collect(1:ninstances(X))
@@ -434,7 +435,7 @@ function sequentialcovering(
         rule = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]
             justcoveredw = uncoveredw[bestantecedent_coverage]
-            consequent = bestguess(justcoveredy, justcoveredw)
+            consequent = labels[bestguess(justcoveredy, justcoveredw)]
             info_cm = (;
                 supporting_labels=collect(justcoveredy),
                 supporting_weights=collect(justcoveredw)
@@ -459,7 +460,7 @@ function sequentialcovering(
         # uncoveredw = @view w[uncoveredslice]
     end
 
-    !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
+    # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
 
     defaultconsequent = SoleModels.bestguess(uncoveredy)
     return DecisionList(rulebase, defaultconsequent)

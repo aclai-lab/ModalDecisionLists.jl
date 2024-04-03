@@ -22,7 +22,13 @@ Main:
             ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-03-04 17:11)
             # già scritta soluzione temporanea
         ✔ add alphabet parameter @done(24-04-03 11:06)
-        
+        ✔ check empty row table in ProposiionlLogiset costruction @done(24-04-03 17:35)
+        ☐ map from integer to original class names
+        ☐ semplificazione LmCF o LmDF 
+        # scalarminimizer
+        ☐ Fare benchmark su più dataset
+        ☐ BoundedScalarCond -> UnivariateScalarCondion
+
     
     Testing:
         ☐ Scrivere test che chiama CN2, e che valuta la qualità del risultato

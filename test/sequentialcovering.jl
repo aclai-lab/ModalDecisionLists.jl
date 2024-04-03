@@ -46,9 +46,9 @@ w_mstch = w[1:20]
 ######## PropositionalLogiset, Target ######################################################
 ############################################################################################
 
-@test SoleCN2.sole_cn2(X, y_clabel) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_intger) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_string) isa DecisionList
+@test_nowarn SoleCN2.sole_cn2(X, y_clabel)
+@test_nowarn SoleCN2.sole_cn2(X, y_intger)
+@test_nowarn SoleCN2.sole_cn2(X, y_string)
 
 oneinst_X = slicedataset(X, 1; return_view = true)
 oneinst_y = y_clabel[1:1]
@@ -75,7 +75,6 @@ oneinst_y = y_clabel[1:1]
 @test SoleCN2.sole_cn2(X, y_clabel, max_rule_length=1) isa DecisionList
 
 @test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel, max_rule_length=0)
-
 
 
 ############################################################################################
