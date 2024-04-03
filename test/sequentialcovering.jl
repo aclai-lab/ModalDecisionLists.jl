@@ -46,23 +46,23 @@ w_mstch = w[1:20]
 ######## PropositionalLogiset, Target ######################################################
 ############################################################################################
 
-@test_nowarn SoleCN2.sequentialcovering(X, y_clabel)
-@test_nowarn SoleCN2.sequentialcovering(X, y_intger)
-@test_nowarn SoleCN2.sequentialcovering(X, y_string)
+@test SoleCN2.sequentialcovering(X, y_clabel) isa DecisionList
+@test SoleCN2.sequentialcovering(X, y_intger) isa DecisionList
+@test SoleCN2.sequentialcovering(X, y_string) isa DecisionList
 
 oneinst_X = slicedataset(X, 1; return_view = true)
 oneinst_y = y_clabel[1:1]
-@test_nowarn SoleCN2.sequentialcovering(oneinst_X, oneinst_y)
+@test SoleCN2.sequentialcovering(oneinst_X, oneinst_y) isa DecisionList
 
 ############################################################################################
 ######## PropositionalLogiset, Target, Weights #############################################
 ############################################################################################
 
-@test_nowarn SoleCN2.sequentialcovering(X, y_clabel, w)
-@test_nowarn SoleCN2.sequentialcovering(X, y_clabel, :default)
-@test_nowarn SoleCN2.sequentialcovering(X, y_clabel, :rebalance)
+@test SoleCN2.sequentialcovering(X, y_clabel, w) isa DecisionList
+@test SoleCN2.sequentialcovering(X, y_clabel, :default) isa DecisionList
+@test SoleCN2.sequentialcovering(X, y_clabel, :rebalance) isa DecisionList
 
-
+# Test BeamSearch
 @test_nowarn SoleCN2.sequentialcovering(X, y_clabel; beam_width=5)
 @test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=BeamSearch(), beam_width=5)
 @test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=RandSearch(), cardinality=5)
@@ -83,14 +83,15 @@ bs5 = BeamSearch(; beam_width=5)
 ######### PropositionalLogiset, Target, beamwidth ##########################################
 ############################################################################################
 
-@test SoleCN2.sole_cn2(X, y_clabel; beam_width=5) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel; beam_width=1) isa DecisionList
+@test_nowarn SoleCN2.sole_cn2(X, y_clabel; beam_width=5)
+@test_nowarn SoleCN2.sole_cn2(X, y_clabel; beam_width=1)
 @test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel; beam_width=0)
 
-@test SoleCN2.sole_cn2(X, y_clabel; max_rule_length=1000) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel; max_rule_length=1) isa DecisionList
+@test_nowarn SoleCN2.sole_cn2(X, y_clabel; max_rule_length=1000)
+@test_nowarn SoleCN2.sole_cn2(X, y_clabel; max_rule_length=1)
 
 @test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel; max_rule_length=0)
+
 
 
 ############################################################################################
@@ -101,6 +102,6 @@ all_alphabet = slicedataset(X,collect(1:n_instances)) |> alphabet
 large_alphabet = slicedataset(X,[1,2,3,51,52,53,101,102,103]) |> alphabet
 small_alphabet = slicedataset(X,[1,2]) |> alphabet
 
-@test SoleCN2.sole_cn2(X, y_clabel,  alphabet=all_alphabet) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel,  alphabet=large_alphabet) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel,  alphabet=small_alphabet) isa DecisionList
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel,  alphabet=all_alphabet)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel,  alphabet=large_alphabet)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel,  alphabet=small_alphabet)
