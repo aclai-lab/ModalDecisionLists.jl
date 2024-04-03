@@ -35,46 +35,62 @@ w_empty = Float16[]
 w_mstch = w[1:20]
 
 
-@test_throws ErrorException SoleCN2.sole_cn2(X_empty,   y_empty)
-@test_throws ErrorException SoleCN2.sole_cn2(X_empty,   y_clabel)
-@test_throws ErrorException SoleCN2.sole_cn2(X,         y_empty)
-@test_throws ErrorException SoleCN2.sole_cn2(X,         y_mstch)
-@test_throws ErrorException SoleCN2.sole_cn2(X,         y_clabel,        w_empty)
-@test_throws ErrorException SoleCN2.sole_cn2(X,         y_clabel,        w_mstch)
+@test_throws ErrorException SoleCN2.sequentialcovering(X_empty,   y_empty)
+@test_throws ErrorException SoleCN2.sequentialcovering(X_empty,   y_clabel)
+@test_throws ErrorException SoleCN2.sequentialcovering(X,         y_empty)
+@test_throws ErrorException SoleCN2.sequentialcovering(X,         y_mstch)
+@test_throws ErrorException SoleCN2.sequentialcovering(X,         y_clabel,        w_empty)
+@test_throws ErrorException SoleCN2.sequentialcovering(X,         y_clabel,        w_mstch)
 
 ############################################################################################
 ######## PropositionalLogiset, Target ######################################################
 ############################################################################################
 
-@test_nowarn SoleCN2.sole_cn2(X, y_clabel)
-@test_nowarn SoleCN2.sole_cn2(X, y_intger)
-@test_nowarn SoleCN2.sole_cn2(X, y_string)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel)
+@test_nowarn SoleCN2.sequentialcovering(X, y_intger)
+@test_nowarn SoleCN2.sequentialcovering(X, y_string)
 
 oneinst_X = slicedataset(X, 1; return_view = true)
 oneinst_y = y_clabel[1:1]
-@test SoleCN2.sole_cn2(oneinst_X, oneinst_y) isa DecisionList
+@test_nowarn SoleCN2.sequentialcovering(oneinst_X, oneinst_y)
 
 ############################################################################################
 ######## PropositionalLogiset, Target, Weights #############################################
 ############################################################################################
 
-@test SoleCN2.sole_cn2(X, y_clabel, w) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel, :default) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel, :rebalance) isa DecisionList
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel, w)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel, :default)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel, :rebalance)
+
+
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; beam_width=5)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=BeamSearch(), beam_width=5)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=RandSearch(), cardinality=5)
+
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5))
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=RandSearch(; cardinality=5))
+
+
+bs5 = BeamSearch(; beam_width=5)
+
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=bs5, evaluator=soleentropy)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5), beam_width=10)
+@test_nowarn SoleCN2.sequentialcovering(X, y_clabel; searchmethod=RandSearch(; cardinality=5), cardinality=10)
+
 
 
 ############################################################################################
 ######### PropositionalLogiset, Target, beamwidth ##########################################
 ############################################################################################
 
-@test SoleCN2.sole_cn2(X, y_clabel, beam_width=5) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel, beam_width=1) isa DecisionList
-@test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel, beam_width=0)
+@test SoleCN2.sole_cn2(X, y_clabel; beam_width=5) isa DecisionList
+@test SoleCN2.sole_cn2(X, y_clabel; beam_width=1) isa DecisionList
+@test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel; beam_width=0)
 
-@test SoleCN2.sole_cn2(X, y_clabel, max_rule_length=1000) isa DecisionList
-@test SoleCN2.sole_cn2(X, y_clabel, max_rule_length=1) isa DecisionList
+@test SoleCN2.sole_cn2(X, y_clabel; max_rule_length=1000) isa DecisionList
+@test SoleCN2.sole_cn2(X, y_clabel; max_rule_length=1) isa DecisionList
 
-@test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel, max_rule_length=0)
+@test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel; max_rule_length=0)
 
 
 ############################################################################################
