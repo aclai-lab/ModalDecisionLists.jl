@@ -3,6 +3,7 @@ using DataFrames
 using Random
 using Test
 
+# using Logging
 using SoleBase: CLabel
 using ModalDecisionLists
 import ModalDecisionLists.SoleCN2: maptointeger
@@ -54,7 +55,7 @@ oneinst_y = y_clabel[1:1]
 @test SoleCN2.sole_cn2(oneinst_X, oneinst_y) isa DecisionList
 
 ############################################################################################
-######## (PropositionalLogiset, Target, Weights) ###########################################
+######## PropositionalLogiset, Target, Weights #############################################
 ############################################################################################
 
 @test SoleCN2.sole_cn2(X, y_clabel, w) isa DecisionList
@@ -63,7 +64,7 @@ oneinst_y = y_clabel[1:1]
 
 
 ############################################################################################
-######## (PropositionalLogiset, Target, beamwidth) #########################################
+######### PropositionalLogiset, Target, beamwidth ##########################################
 ############################################################################################
 
 @test SoleCN2.sole_cn2(X, y_clabel, beam_width=5) isa DecisionList
@@ -74,3 +75,17 @@ oneinst_y = y_clabel[1:1]
 @test SoleCN2.sole_cn2(X, y_clabel, max_rule_length=1) isa DecisionList
 
 @test_throws AssertionError SoleCN2.sole_cn2(X, y_clabel, max_rule_length=0)
+
+
+
+############################################################################################
+######### PropositionalLogiset, Target, Alphabet ###########################################
+############################################################################################
+
+all_alphabet = slicedataset(X,collect(1:n_instances)) |> alphabet
+large_alphabet = slicedataset(X,[1,2,3,51,52,53,101,102,103]) |> alphabet
+small_alphabet = slicedataset(X,[1,2]) |> alphabet
+
+@test SoleCN2.sole_cn2(X, y_clabel,  alphabet=all_alphabet) isa DecisionList
+@test SoleCN2.sole_cn2(X, y_clabel,  alphabet=large_alphabet) isa DecisionList
+@test SoleCN2.sole_cn2(X, y_clabel,  alphabet=small_alphabet) isa DecisionList

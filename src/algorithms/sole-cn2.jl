@@ -44,14 +44,6 @@ function soleentropy(
     return -sum(prob .* log2.(prob))
 end
 
-
-# function feature(
-#     φ::RuleAntecedent
-# )::AbstractVector{UnivariateSymbolValue}
-#     conditions = value.(atoms(φ))
-#     return feature.(conditions)
-# end
-
 """
     sortantecedents(
         antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
@@ -68,7 +60,6 @@ Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitm
 Each antecedent is evaluated on his covered y using the provided *quality evaluator* function.
 Then the permutation of the bests *beam_search* sorted antecedent is returned with the quality
 value of the best one
-
 """
 function sortantecedents(
     antecedents::AbstractVector{T},
@@ -82,7 +73,7 @@ function sortantecedents(
     isempty(antecedents) && return [], Inf
 
     antsquality = map(antd->begin
-            satinds = antd[2]
+            _, satinds = antd
             quality_evaluator(y[satinds], w[satinds])
     end, antecedents)
 
@@ -100,58 +91,38 @@ function increment!(
     for i_c in c v[i_c] += Δ end
 end
 
-############################################################################################
-# NON FUNZIONA
-############################################################################################
-# O meglio funziona solo per le metaconditions (V, ≤)
-function sortantecedents_new(
-    antecedents::AbstractVector{T},
-    y::AbstractVector{<:CLabel},
-    beam_width::Integer,
-)::Tuple{Vector{Int},<:Real} where {
-    T<:Tuple{RuleAntecedent, BitVector},
-}
-    isempty(antecedents) && return [], Inf
-    n_class = unique(y) |> length
+# function sortantecedents_new(
+#     antecedents::AbstractVector{T},
+#     y::AbstractVector{<:CLabel},
+#     beam_width::Integer,
+# )::Tuple{Vector{Int},<:Real} where {
+#     T<:Tuple{RuleAntecedent, BitVector},
+# }
+#     isempty(antecedents) && return [], Inf
+#     n_class = unique(y) |> length
 
-    distribution = zeros(Int64, n_class)
-    distrib_mask = zeros(Bool, length(y))
-    antsquality = []
-    for _ant in antecedents
-        a_, mask = _ant
-        # @show a_
+#     distribution = zeros(Int64, n_class)
+#     distrib_mask = zeros(Bool, length(y))
+#     antsquality = []
+#     for _ant in antecedents
+#         a_, mask = _ant
 
-        # antecedent covered examples classes
-        difference_mask = (!).(distrib_mask) .& mask
-        # @show difference_mask
-        antcoverage = y[difference_mask]
-        increment!(distribution, antcoverage, 1)
-        # @show distribution
-        readline()
-        entropy = begin
-            prob = distribution ./ sum(distribution)
-            -sum(prob .* log2.(prob))
-        end
-        push!(antsquality, entropy)
-        distrib_mask = distrib_mask .| difference_mask
-    end
-    newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
-    bestantecedent_quality = antsquality[newstar_perm[1]]
+#         # antecedent covered examples classes
+#         difference_mask = (!).(distrib_mask) .& mask
+#         antcoverage = y[difference_mask]
+#         @inline increment!(distribution, antcoverage, 1)
+#         entropy = begin
+#             prob = distribution ./ sum(distribution)
+#             -sum(prob .* log2.(prob))
+#         end
+#         push!(antsquality, entropy)
+#         distrib_mask = distrib_mask .| difference_mask
+#     end
+#     newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
+#     bestantecedent_quality = antsquality[newstar_perm[1]]
 
-    return (newstar_perm, bestantecedent_quality)
-end
-
-"""
-    newatoms(
-        X::PropositionalLogiset,
-        antecedent::Tuple{RuleAntecedent, SatMask}
-    )::Vector{Tuple{Atom, SatMask}}
-
-Returns a list of all possible conditions (atoms) that can be generated from instances of X
-and can further specialize the input formula. Each condition is decorated by a bitmask
-indicating which examples in X satisfy that condition."
-
-"""
+#     return (newstar_perm, bestantecedent_quality)
+# end
 
 function filteralphabet(
     X::PropositionalLogiset,
@@ -165,6 +136,18 @@ function filteralphabet(
     return possible_conditions
 end
 
+"""
+    function filteralphabetoptimized(
+        X::PropositionalLogiset,
+        alph::BoundedScalarConditions,
+        antecedent_info::Tuple{RuleAntecedent,SatMask}
+    )::Vector{Tuple{Atom,SatMask}}
+
+Return every possible atom originating from 'alph' such that, when joined with the antecedent,
+it results in a change in the distribution of covered examples.
+For optimization purposes, each atom corresponds to a tuple containing the *atom* itself
+and the *bitmask* of covered examples
+"""
 function filteralphabetoptimized(
     X::PropositionalLogiset,
     alph::BoundedScalarConditions,
@@ -181,21 +164,30 @@ function filteralphabetoptimized(
                 if (ant_mask .& atom_mask) != ant_mask]
 end
 
+"""
+    newatoms(
+        X::PropositionalLogiset,
+        antecedent::Tuple{RuleAntecedent, SatMask}
+    )::Vector{Tuple{Atom, SatMask}}
+
+Returns a list of all possible conditions (atoms) that can be generated from instances of X
+and can further specialize the input antecedent"
+"""
 function newatoms(
     X::PropositionalLogiset,
     antecedent_info::Tuple{RuleAntecedent, BitVector};
-    optimize = false
+    optimize = false,
+    alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition}, BitVector}}
 
     (antecedent, satindexes) = antecedent_info
     coveredX = slicedataset(X, satindexes; return_view = true)
 
-    alph = alphabet(coveredX)
-
-    possible_conditions = optimize ? filteralphabetoptimized(X, alph, antecedent_info) :
-                                filteralphabet(X, alph, antecedent)
-
-    return possible_conditions
+    selectedalphabet = !isnothing(alph) ? alph :
+                                alphabet(coveredX)
+    possibleconditions = optimize ? filteralphabetoptimized(X, selectedalphabet, antecedent_info) :
+                                filteralphabet(X, selectedalphabet, antecedent)
+    return possibleconditions
 end
 
 """
@@ -206,7 +198,6 @@ end
     )::Vector{Tuple{RuleAntecedent, SatMask}}
 
 Specializes rule antecedents in *antecedents* based on available instances in *X*.
-
 """
 function specializeantecedents(
     antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
@@ -269,7 +260,9 @@ function specializeantecedents(
             # i_conjunctibleatoms refer to all the conditions (Atoms) that can be
             # joined to the i-th antecedent. These are calculated only for the values ​​
             # of the instances already covered by the antecedent.
-            conjunctibleatoms = newatoms(X, _ant, optimize=true)
+            conjunctibleatoms = newatoms(X, _ant;
+                                            optimize=true,
+                                            alph=default_alphabet)
 
             isempty(conjunctibleatoms) && continue
 
@@ -279,7 +272,6 @@ function specializeantecedents(
                 if !isnothing(max_rule_length) && nconjuncts(antformula) >= max_rule_length
                     continue
                 end
-
                 antformula = deepcopy(antformula)
 
                 # new_antcformula = antformula ∧ _atom
@@ -290,7 +282,6 @@ function specializeantecedents(
             end
         end
     end
-
     return specializedants
 end
 
@@ -298,7 +289,20 @@ end
 ############################################################################################
 ############## Beam search #################################################################
 ############################################################################################
+"""
+    function findbestantecedent(
+        ::BeamSearch,
+        X::PropositionalLogiset,
+        y::AbstractVector{<:CLabel},
+        w::AbstractVector;
+        beam_width::Integer = 3,
+        quality_evaluator::Function = soleentropy,
+        max_rule_length::Union{Nothing,Integer} = nothing,
+        alphabet::Union{Nothing,AbstractAlphabet} = nothing
+    )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
+This function performs a beam search to find the best antecedent for a given dataset and labels.
+"""
 function findbestantecedent(
     ::BeamSearch,
     X::PropositionalLogiset,
@@ -320,8 +324,9 @@ function findbestantecedent(
     newcandidates = Tuple{RuleAntecedent, SatMask}[]
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent, SatMask}[]
-
+        #specialize candidate antecedents
         newcandidates = specializeantecedents(candidates, X, max_rule_length, alphabet)
+        # Breake if there are no more possible/sensible specializations choices
         isempty(newcandidates) && break
 
         (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
@@ -369,7 +374,6 @@ end
 ############## Sequenial Covering ##########################################################
 ############################################################################################
 
-# TODO @edo documentation
 """
     function sequentialcovering(
         X::PropositionalLogiset,
@@ -380,10 +384,9 @@ end
         kwargs...
     )::DecisionList where {U<:Real}
 
-Return the decision list that cover the entire input dataset. This involves repeatedly
-learning individual rules and removing covered examples from the dataset.
+Return a decision list that cover the entire input dataset. This involves repeatedly
+learning individual rules and removing covered examples.
 """
-
 function sequentialcovering(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
@@ -419,7 +422,6 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
-
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,
             uncoveredX,
@@ -456,14 +458,12 @@ function sequentialcovering(
         # uncoveredy = @view y[uncoveredslice]
         # uncoveredw = @view w[uncoveredslice]
     end
-    if !allunique(uncoveredy)
-        error("Default class can't be created")
-    end
+
+    !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
+
     defaultconsequent = SoleModels.bestguess(uncoveredy)
     return DecisionList(rulebase, defaultconsequent)
 end
-
-
 
 function sole_cn2(
     X::PropositionalLogiset,

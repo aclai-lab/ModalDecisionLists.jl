@@ -2,11 +2,12 @@ Main:
 
     Generic:
         ☐ Eliminare implementazione superflua cn2
-            ☐ arrivare a due implementazioni uguali
+            ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)
                 ✔ sole_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
                 ✔ base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
             ☐ Testing
     
+        ☐ new section in docu
         ☐ MLJ interface for cn2
         ✔ Aggiornare confronto tra LmCF @done(24-03-04 19:36)
         # (rimuovere confronto tramite Base.:(==))
@@ -20,7 +21,8 @@ Main:
         ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
             ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-03-04 17:11)
             # già scritta soluzione temporanea
-        ☐ add alphabet parameter  
+        ✔ add alphabet parameter @done(24-04-03 11:06)
+        
     
     Testing:
         ☐ Scrivere test che chiama CN2, e che valuta la qualità del risultato
