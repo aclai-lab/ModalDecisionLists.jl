@@ -38,6 +38,53 @@ See also
 struct BeamSearch <: SearchMethod end
 
 
+"""
+    sortantecedents(
+        antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
+        y::AbstractVector{CLabel},
+        w::AbstractVector,
+        beam_width::Integer,
+        quality_evaluator::Function
+    )
+
+
+Sorts rule antecedents based on their quality using a specified evaluation function.
+
+Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
+Each antecedent is evaluated on his covered y using the provided *quality evaluator* function.
+Then the permutation of the bests *beam_search* sorted antecedent is returned with the quality
+value of the best one.
+"""
+function sortantecedents(
+    antecedents::AbstractVector{<:Tuple{RuleAntecedent,BitVector}},
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector,
+    beam_width::Integer,
+    quality_evaluator::Function,
+)::Tuple{Vector{Int},<:Real}
+    isempty(antecedents) && return [], Inf
+
+    antsquality = map(antd -> begin
+            _, satinds = antd
+            quality_evaluator(y[satinds], w[satinds])
+        end, antecedents)
+
+    newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
+    bestantecedent_quality = antsquality[newstar_perm[1]]
+
+    return (newstar_perm, bestantecedent_quality)
+end
+
+function increment!(
+    v::AbstractVector{<:Integer},
+    c::AbstractVector{<:Integer},
+    Δ::Int64
+)
+    for i_c in c
+        v[i_c] += Δ
+    end
+end
+
 # TODO prima riga di documentazione ?????????'
 """
     function filteralphabet(

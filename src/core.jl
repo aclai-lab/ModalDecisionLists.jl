@@ -1,4 +1,8 @@
-
+using SoleBase
+using SoleBase: CLabel
+using SoleLogics
+using SoleData
+using SoleModels
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
 const SatMask = BitVector
 
@@ -27,6 +31,9 @@ function findbestantecedent(
 )
     return error("Please, provide method...")
 end
+
+include("algorithms/searchmethods/beamsearch.jl")
+include("algorithms/searchmethods/randsearch.jl")
 
 ############################################################################################
 ############ Utils #########################################################################
