@@ -7,7 +7,6 @@ using MLJ
 using StatsBase
 using Random
 using ModalDecisionLists: BaseCN2, SoleCN2
-import SoleData: PropositionalLogiset
 
 # Input
 X...,y = MLJ.load_iris()

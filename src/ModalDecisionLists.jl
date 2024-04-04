@@ -23,7 +23,7 @@ end
 
 module SoleCN2
 using ModalDecisionLists: RuleAntecedent, SatMask
-include("algorithms/sole-cn2.jl")
+include("algorithms/sequentialcovering.jl")
 end
 
 export SoleCN2

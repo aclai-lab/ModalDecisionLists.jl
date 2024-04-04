@@ -4,7 +4,7 @@ using SoleLogics
 using SoleLogics: nconjuncts, pushconjunct!
 using SoleData
 import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, UnionAlphabet
-import SoleData: alphabet, test_operator, isordered, polarity, turnatoms, grouped_featconditions
+import SoleData: alphabet, test_operator, isordered, polarity, atoms
 using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
 using SoleModels: default_weights, balanced_weights, bestguess
