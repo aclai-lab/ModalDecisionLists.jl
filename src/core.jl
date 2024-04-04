@@ -2,8 +2,63 @@
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
 const SatMask = BitVector
 
+
 ############################################################################################
-############ helping function ##############################################################
+############ SearchMethods #################################################################
+############################################################################################
+
+"""
+Abstract type for all search methods to be used in [`sequentialcovering`](@ref).
+
+findbestantecedent
+
+See also [`BeamSearch`](@ref, [`RandSearch`](@ref).
+"""
+abstract type SearchMethod end
+
+"""
+For each new SearchMethod, findbestantecedent must be implemented.
+"""
+function findbestantecedent(
+    ::SearchMethod,
+    X::PropositionalLogiset,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector;
+)
+    return error("Please, provide method...")
+end
+
+############################################################################################
+############ Utils #########################################################################
+############################################################################################
+
+function maptointeger(y::AbstractVector{<:CLabel})
+
+    # ordered values
+    values = unique(y)
+    integer_y = zeros(Int64, length(y))
+
+    for (i, v) in enumerate(values)
+        integer_y[y.==v] .= i
+    end
+    return integer_y, values
+end
+
+function soleentropy(
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector=default_weights(length(y));
+)
+    isempty(y) && return Inf
+
+    distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
+    length(distribution) == 1 && return 0.0
+
+    prob = distribution ./ sum(distribution)
+    return -sum(prob .* log2.(prob))
+end
+
+############################################################################################
+############ Helping function ##############################################################
 ############################################################################################
 
 macro showlc(list, c)
