@@ -1,7 +1,10 @@
-
+using SoleLogics: AbstractAlphabet, pushconjunct!
+using SoleData: isordered, polarity
 ############################################################################################
 ############## Beam search #################################################################
 ############################################################################################
+
+# TODO docu for min_rule_coverage
 """
 Search procedure that explores the solution space selectively, maintaining a restricted set of
 partial solutions (the "beam") at each step.
@@ -25,6 +28,7 @@ efficient exploration of the solution space without examining all possibilities.
 * `beam_width` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
 * `quality_evaluator` is the function that assigns a score to each partial solution.
 * `max_rule_length` specifies the maximum length allowed for a rule in the search algorithm.
+* `min_rule_coverage` specifies the minimum number of instances covred by each rule.
 If not specified, the beam will be update until no more possible specializations exist.
 * `alphabet` allow the specialization of the antecedent only on a constrained set of conditions.
 If not specified, , the entire alphabet originated from X is used.
@@ -35,10 +39,14 @@ See also
 [`specializeantecedents`](@ref).
 [`alphabet`](@ref).
 """
-struct BeamSearch <: SearchMethod end
+@with_kw struct BeamSearch <: SearchMethod
+    beam_width::Integer=3
+    quality_evaluator::Function=soleentropy
+    max_rule_length::Union{Nothing,Integer}=nothing
+    min_rule_coverage::Union{Integer}=1
+    alphabet::Union{Nothing,AbstractAlphabet}=nothing
+end
 
-
-# TODO prima riga di documentazione ?????????'
 """
     function filteralphabet(
         X::PropositionalLogiset,
@@ -143,10 +151,10 @@ function specializeantecedents(
         specializedants = Tuple{RuleAntecedent,SatMask}[]
         selectedalphabet = isnothing(default_alphabet) ? alphabet(X) : default_alphabet
 
-        for (metacond, ths) in grouped_featconditions(selectedalphabet)
+        for univ_scalarconditions in alphabets(selectedalphabet)
 
-            op = test_operator(metacond)
-            atomslist = SoleData._atoms((metacond, ths))
+            op = SoleData.test_operator(univ_scalarconditions)
+            atomslist = SoleData.atoms(univ_scalarconditions)
 
             # Optimization
             # The order in which the atomslist is iterated varies based on the comparison
@@ -243,6 +251,14 @@ function findbestantecedent(
 # TODO add min_covered_examples parameter
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
+
+    @unpack beam_width, quality_evaluator, max_rule_length, min_rule_coverage, alphabet =
+        BeamSearch(
+            beam_width        = beam_width,
+            quality_evaluator = quality_evaluator,
+            max_rule_length   = max_rule_length,
+            alphabet          = alphabet
+        )
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w)
 

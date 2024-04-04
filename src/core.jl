@@ -1,3 +1,9 @@
+using SoleBase: CLabel
+using SoleData: PropositionalLogiset
+using Parameters
+using FillArrays
+using StatsBase
+
 
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
 const SatMask = BitVector
@@ -56,6 +62,27 @@ function soleentropy(
     prob = distribution ./ sum(distribution)
     return -sum(prob .* log2.(prob))
 end
+
+function sortantecedents(
+    antecedents::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector,
+    beam_width::Integer,
+    quality_evaluator::Function,
+)::Tuple{Vector{Int},<:Real}
+    isempty(antecedents) && return [], Inf
+
+    antsquality = map(antd -> begin
+            _, satinds = antd
+            quality_evaluator(y[satinds], w[satinds])
+        end, antecedents)
+
+    newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
+    bestantecedent_quality = antsquality[newstar_perm[1]]
+
+    return (newstar_perm, bestantecedent_quality)
+end
+
 
 ############################################################################################
 ############ Helping function ##############################################################
