@@ -35,7 +35,6 @@ export RandSearch
 include("myhelp.jl")
 export @showlc
 
-include("algorithms/sequentialcovering.jl")
 
 export BaseCN2
 
@@ -44,12 +43,11 @@ using ModalDecisionLists: RuleAntecedent, SatMask
 include("algorithms/base-cn2.jl")
 end
 
-
 export SoleCN2
 
 module SoleCN2
 using ModalDecisionLists: RuleAntecedent, SatMask
-include("algorithms/sole-cn2.jl")
+include("algorithms/sequentialcovering.jl")
 end
 
 ############################################################################################

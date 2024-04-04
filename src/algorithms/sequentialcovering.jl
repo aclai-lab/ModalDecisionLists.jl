@@ -14,24 +14,6 @@ using FillArrays
 using ModalDecisionLists
 
 
-"""
-    sortantecedents(
-        antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
-        y::AbstractVector{CLabel},
-        w::AbstractVector,
-        beam_width::Integer,
-        quality_evaluator::Function
-    )
-
-
-Sorts rule antecedents based on their quality using a specified evaluation function.
-
-Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
-Each antecedent is evaluated on his covered y using the provided *quality evaluator* function.
-Then the permutation of the bests *beam_search* sorted antecedent is returned with the quality
-value of the best one.
-"""
-
 function increment!(
     v::AbstractVector{<:Integer},
     c::AbstractVector{<:Integer},
