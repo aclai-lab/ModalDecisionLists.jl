@@ -6,8 +6,7 @@ using SoleData
 using MLJ
 using StatsBase
 using Random
-using ModalDecisionLists: BaseCN2, SoleCN2
-import SoleData: PropositionalLogiset
+using ModalDecisionLists: BaseCN2
 
 # Input
 X...,y = MLJ.load_iris()
@@ -38,7 +37,7 @@ base_outcome_on_training = apply(base_decisionlist, X)
 
 
 # sole
-sole_decisionlist = SoleCN2.sole_cn2(X, y)
+sole_decisionlist = sole_cn2(X, y)
 @test sole_decisionlist isa DecisionList
 sole_outcome_on_training = apply(sole_decisionlist, X)
 
@@ -131,7 +130,7 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
 # X_test = SoleData.instances(X, test_slice, Val(false))
 
 # # ================================
-# decisionlist = SoleCN2.sole_cn2(X_train, y[train_slice])
+# decisionlist = sole_cn2(X_train, y[train_slice])
 # outcomes = apply(decisionlist, X_test)
 
 # decisionlist2 = BaseCN2.base_cn2(SoleData.gettable(X_train), y[train_slice])
@@ -156,9 +155,9 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
 using BenchmarkTools
 # Time
 display(@benchmark BaseCN2.base_cn2(X_df, y))
-display(@benchmark SoleCN2.sole_cn2(X, y))
+display(@benchmark ModalDecisionLists.sole_cn2(X, y))
 
 # @btime BaseCN2.base_cn2(X_df, y)
-# @btime SoleCN2.sole_cn2(X, y)
+# @btime sole_cn2(X, y)
 
 # @test_broken outcome_on_training = apply(decision_list, X_pl_view)

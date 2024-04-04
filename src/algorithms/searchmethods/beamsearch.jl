@@ -151,7 +151,7 @@ function specializeantecedents(
         specializedants = Tuple{RuleAntecedent,SatMask}[]
         selectedalphabet = isnothing(default_alphabet) ? alphabet(X) : default_alphabet
 
-        for univ_scalarconditions in alphabets(selectedalphabet)
+        for (metacond, ths) in map(cha->cha.featcondition, alphabets(selectedalphabet))
 
             op = SoleData.test_operator(univ_scalarconditions)
             atomslist = SoleData.atoms(univ_scalarconditions)
@@ -248,7 +248,7 @@ function findbestantecedent(
     quality_evaluator::Function=soleentropy,
     max_rule_length::Union{Nothing,Integer}=nothing,
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
-# TODO add min_covered_examples parameter
+# TODO add min_rule_support parameter
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
 

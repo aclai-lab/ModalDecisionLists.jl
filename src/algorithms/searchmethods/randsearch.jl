@@ -7,18 +7,17 @@
 Generate random formulas (`SoleLogics.randformula`)
 ....
 """
-@with_kw struct RandSearch <: SearchMethod
-    cardinality::Integer=10
-    quality_evaluator::Function=soleentropy
-    operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
-    syntaxheight::Integer=2
-end
+struct RandSearch <: SearchMethod end
 
 function findbestantecedent(
     sm::RandSearch,
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    w::AbstractVector
+    w::AbstractVector;
+    cardinality::Integer=10
+    quality_evaluator::Function=soleentropy
+    operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
+    syntaxheight::Integer=2
 )::Tuple{Formula,SatMask}
     bestantecedent = begin
         if !allunique(y)

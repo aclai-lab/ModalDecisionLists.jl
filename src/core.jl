@@ -34,6 +34,9 @@ function findbestantecedent(
     return error("Please, provide method...")
 end
 
+include("algorithms/searchmethods/beamsearch.jl")
+include("algorithms/searchmethods/randsearch.jl")
+
 ############################################################################################
 ############ Utils #########################################################################
 ############################################################################################
