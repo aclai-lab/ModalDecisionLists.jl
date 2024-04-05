@@ -13,28 +13,12 @@ using Reexport
 @reexport using SoleData
 
 include("core.jl")
-
-export SearchMethod
-export maptointeger
-
-############################################################################################
-
-include("algorithms/searchmethods/beamsearch.jl")
-
-export BeamSearch
-export findbestantecedent
-
-############################################################################################
-
-include("algorithms/searchmethods/randsearch.jl")
-
-export RandSearch
-
-############################################################################################
+# Temporaneamente qui
 
 include("myhelp.jl")
 export @showlc
 
+include("algorithms/sequentialcovering.jl")
 
 export BaseCN2
 
@@ -43,13 +27,4 @@ using ModalDecisionLists: RuleAntecedent, SatMask
 include("algorithms/base-cn2.jl")
 end
 
-export SoleCN2
-
-module SoleCN2
-using ModalDecisionLists: RuleAntecedent, SatMask
-include("algorithms/sequentialcovering.jl")
 end
-
-############################################################################################
-
-end # module
