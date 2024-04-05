@@ -147,54 +147,41 @@ function specializeantecedents(
 )::Vector{Tuple{RuleAntecedent,SatMask}}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
+    specializedants = Tuple{RuleAntecedent,SatMask}[]
 
     if isempty(antecedents)
 
-        specializedants = Tuple{RuleAntecedent,SatMask}[]
         selectedalphabet = isnothing(default_alphabet) ? alphabet(X) : default_alphabet
 
-        for (metacond, ths) in map(cha->cha.featcondition, alphabets(selectedalphabet))
+        alphs = alphabets(selectedalphabet)
+        for univ_scalarcond in alphs
 
-            op = SoleData.test_operator(univ_scalarconditions)
-            atomslist = SoleData.atoms(univ_scalarconditions)
-
-            # Optimization
-            # The order in which the atomslist is iterated varies based on the comparison
-            # operator of the metacondition.
-            # (≤) ascending order iteration
-            # (≥) descending order iteration
-            (isordered(op) && polarity(op)) &&
-                (atomslist = Iterators.reverse(atomslist))
-
-            # Contain all the antecedents thats can be generated from the
-            # (metacondition, treshold) tuple relative to this iteration.
+            atomslist = atoms(univ_scalarcond)
             metacond_relativeants = Tuple{RuleAntecedent,SatMask}[]
 
             # Remember that tresholds are sorted !
             cumulative_satmask = zeros(Bool, ninstances(X))
 
-            uncoveredslice = collect(1:ninstances(X))
+            prevant_coveredslice = collect(1:ninstances(X))
             for atom in atomslist
-                # if uncoveredslice is empty, then all next atoms cover the totality of
-                # instances in X. This implies that such atoms have no predicting power.
-                isempty(uncoveredslice) && break
+                isempty(prevant_coveredslice) && break
                 atom_satmask = begin
-                    uncoveredX = slicedataset(X, uncoveredslice; return_view=false)
+                    @show prevant_coveredslice
+                    readline()
+                    uncoveredX = slicedataset(X, prevant_coveredslice; return_view=false)
                     check(atom, uncoveredX)
                 end
-                cumulative_satmask[uncoveredslice] = atom_satmask
-                uncoveredslice = uncoveredslice[(!).(atom_satmask)]
+                # @show atom_satmask
+                # readline()
+                cumulative_satmask[prevant_coveredslice] = atom_satmask
+                prevant_coveredslice = prevant_coveredslice[atom_satmask]
 
                 push!(metacond_relativeants, (RuleAntecedent([atom]), cumulative_satmask))
             end
-            # before being inserted, the antecedents are rearranged in their original order
-            (isordered(op) && polarity(op)) &&
-                (metacond_relativeants = Iterators.reverse(metacond_relativeants))
-
             append!(specializedants, metacond_relativeants)
         end
+        return map(a->(RuleAntecedent([a]), check(a, X)), atoms(selectedalphabet))
     else
-        specializedants = Tuple{RuleAntecedent,SatMask}[]
         for _ant ∈ antecedents
 
             # i_conjunctibleatoms refer to all the conditions (Atoms) that can be
