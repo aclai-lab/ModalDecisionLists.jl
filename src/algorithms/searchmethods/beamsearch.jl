@@ -166,13 +166,9 @@ function specializeantecedents(
             for atom in atomslist
                 isempty(prevant_coveredslice) && break
                 atom_satmask = begin
-                    @show prevant_coveredslice
-                    readline()
                     uncoveredX = slicedataset(X, prevant_coveredslice; return_view=false)
                     check(atom, uncoveredX)
                 end
-                # @show atom_satmask
-                # readline()
                 cumulative_satmask[prevant_coveredslice] = atom_satmask
                 prevant_coveredslice = prevant_coveredslice[atom_satmask]
 
