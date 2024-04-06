@@ -97,11 +97,35 @@ function filteralphabetoptimized(
 )::Vector{Tuple{Atom,SatMask}}
 
     antecedent, ant_mask = antecedent_info
-    conditions = Atom{ScalarCondition}.(atoms(alph))
+    antecedent_atoms =  atoms(antecedent)
+    possible_atoms = Tuple{Atom,SatMask}[]
 
-    filtered_conditions = [(a, check(a, X)) for a ∈ conditions if a ∉ atoms(antecedent)]
-    return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
-            if (ant_mask .& atom_mask) != ant_mask]
+    for univ_scalarcond in alphabets(alph)
+        atomslist = atoms(univ_scalarcond)
+        # Atoms in usc conjunctible
+        usc_conjunctible = Tuple{Atom,SatMask}[]
+
+        # Remember that tresholds are sorted !
+        cumulative_satmask = zeros(Bool, ninstances(X))
+        prevatom_coveredslice = collect(1:ninstances(X))
+        for atom in atomslist
+            isempty(prevatom_coveredslice) && break
+            atom_satmask = begin
+                uncoveredX = slicedataset(X, prevatom_coveredslice; return_view=false)
+                check(atom, uncoveredX)
+            end
+            cumulative_satmask[prevatom_coveredslice] = atom_satmask
+            prevatom_coveredslice = prevatom_coveredslice[atom_satmask]
+
+            ((ant_mask .& cumulative_satmask) != ant_mask) & (atom ∉ antecedent_atoms) &&
+                push!(usc_conjunctible, (atom, cumulative_satmask))
+        end
+        append!(possible_atoms, usc_conjunctible)
+    end
+    return possible_atoms
+    # filtered_conditions = [(a, check(a, X)) for a ∈ conditions]
+    # return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
+    #         if ((ant_mask .& atom_mask) != ant_mask) & (a ∉ antecedent_atoms)]
 end
 
 """
@@ -153,10 +177,9 @@ function specializeantecedents(
 
         selectedalphabet = isnothing(default_alphabet) ? alphabet(X) : default_alphabet
 
-        alphs = alphabets(selectedalphabet)
-        for univ_scalarcond in alphs
+        for univ_alph in  alphabets(selectedalphabet)
 
-            atomslist = atoms(univ_scalarcond)
+            atomslist = atoms(univ_alph)
             metacond_relativeants = Tuple{RuleAntecedent,SatMask}[]
 
             # Remember that tresholds are sorted !
@@ -169,6 +192,7 @@ function specializeantecedents(
                     uncoveredX = slicedataset(X, prevant_coveredslice; return_view=false)
                     check(atom, uncoveredX)
                 end
+
                 cumulative_satmask[prevant_coveredslice] = atom_satmask
                 prevant_coveredslice = prevant_coveredslice[atom_satmask]
 
@@ -176,7 +200,7 @@ function specializeantecedents(
             end
             append!(specializedants, metacond_relativeants)
         end
-        return map(a->(RuleAntecedent([a]), check(a, X)), atoms(selectedalphabet))
+        return specializedants
     else
         for _ant ∈ antecedents
 
