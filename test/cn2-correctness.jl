@@ -6,6 +6,7 @@ using SoleData
 using MLJ
 using StatsBase
 using Random
+using ModalDecisionLists
 using ModalDecisionLists: BaseCN2
 
 # Input

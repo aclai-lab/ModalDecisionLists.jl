@@ -10,7 +10,7 @@ macro showlc(list, c)
                     )
         printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
         for (ind, element) in enumerate($list)
-            printstyled(ind,") ",element, "\n", color=$c)
+            printstyled(ind,") ", element, "\n", color=$c)
         end
     end)
 

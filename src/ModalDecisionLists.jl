@@ -18,6 +18,8 @@ include("core.jl")
 include("myhelp.jl")
 export @showlc
 
+export sequentialcovering
+
 include("algorithms/sequentialcovering.jl")
 
 export BaseCN2

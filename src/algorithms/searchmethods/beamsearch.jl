@@ -141,13 +141,13 @@ function newatoms(
     X::PropositionalLogiset,
     antecedent_info::Tuple{RuleAntecedent,BitVector};
     optimize=false,
-    reverse=false,
+    truerfirst=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},BitVector}}
     (antecedent, satindexes) = antecedent_info
     coveredX = slicedataset(X, satindexes; return_view=true)
     selectedalphabet = !isnothing(alph) ? alph :
-                       alphabet(coveredX,revsort=reverse)
+                       alphabet(coveredX, truerfirst=truerfirst)
     possibleconditions = optimize ? filteralphabetoptimized(X, selectedalphabet, antecedent_info) :
                          filteralphabet(X, selectedalphabet, antecedent)
     return possibleconditions
@@ -175,7 +175,7 @@ function specializeantecedents(
 
     if isempty(antecedents)
 
-        selectedalphabet = isnothing(default_alphabet) ? alphabet(X, revsort=reverse_condorder) : default_alphabet
+        selectedalphabet = isnothing(default_alphabet) ? alphabet(X, truerfirst=reverse_condorder) : default_alphabet
 
         for univ_alph in alphabets(selectedalphabet)
 
@@ -208,7 +208,7 @@ function specializeantecedents(
             # joined to the i-th antecedent. These are calculated only for the values ​​
             # of the instances already covered by the antecedent.
             conjunctibleatoms = newatoms(X, _ant;
-                reverse=reverse_condorder,
+                truerfirst=reverse_condorder,
                 optimize=true,
                 alph=default_alphabet)
 
