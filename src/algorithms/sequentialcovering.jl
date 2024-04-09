@@ -12,22 +12,15 @@ using DataFrames
 using StatsBase: mode, countmap, counts, Weights
 using FillArrays
 using ModalDecisionLists
-
-
-function increment!(
-    v::AbstractVector{<:Integer},
-    c::AbstractVector{<:Integer},
-    Δ::Int64
-)
-    for i_c in c
-        v[i_c] += Δ
-    end
-end
+using Parameters
 
 ############################################################################################
 ############## Sequential Covering #########################################################
 ############################################################################################
 
+
+# TODO @Edo ricontrollare docu
+# devo dare alre indicazioni su X, y,w ?
 """
     function sequentialcovering(
         X::PropositionalLogiset,
@@ -43,13 +36,70 @@ Learn a decision list on an logiset `X` with labels `y` and weights `w` followin
 the classic [sequential covering](https://christophm.github.io/interpretable-ml-book/rules.html#sequential-covering) learning scheme.
 This involves iteratively learning a single rule, and removing the newly covered instances.
 
-# Arguments
-TODO
+# OptionalArguments
+
+* `search_method::SearchMethod`: Search method for finding single rules.
+* `max_rulebase_length` is the aximum length of the rulebase.
+* `suppress_parity_warning` if true, suppresses parity warnings.
 
 # Examples
-TODO
 
-See also [`TODO`](@ref), [`PropositionalLogiset`](@ref), [`BeamSearch`](@ref).
+```julia-repl
+
+julia> X = PropositionalLogiset(iris_dataframe)
+julia> y = Vector{CLabel}(iris_labels)
+julia> sequentialcovering(X, y)
+
+▣
+├[1/22]┐(:sepal_length ≤ 4.8)
+│└ setosa
+├[2/22]┐(:sepal_length ≥ 7.1)
+│└ virginica
+├[3/22]┐(:sepal_length ≥ 7.0)
+│└ versicolor
+├[4/22]┐(:sepal_width ≤ 2.0)
+│└ versicolor
+├[5/22]┐(:sepal_width ≥ 3.5)
+│└ setosa
+├[6/22]┐(:petal_length ≤ 1.7)
+│└ setosa
+├[7/22]┐(:petal_length ≤ 4.4)
+│└ versicolor
+├[8/22]┐(:sepal_length ≤ 4.9)
+│└ virginica
+├[9/22]┐(:sepal_length ≤ 5.4)
+│└ versicolor
+├[10/22]┐(:petal_length ≤ 4.7)
+│└ versicolor
+├[11/22]┐(:sepal_length ≤ 5.8)
+│└ virginica
+├[12/22]┐(:sepal_width ≤ 2.2)
+│└ virginica
+├[13/22]┐(:sepal_width ≥ 3.3)
+│└ virginica
+├[14/22]┐(:petal_length ≥ 5.2)
+│└ virginica
+├[15/22]┐(:petal_width ≤ 1.4)
+│└ versicolor
+├[16/22]┐(:petal_width ≥ 1.9)
+│└ virginica
+├[17/22]┐(:sepal_length ≥ 6.7)
+│└ versicolor
+├[18/22]┐(:sepal_width ≤ 2.5)
+│└ versicolor
+├[19/22]┐(:sepal_length ≥ 6.1)
+│└ virginica
+├[20/22]┐(:sepal_width ≤ 2.7)
+│└ versicolor
+├[21/22]┐(:sepal_length ≥ 6.0)
+│└ virginica
+├[22/22]┐(:sepal_width ≤ 3.0)
+│└ virginica
+└✘ versicolor
+```
+
+See also
+[`SearchMethod`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 
 """
 function sequentialcovering(
@@ -72,9 +122,12 @@ function sequentialcovering(
         w
     end
 
+    # Non funziona, lascia  i campi di searchmethod invariati (ma non ritorna errore)
+
+    searchmethod = reconstruct(searchmethod,  kwargs)
+
     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
-
     (ninstances(X) == 0) && error("Empty trainig set")
 
     y, labels = y |> maptointeger
@@ -88,12 +141,12 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
+        # TODO è una soluzione accettabile per il passaggio dei parametri ?
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,
             uncoveredX,
             uncoveredy,
-            uncoveredw;
-            kwargs...
+            uncoveredw
         )
         bestantecedent == ⊤ && break
 
@@ -118,11 +171,6 @@ function sequentialcovering(
         if !isnothing(max_rulebase_length) && length(rulebase) > max_rulebase_length
             break
         end
-
-        # setdiff!(uncoveredslice, uncoveredslice[bestantecedent_coverage])
-        # uncoveredX = slicedataset(X, uncoveredslice; return_view = true)
-        # uncoveredy = @view y[uncoveredslice]
-        # uncoveredw = @view w[uncoveredslice]
     end
 
     # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
@@ -148,10 +196,3 @@ function sole_rand(
 )
     return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
 end
-
-#= Int.(values(currentrule_distribution)) =#
-# currentrule_distribution = Dict(unique(y) .=> 0)
-
-# for c in coveredy
-#     currentrule_distribution[c] += 1
-# end

@@ -46,6 +46,7 @@ See also
     quality_evaluator::Function=soleentropy
     max_rule_length::Union{Nothing,Integer}=nothing
     min_rule_coverage::Union{Integer}=1
+    reverse_condorder::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
 end
 
@@ -58,8 +59,7 @@ end
 
 Return every atom that can be derived from 'alph', except those already in the antecedent.
 
-For optimization purposes, paired with each atom, a bitmask indicating which instances of X
-are satisfied is returned.
+For optimization purposes each atom is returned paired with its coverage bitmask on X
 
 See also
 [`BeamSearch`](@ref).
@@ -88,7 +88,7 @@ end
 Like filteralphabet but with an additional filtering step ensuring that each atom is not a
 trivial specialization for the antecedent.
 
-A trivial specialization correspond to an antecedent covering the same instances as its parent
+A trivial specialization correspond to an antecedent covering exactly the same instances as its parent.
 """
 function filteralphabetoptimized(
     X::PropositionalLogiset,
@@ -98,34 +98,34 @@ function filteralphabetoptimized(
 
     antecedent, ant_mask = antecedent_info
     antecedent_atoms =  atoms(antecedent)
-    possible_atoms = Tuple{Atom,SatMask}[]
+    # possible_atoms = Tuple{Atom,SatMask}[]
 
-    for univ_scalarcond in alphabets(alph)
-        atomslist = atoms(univ_scalarcond)
-        # Atoms in usc conjunctible
-        usc_conjunctible = Tuple{Atom,SatMask}[]
+    # for univ_scalarcond in alphabets(alph)
+    #     atomslist = atoms(univ_scalarcond)
+    #     # Atoms in usc conjunctible
+    #     usc_conjunctible = Tuple{Atom,SatMask}[]
 
-        # Remember that tresholds are sorted !
-        cumulative_satmask = zeros(Bool, ninstances(X))
-        prevatom_coveredslice = collect(1:ninstances(X))
-        for atom in atomslist
-            isempty(prevatom_coveredslice) && break
-            atom_satmask = begin
-                uncoveredX = slicedataset(X, prevatom_coveredslice; return_view=false)
-                check(atom, uncoveredX)
-            end
-            cumulative_satmask[prevatom_coveredslice] = atom_satmask
-            prevatom_coveredslice = prevatom_coveredslice[atom_satmask]
+    #     # Remember that tresholds are sorted !
+    #     cumulative_satmask = zeros(Bool, ninstances(X))
+    #     prevatom_coveredslice = collect(1:ninstances(X))
+    #     for atom in atomslist
+    #         isempty(prevatom_coveredslice) && break
+    #         atom_satmask = begin
+    #             uncoveredX = slicedataset(X, prevatom_coveredslice; return_view=false)
+    #             check(atom, uncoveredX)
+    #         end
+    #         cumulative_satmask[prevatom_coveredslice] = atom_satmask
+    #         prevatom_coveredslice = prevatom_coveredslice[atom_satmask]
 
-            ((ant_mask .& cumulative_satmask) != ant_mask) & (atom ∉ antecedent_atoms) &&
-                push!(usc_conjunctible, (atom, cumulative_satmask))
-        end
-        append!(possible_atoms, usc_conjunctible)
-    end
-    return possible_atoms
-    # filtered_conditions = [(a, check(a, X)) for a ∈ conditions]
-    # return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
-    #         if ((ant_mask .& atom_mask) != ant_mask) & (a ∉ antecedent_atoms)]
+    #         ((ant_mask .& cumulative_satmask) != ant_mask) & (atom ∉ antecedent_atoms) &&
+    #             push!(usc_conjunctible, (atom, cumulative_satmask))
+    #     end
+    #     append!(possible_atoms, usc_conjunctible)
+    # end
+    # return possible_atoms
+    filtered_conditions = [(a, check(a, X)) for a ∈ atoms(alph)]
+    return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
+            if ((ant_mask .& atom_mask) != ant_mask) & (a ∉ antecedent_atoms)]
 end
 
 """
@@ -134,21 +134,20 @@ end
         antecedent::Tuple{RuleAntecedent, SatMask}
     )::Vector{Tuple{Atom, SatMask}}
 
-Returns a list of all possible conditions (atoms) that can be generated from instances of X
-and can further specialize the input antecedent"
+Returns the list of all possible conditions (atoms) that can be derived from instances
+of X and can further refine the input antecedent.
 """
 function newatoms(
     X::PropositionalLogiset,
     antecedent_info::Tuple{RuleAntecedent,BitVector};
     optimize=false,
+    reverse=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},BitVector}}
-
     (antecedent, satindexes) = antecedent_info
     coveredX = slicedataset(X, satindexes; return_view=true)
-
     selectedalphabet = !isnothing(alph) ? alph :
-                       alphabet(coveredX)
+                       alphabet(coveredX,revsort=reverse)
     possibleconditions = optimize ? filteralphabetoptimized(X, selectedalphabet, antecedent_info) :
                          filteralphabet(X, selectedalphabet, antecedent)
     return possibleconditions
@@ -167,6 +166,7 @@ function specializeantecedents(
     antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
     X::PropositionalLogiset,
     max_rule_length::Union{Nothing,Integer}=nothing,
+    reverse_condorder::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Tuple{RuleAntecedent,SatMask}}
 
@@ -175,9 +175,9 @@ function specializeantecedents(
 
     if isempty(antecedents)
 
-        selectedalphabet = isnothing(default_alphabet) ? alphabet(X) : default_alphabet
+        selectedalphabet = isnothing(default_alphabet) ? alphabet(X, revsort=reverse_condorder) : default_alphabet
 
-        for univ_alph in  alphabets(selectedalphabet)
+        for univ_alph in alphabets(selectedalphabet)
 
             atomslist = atoms(univ_alph)
             metacond_relativeants = Tuple{RuleAntecedent,SatMask}[]
@@ -208,6 +208,7 @@ function specializeantecedents(
             # joined to the i-th antecedent. These are calculated only for the values ​​
             # of the instances already covered by the antecedent.
             conjunctibleatoms = newatoms(X, _ant;
+                reverse=reverse_condorder,
                 optimize=true,
                 alph=default_alphabet)
 
@@ -249,25 +250,22 @@ Performs a beam search to find the best antecedent for a given dataset and label
 For further details, please refer to [`BeamSearch`](@ref).
 """
 function findbestantecedent(
-    ::BeamSearch,
+    bs::BeamSearch,
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
-    beam_width::Integer=3,
-    quality_evaluator::Function=soleentropy,
-    max_rule_length::Union{Nothing,Integer}=nothing,
-    alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    # beam_width::Integer=3,
+    # quality_evaluator::Function=soleentropy,
+    # max_rule_length::Union{Nothing,Integer}=nothing,
+    # alphabet::Union{Nothing,AbstractAlphabet}=nothing
 # TODO add min_rule_support parameter
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
 
-    @unpack beam_width, quality_evaluator, max_rule_length, min_rule_coverage, alphabet =
-        BeamSearch(
-            beam_width        = beam_width,
-            quality_evaluator = quality_evaluator,
-            max_rule_length   = max_rule_length,
-            alphabet          = alphabet
-        )
+    @unpack beam_width, quality_evaluator, max_rule_length,
+        min_rule_coverage, reverse_condorder, alphabet = bs
+
+
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w)
 
@@ -279,7 +277,7 @@ function findbestantecedent(
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
         #specialize candidate antecedents
-        newcandidates = specializeantecedents(candidates, X, max_rule_length, alphabet)
+        newcandidates = specializeantecedents(candidates, X, max_rule_length, reverse_condorder, alphabet)
         # Breake if there are no more possible/sensible specializations choices
         isempty(newcandidates) && break
 
