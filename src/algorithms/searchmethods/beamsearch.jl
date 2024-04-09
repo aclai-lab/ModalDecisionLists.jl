@@ -12,16 +12,16 @@ Search method to be used in
 [`sequentialcovering`](@ref) that explores the solution space selectively,
 maintaining a restricted set of partial solutions (the "beam") at each step.
 
-This beam is dynamically updated to include the most promising solutions, allowing for
+The beam is dynamically updated to include the most promising solutions, allowing for
 efficient exploration of the solution space without examining all possibilities.
 
-# Arguments
-* `beam_width` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
-* `quality_evaluator` is the function that assigns a score to each partial solution.
-* `max_rule_length` specifies the maximum length allowed for a rule in the search algorithm.
-* `min_rule_coverage` specifies the minimum number of instances covered by each rule.
+# Keyword Arguments
+* `beam_width::Integer = 3` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
+* `quality_evaluator::Function = soleentropy` is the function that assigns a score to each partial solution.
+* `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
+* `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
 If not specified, the beam will be update until no more possible specializations exist.
-* `alphabet` allow the specialization of the antecedent only on a constrained set of conditions.
+* `alphabet::Union{Nothing,AbstractAlphabet} = nothing` allow the specialization of the antecedent only on a constrained set of conditions.
 If not specified, , the entire alphabet originated from X is used.
 
 See also
