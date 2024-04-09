@@ -3,6 +3,7 @@ using SoleBase: CLabel
 using SoleLogics
 using SoleLogics: nconjuncts, pushconjunct!
 using SoleData
+using SoleData: AbstractLogiset
 import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, UnionAlphabet
 import SoleData: alphabet, test_operator, isordered, polarity, atoms
 using SoleModels
