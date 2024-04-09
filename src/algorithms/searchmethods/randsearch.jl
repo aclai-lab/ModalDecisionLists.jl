@@ -9,6 +9,8 @@ Generate random formulas (`SoleLogics.randformula`)
 """
 struct RandSearch <: SearchMethod end
 
+# TODO add rng parameter.
+
 function searchantecedents(
     sm::RandSearch,
     X::PropositionalLogiset,
