@@ -19,11 +19,9 @@ using Parameters
 ############################################################################################
 
 
-# TODO @Edo ricontrollare docu
-# devo dare alre indicazioni su X, y,w ?
 """
     function sequentialcovering(
-        X::PropositionalLogiset,
+        X::AbstractLogiset,
         y::AbstractVector{<:CLabel},
         w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
         search_method::SearchMethod=BeamSearch(),
@@ -36,10 +34,10 @@ Learn a decision list on an logiset `X` with labels `y` and weights `w` followin
 the classic [sequential covering](https://christophm.github.io/interpretable-ml-book/rules.html#sequential-covering) learning scheme.
 This involves iteratively learning a single rule, and removing the newly covered instances.
 
-# OptionalArguments
+# Keyword Arguments
 
-* `search_method::SearchMethod`: Search method for finding single rules.
-* `max_rulebase_length` is the aximum length of the rulebase.
+* `search_method::SearchMethod`: Search method for finding single rules;
+* `max_rulebase_length` is the maximum length of the rulebase;
 * `suppress_parity_warning` if true, suppresses parity warnings.
 
 # Examples
@@ -47,9 +45,12 @@ This involves iteratively learning a single rule, and removing the newly covered
 ```julia-repl
 
 julia> X = PropositionalLogiset(iris_dataframe)
-julia> y = Vector{CLabel}(iris_labels)
-julia> sequentialcovering(X, y)
 
+
+julia> y = Vector{CLabel}(iris_labels)
+
+
+julia> sequentialcovering(X, y)
 ▣
 ├[1/22]┐(:sepal_length ≤ 4.8)
 │└ setosa
@@ -99,11 +100,11 @@ julia> sequentialcovering(X, y)
 ```
 
 See also
-[`SearchMethod`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
+[`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 
 """
 function sequentialcovering(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
@@ -186,6 +187,16 @@ function sole_cn2(
     kwargs...
 )
     return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
+end
+
+function sole_cn2_orange(
+    X::PropositionalLogiset,
+    y::AbstractVector{<:CLabel},
+    w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
+    kwargs...
+)
+    # TODO
+    # return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
 end
 
 function sole_rand(

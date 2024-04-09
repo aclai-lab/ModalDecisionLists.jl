@@ -150,15 +150,3 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
 
 # @test MLJ.accuracy(outcomes, y[test_slice]) > 0.8
 # @test MLJ.accuracy(outcomes2, y[test_slice]) > 0.8
-
-# ############################################################################################
-
-using BenchmarkTools
-# Time
-display(@benchmark BaseCN2.base_cn2(X_df, y))
-display(@benchmark ModalDecisionLists.sole_cn2(X, y))
-
-# @btime BaseCN2.base_cn2(X_df, y)
-# @btime sole_cn2(X, y)
-
-# @test_broken outcome_on_training = apply(decision_list, X_pl_view)
