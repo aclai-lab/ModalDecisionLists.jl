@@ -6,6 +6,12 @@ using Parameters
 ############## Beam search #################################################################
 ############################################################################################
 
+"""
+Search method to be used in 
+[`sequentialcovering`](@ref) that simply returns the best atom as the antecedent. 
+"""
+struct BestAtom <: SearchMethod
+
 # TODO docu for min_rule_coverage
 """
 Search method to be used in 
@@ -17,7 +23,7 @@ efficient exploration of the solution space without examining all possibilities.
 
 # Keyword Arguments
 * `beam_width::Integer = 3` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
-* `quality_evaluator::Function = soleentropy` is the function that assigns a score to each partial solution.
+* `quality_evaluator::Function = entropy` is the function that assigns a score to each partial solution.
 * `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
 * `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
 If not specified, the beam will be update until no more possible specializations exist.
@@ -28,14 +34,15 @@ See also
 [`sequentialcovering`](@ref),
 [`SearchMethod`](@ref),
 [`RandSearch`](@ref),
-[`specializeantecedents`](@ref).
+[`specializeconjunctions`](@ref).
 """
 @with_kw struct BeamSearch <: SearchMethod
     beam_width::Integer=3
-    quality_evaluator::Function=soleentropy
+    quality_evaluator::Function=entropy
     max_rule_length::Union{Nothing,Integer}=nothing
     min_rule_coverage::Union{Integer}=1
     reverse_condorder::Bool=false
+    conjuncts_search_method::Bool=BestAtom()
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
 end
 
@@ -53,7 +60,7 @@ For optimization purposes each atom is returned paired with its coverage bitmask
 See also
 [`BeamSearch`](@ref).
 [`filteralphabetoptimized`](@ref),
-[`specializeantecedents`](@ref).
+[`specializeconjunctions`](@ref).
 """
 function filteralphabet(
     X::PropositionalLogiset,
@@ -142,31 +149,49 @@ function newatoms(
     return possibleconditions
 end
 
-"""
-    specializeantecedents(
-        antecedents::Vector{Tuple{RuleAntecbedent,SatMask}},
-        X::PropositionalLogiset,
-        max_rule_length::Union{Nothing,Integer} = nothing,
-    )::Vector{Tuple{RuleAntecedent, SatMask}}
-
-Specialize rule *antecedents*.
-"""
-function specializeantecedents(
-    antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
+function growconjunctions(
+    sm::RandSearch,
     X::PropositionalLogiset,
+    antecedents::Union{Nothing,Vector{Tuple{RuleAntecedent,SatMask}}},
+    max_rule_length::Union{Nothing,Integer}=nothing,
+    reverse_condorder::Bool=false, # TODO remove, it only applies to BestAtom; maybe it's an hyperparameter of BestAtom?
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+)::Vector{Tuple{RuleAntecedent,SatMask}}
+    if isnothing(antecedents)
+        return Iterators.map(c->(RuleAntecedent([c]), check(c, X)), searchantecedents(sm, X))
+    else
+        specializedants = Tuple{RuleAntecedent,SatMask}[]
+        for (conjunction, antcoverage) ∈ antecedents
+            
+            for conjunct in searchantecedents(sm, X)
+                _cov = check(conjunct, X)
+                # new_antcformula = antformula ∧ _atom
+                pushconjunct!(conjunct, conjunction)
+                new_antcoverage = antcoverage .& _cov
+
+                push!(specializedants, (antformula, new_antcoverage))
+            end
+        end
+        return specializedants
+    end
+end
+
+function growconjunctions(
+    ::BestAtom,
+    X::PropositionalLogiset,
+    antecedents::Union{Nothing,Vector{Tuple{RuleAntecedent,SatMask}}},
     max_rule_length::Union{Nothing,Integer}=nothing,
     reverse_condorder::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Tuple{RuleAntecedent,SatMask}}
 
-    !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
+    !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "Alphabet must be finite"
     specializedants = Tuple{RuleAntecedent,SatMask}[]
 
-    if isempty(antecedents)
-
+    if isnothing(antecedents)
         selectedalphabet = isnothing(default_alphabet) ? alphabet(X, truerfirst=reverse_condorder) : default_alphabet
 
-        for univ_alph in alphabets(selectedalphabet)
+        for univ_alph in alphabets(selectedalphabet) # TODO rename atoms.(alphabets(a)) into something like groupedatoms(a)..?
 
             atomslist = atoms(univ_alph)
             metacond_relativeants = Tuple{RuleAntecedent,SatMask}[]
@@ -178,7 +203,7 @@ function specializeantecedents(
             for atom in atomslist
                 isempty(prevant_coveredslice) && break
                 atom_satmask = begin
-                    uncoveredX = slicedataset(X, prevant_coveredslice; return_view=false)
+                    uncoveredX = slicedataset(X, prevant_coveredslice; return_view=false) # TODO optimize
                     check(atom, uncoveredX)
                 end
 
@@ -218,8 +243,8 @@ function specializeantecedents(
                 push!(specializedants, (antformula, new_antcoverage))
             end
         end
+        return specializedants
     end
-    return specializedants
 end
 
 """
@@ -227,11 +252,7 @@ end
         ::BeamSearch,
         X::PropositionalLogiset,
         y::AbstractVector{<:CLabel},
-        w::AbstractVector;
-        beam_width::Integer = 3,
-        quality_evaluator::Function = soleentropy,
-        max_rule_length::Union{Nothing,Integer} = nothing,
-        alphabet::Union{Nothing,AbstractAlphabet} = nothing
+        w::AbstractVector
     )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
 Performs a beam search to find the best antecedent for a given dataset and labels.
@@ -242,18 +263,12 @@ function findbestantecedent(
     bs::BeamSearch,
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    w::AbstractVector;
-    # beam_width::Integer=3,
-    # quality_evaluator::Function=soleentropy,
-    # max_rule_length::Union{Nothing,Integer}=nothing,
-    # alphabet::Union{Nothing,AbstractAlphabet}=nothing
-# TODO add min_rule_support parameter
+    w::AbstractVector
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
 
     @unpack beam_width, quality_evaluator, max_rule_length,
-        min_rule_coverage, reverse_condorder, alphabet = bs
-
+        min_rule_coverage, reverse_condorder, alphabet, conjuncts_search_method = bs
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w)
@@ -262,17 +277,20 @@ function findbestantecedent(
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
 
-    newcandidates = Tuple{RuleAntecedent,SatMask}[]
+    newcandidates = nothing
     while true
-        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
-        #specialize candidate antecedents
-        newcandidates = specializeantecedents(candidates, X, max_rule_length, reverse_condorder, alphabet)
-        # Breake if there are no more possible/sensible specializations choices
+        # Specialize candidate antecedents
+        newcandidates = growconjunctions(conjuncts_search_method, newcandidates, X, max_rule_length, reverse_condorder, alphabet)
+
+        # Break if there are no more possible/sensible specializations
         isempty(newcandidates) && break
 
-        (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
-        # (perm_, bestcandidate_quality) = sortantecedents_new(newcandidates, y, beam_width)
+        (perm_, bestcandidate_quality) = best_satmasks(last.(newcandidates), y, w, beam_width, quality_evaluator)
+
+        # (perm_, bestcandidate_quality) = best_satmasks_new(newcandidates, y, beam_width)
+
         newcandidates = newcandidates[perm_]
+        
         if bestcandidate_quality < best_quality
             best = newcandidates[1]
             best_quality = bestcandidate_quality

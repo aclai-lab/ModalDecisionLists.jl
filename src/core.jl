@@ -53,7 +53,7 @@ function maptointeger(y::AbstractVector{<:CLabel})
     return integer_y, values
 end
 
-function soleentropy(
+function entropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector=default_weights(length(y));
 )
@@ -68,60 +68,41 @@ end
 
 
 """
-    sortantecedents(
-        antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
+    best_satmasks(
+        satmasks::Vector{Tuple{Formula, SatMask}},
         y::AbstractVector{CLabel},
         w::AbstractVector,
-        beam_width::Integer,
+        nbest::Integer,
         quality_evaluator::Function
     )
 
+Sort rule satmasks based on their quality, using a specified evaluation function.
 
-Sorts rule antecedents based on their quality using a specified evaluation function.
-
-Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
+Takes an *satmasks*, each decorated by a SatMask indicating his coverage bitmask.
 Each antecedent is evaluated on his covered y using the provided *quality evaluator* function.
 Then the permutation of the bests *beam_search* sorted antecedent is returned with the quality
 value of the best one.
+
+See also
+[`entropy`](@ref).
 """
-function sortantecedents(
-    antecedents::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
+function best_satmasks(
+    satmasks::AbstractVector{BitVector},
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
-    beam_width::Integer,
+    nbest::Integer,
     quality_evaluator::Function,
 )::Tuple{Vector{Int},<:Real}
-    isempty(antecedents) && return [], Inf
+    isempty(satmasks) && return [], Inf
 
-    antsquality = map(antd -> begin
-            _, satinds = antd
-            quality_evaluator(y[satinds], w[satinds])
-        end, antecedents)
+    antsquality = map(satmask->quality_evaluator(y[satmask], w[satmask]), satmasks)
 
-    newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
-    bestantecedent_quality = antsquality[newstar_perm[1]]
+    satmask_perm = partialsortperm(antsquality, 1:min(nbest, length(antsquality)))
+    bestantecedent_quality = antsquality[satmask_perm[1]]
 
-    return (newstar_perm, bestantecedent_quality)
+    return (satmask_perm, bestantecedent_quality)
 end
 
-
-############################################################################################
-############ Helping function ##############################################################
-############################################################################################
-
-macro showlc(list, c)
-    return esc(quote
-        infolist = (length($list) == 0 ?
-                        "EMPTY" :
-                        "len: $(length($list))"
-                    )
-        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
-        for (ind, element) in enumerate($list)
-            printstyled(ind,") ",element, "\n", color=$c)
-        end
-    end)
-
-end
 
 ############################################################################################
 ############ Helping function ##############################################################

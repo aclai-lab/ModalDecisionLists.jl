@@ -74,7 +74,7 @@ oneinst_y = y_clabel[1:1]
 
 bs5 = BeamSearch(; beam_width=5)
 
-@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5, evaluator=soleentropy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5, evaluator=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5), beam_width=10)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=RandSearch(; cardinality=5), cardinality=10)
 
