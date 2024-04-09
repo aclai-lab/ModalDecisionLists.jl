@@ -2,6 +2,8 @@ using SoleLogics: AbstractAlphabet, pushconjunct!
 using SoleData: isordered, polarity
 using Parameters
 
+const BSAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
+
 ############################################################################################
 ############## Beam search #################################################################
 ############################################################################################
@@ -50,7 +52,7 @@ end
     function filteralphabet(
         X::PropositionalLogiset,
         alph::UnionAlphabet,
-        antecedent_info::Tuple{RuleAntecedent,SatMask}
+        antecedent_info::Tuple{BSAntecedent,SatMask}
     )::Vector{Tuple{Atom,SatMask}}
 
 Return every atom that can be derived from 'alph', except those already in the antecedent.
@@ -65,7 +67,7 @@ See also
 function filteralphabet(
     X::PropositionalLogiset,
     alph::AbstractAlphabet,
-    antecedent::RuleAntecedent
+    antecedent::BSAntecedent
 )::Vector{Tuple{Atom,SatMask}}
 
     conditions = Atom{ScalarCondition}.(atoms(alph))
@@ -78,7 +80,7 @@ end
     function filteralphabetoptimized(
         X::PropositionalLogiset,
         alph::UnionAlphabet,
-        antecedent_info::Tuple{RuleAntecedent,SatMask}
+        antecedent_info::Tuple{BSAntecedent,SatMask}
     )::Vector{Tuple{Atom,SatMask}}
 
 Like filteralphabet but with an additional filtering step ensuring that each atom is not a
@@ -89,7 +91,7 @@ A trivial specialization correspond to an antecedent covering exactly the same i
 function filteralphabetoptimized(
     X::PropositionalLogiset,
     alph::UnionAlphabet,
-    antecedent_info::Tuple{RuleAntecedent,SatMask}
+    antecedent_info::Tuple{BSAntecedent,SatMask}
 )::Vector{Tuple{Atom,SatMask}}
 
     antecedent, ant_mask = antecedent_info
@@ -127,7 +129,7 @@ end
 """
     newatoms(
         X::PropositionalLogiset,
-        antecedent::Tuple{RuleAntecedent, SatMask}
+        antecedent::Tuple{BSAntecedent, SatMask}
     )::Vector{Tuple{Atom, SatMask}}
 
 Returns the list of all possible conditions (atoms) that can be derived from instances
@@ -135,7 +137,7 @@ of X and can further refine the input antecedent.
 """
 function newatoms(
     X::PropositionalLogiset,
-    antecedent_info::Tuple{RuleAntecedent,BitVector};
+    antecedent_info::Tuple{BSAntecedent,BitVector};
     optimize=false,
     truerfirst=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
@@ -152,15 +154,15 @@ end
 function growconjunctions(
     sm::RandSearch,
     X::PropositionalLogiset,
-    antecedents::Union{Nothing,Vector{Tuple{RuleAntecedent,SatMask}}},
+    antecedents::Union{Nothing,Vector{Tuple{BSAntecedent,SatMask}}},
     max_rule_length::Union{Nothing,Integer}=nothing,
     reverse_condorder::Bool=false, # TODO remove, it only applies to BestAtom; maybe it's an hyperparameter of BestAtom?
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-)::Vector{Tuple{RuleAntecedent,SatMask}}
+)::Vector{Tuple{BSAntecedent,SatMask}}
     if isnothing(antecedents)
-        return Iterators.map(c->(RuleAntecedent([c]), check(c, X)), searchantecedents(sm, X))
+        return Iterators.map(c->(BSAntecedent([c]), check(c, X)), searchantecedents(sm, X))
     else
-        specializedants = Tuple{RuleAntecedent,SatMask}[]
+        specializedants = Tuple{BSAntecedent,SatMask}[]
         for (conjunction, antcoverage) ∈ antecedents
             
             for conjunct in searchantecedents(sm, X)
@@ -179,14 +181,14 @@ end
 function growconjunctions(
     ::BestAtom,
     X::PropositionalLogiset,
-    antecedents::Union{Nothing,Vector{Tuple{RuleAntecedent,SatMask}}},
+    antecedents::Union{Nothing,Vector{Tuple{BSAntecedent,SatMask}}},
     max_rule_length::Union{Nothing,Integer}=nothing,
     reverse_condorder::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-)::Vector{Tuple{RuleAntecedent,SatMask}}
+)::Vector{Tuple{BSAntecedent,SatMask}}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "Alphabet must be finite"
-    specializedants = Tuple{RuleAntecedent,SatMask}[]
+    specializedants = Tuple{BSAntecedent,SatMask}[]
 
     if isnothing(antecedents)
         selectedalphabet = isnothing(default_alphabet) ? alphabet(X, truerfirst=reverse_condorder) : default_alphabet
@@ -194,7 +196,7 @@ function growconjunctions(
         for univ_alph in alphabets(selectedalphabet) # TODO rename atoms.(alphabets(a)) into something like groupedatoms(a)..?
 
             atomslist = atoms(univ_alph)
-            metacond_relativeants = Tuple{RuleAntecedent,SatMask}[]
+            metacond_relativeants = Tuple{BSAntecedent,SatMask}[]
 
             # Remember that tresholds are sorted !
             cumulative_satmask = zeros(Bool, ninstances(X))
@@ -210,7 +212,7 @@ function growconjunctions(
                 cumulative_satmask[prevant_coveredslice] = atom_satmask
                 prevant_coveredslice = prevant_coveredslice[atom_satmask]
 
-                push!(metacond_relativeants, (RuleAntecedent([atom]), cumulative_satmask))
+                push!(metacond_relativeants, (BSAntecedent([atom]), cumulative_satmask))
             end
             append!(specializedants, metacond_relativeants)
         end

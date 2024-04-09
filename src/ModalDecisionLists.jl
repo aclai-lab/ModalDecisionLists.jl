@@ -24,7 +24,7 @@ include("algorithms/sequentialcovering.jl")
 export BaseCN2
 
 module BaseCN2
-using ModalDecisionLists: RuleAntecedent, SatMask
+using ModalDecisionLists: SatMask
 include("algorithms/base-cn2.jl")
 end
 
