@@ -15,9 +15,6 @@ using Reexport
 include("core.jl")
 # Temporaneamente qui
 
-include("myhelp.jl")
-export @showlc
-
 export sequentialcovering
 
 include("algorithms/sequentialcovering.jl")

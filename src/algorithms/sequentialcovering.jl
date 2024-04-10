@@ -3,7 +3,7 @@ using SoleBase: CLabel
 using SoleLogics
 using SoleLogics: nconjuncts, pushconjunct!
 using SoleData
-import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, UnionAlphabet
+import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, UnionAlphabet, AbstractLogiset
 import SoleData: alphabet, test_operator, isordered, polarity, atoms
 using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
@@ -17,7 +17,6 @@ using Parameters
 ############################################################################################
 ############## Sequential Covering #########################################################
 ############################################################################################
-
 
 """
     function sequentialcovering(
