@@ -175,9 +175,8 @@ function sequentialcovering(
     end
 
     # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
-
     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
-    return DecisionList(rulebase, defaultconsequent)
+    return DecisionList(rulebase, labels[defaultconsequent])
 end
 
 function sole_cn2(

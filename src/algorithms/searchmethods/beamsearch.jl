@@ -8,7 +8,7 @@ using Parameters
 
 # TODO docu for min_rule_coverage
 """
-Search method to be used in 
+Search method to be used in
 [`sequentialcovering`](@ref) that explores the solution space selectively,
 maintaining a restricted set of partial solutions (the "beam") at each step.
 
@@ -35,7 +35,7 @@ See also
     quality_evaluator::Function=soleentropy
     max_rule_length::Union{Nothing,Integer}=nothing
     min_rule_coverage::Union{Integer}=1
-    reverse_condorder::Bool=false
+    truerfirst::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
 end
 
@@ -87,31 +87,7 @@ function filteralphabetoptimized(
 
     antecedent, ant_mask = antecedent_info
     antecedent_atoms =  atoms(antecedent)
-    # possible_atoms = Tuple{Atom,SatMask}[]
 
-    # for univ_scalarcond in alphabets(alph)
-    #     atomslist = atoms(univ_scalarcond)
-    #     # Atoms in usc conjunctible
-    #     usc_conjunctible = Tuple{Atom,SatMask}[]
-
-    #     # Remember that tresholds are sorted !
-    #     cumulative_satmask = zeros(Bool, ninstances(X))
-    #     prevatom_coveredslice = collect(1:ninstances(X))
-    #     for atom in atomslist
-    #         isempty(prevatom_coveredslice) && break
-    #         atom_satmask = begin
-    #             uncoveredX = slicedataset(X, prevatom_coveredslice; return_view=false)
-    #             check(atom, uncoveredX)
-    #         end
-    #         cumulative_satmask[prevatom_coveredslice] = atom_satmask
-    #         prevatom_coveredslice = prevatom_coveredslice[atom_satmask]
-
-    #         ((ant_mask .& cumulative_satmask) != ant_mask) & (atom ∉ antecedent_atoms) &&
-    #             push!(usc_conjunctible, (atom, cumulative_satmask))
-    #     end
-    #     append!(possible_atoms, usc_conjunctible)
-    # end
-    # return possible_atoms
     filtered_conditions = [(a, check(a, X)) for a ∈ atoms(alph)]
     return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
             if ((ant_mask .& atom_mask) != ant_mask) & (a ∉ antecedent_atoms)]
@@ -155,7 +131,7 @@ function specializeantecedents(
     antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
     X::PropositionalLogiset,
     max_rule_length::Union{Nothing,Integer}=nothing,
-    reverse_condorder::Bool=false,
+    truerfirst::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Tuple{RuleAntecedent,SatMask}}
 
@@ -163,17 +139,13 @@ function specializeantecedents(
     specializedants = Tuple{RuleAntecedent,SatMask}[]
 
     if isempty(antecedents)
-
-        selectedalphabet = isnothing(default_alphabet) ? alphabet(X, truerfirst=reverse_condorder) : default_alphabet
-
-        for univ_alph in alphabets(selectedalphabet)
-
-            atomslist = atoms(univ_alph)
+        selectedalphabet = isnothing(default_alphabet) ? alphabet(X, truerfirst=truerfirst) : default_alphabet
+        for univ_alphabet in alphabets(selectedalphabet)
+            atomslist = atoms(univ_alphabet)
             metacond_relativeants = Tuple{RuleAntecedent,SatMask}[]
 
             # Remember that tresholds are sorted !
             cumulative_satmask = zeros(Bool, ninstances(X))
-
             prevant_coveredslice = collect(1:ninstances(X))
             for atom in atomslist
                 isempty(prevant_coveredslice) && break
@@ -181,10 +153,8 @@ function specializeantecedents(
                     uncoveredX = slicedataset(X, prevant_coveredslice; return_view=false)
                     check(atom, uncoveredX)
                 end
-
                 cumulative_satmask[prevant_coveredslice] = atom_satmask
                 prevant_coveredslice = prevant_coveredslice[atom_satmask]
-
                 push!(metacond_relativeants, (RuleAntecedent([atom]), cumulative_satmask))
             end
             append!(specializedants, metacond_relativeants)
@@ -192,17 +162,11 @@ function specializeantecedents(
         return specializedants
     else
         for _ant ∈ antecedents
-
-            # i_conjunctibleatoms refer to all the conditions (Atoms) that can be
-            # joined to the i-th antecedent. These are calculated only for the values ​​
-            # of the instances already covered by the antecedent.
             conjunctibleatoms = newatoms(X, _ant;
-                truerfirst=reverse_condorder,
+                truerfirst=truerfirst,
                 optimize=true,
                 alph=default_alphabet)
-
             isempty(conjunctibleatoms) && continue
-
             for (_atom, _cov) ∈ conjunctibleatoms
 
                 (antformula, antcoverage) = _ant
@@ -210,12 +174,8 @@ function specializeantecedents(
                     continue
                 end
                 antformula = deepcopy(antformula)
-
-                # new_antcformula = antformula ∧ _atom
                 pushconjunct!(antformula, _atom)
-                new_antcoverage = antcoverage .& _cov
-
-                push!(specializedants, (antformula, new_antcoverage))
+                push!(specializedants, (antformula, antcoverage .& _cov))
             end
         end
     end
@@ -243,17 +203,10 @@ function findbestantecedent(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
-    # beam_width::Integer=3,
-    # quality_evaluator::Function=soleentropy,
-    # max_rule_length::Union{Nothing,Integer}=nothing,
-    # alphabet::Union{Nothing,AbstractAlphabet}=nothing
-# TODO add min_rule_support parameter
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
-
     @unpack beam_width, quality_evaluator, max_rule_length,
-        min_rule_coverage, reverse_condorder, alphabet = bs
-
+        min_rule_coverage, truerfirst, alphabet = bs
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w)
@@ -265,13 +218,14 @@ function findbestantecedent(
     newcandidates = Tuple{RuleAntecedent,SatMask}[]
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
-        #specialize candidate antecedents
-        newcandidates = specializeantecedents(candidates, X, max_rule_length, reverse_condorder, alphabet)
-        # Breake if there are no more possible/sensible specializations choices
+        newcandidates = specializeantecedents(candidates,
+                                    X,
+                                    max_rule_length,
+                                    truerfirst,
+                                    alphabet)
         isempty(newcandidates) && break
-
         (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
-        # (perm_, bestcandidate_quality) = sortantecedents_new(newcandidates, y, beam_width)
+
         newcandidates = newcandidates[perm_]
         if bestcandidate_quality < best_quality
             best = newcandidates[1]
