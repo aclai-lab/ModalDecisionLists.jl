@@ -1,4 +1,12 @@
-import ModalDecisionLists: SearchMethod, BeamSearch, sequentialcovering
+module MLJInterface
+
+export SequentialCoveringLearner
+export BeamSearch, RandSearch
+
+using ModalDecisionLists
+import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
+import ModalDecisionLists:  sequentialcovering
+
 import SoleData: PropositionalLogiset
 import SoleBase: CLabel
 import SoleModels: apply
@@ -6,7 +14,17 @@ import MLJBase
 
 import MLJModelInterface
 using Parameters
+
 const MMI = MLJModelInterface
+const MDL = ModalDecisionLists
+
+const _package_url = "https://github.com/aclai-lab/$(MDL).jl"
+
+
+
+############################################################################################
+############################ SequentialCoveringLearner #####################################
+############################################################################################
 
 mutable struct SequentialCoveringLearner <: MLJModelInterface.Deterministic
     searchmethod::SearchMethod
@@ -43,7 +61,7 @@ function SequentialCoveringLearner(;
     return model
 end
 
-function MLJBase.fit(model::SequentialCoveringLearner, verbosity, X, y)
+function MMI.fit(model::SequentialCoveringLearner, verbosity, X, y)
     fitresult = sequentialcovering(
                         PropositionalLogiset(X),
                         Vector{CLabel}(y);
@@ -55,12 +73,24 @@ function MLJBase.fit(model::SequentialCoveringLearner, verbosity, X, y)
     return fitresult, cache, report
 end
 
-function MLJBase.predict(model::SequentialCoveringLearner, fitresult, Xnew)
+function MMI.predict(model::SequentialCoveringLearner, fitresult, Xnew)
     yhat = apply(fitresult, PropositionalLogiset(Xnew))
     return yhat
 end
 
+MMI.metadata_pkg.(
+    (
+        SequentialCoveringLearner,
+    ),
+    name = "$(MDL)",
+    package_uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8",
+    package_url = _package_url,
+    is_pure_julia = true,
+    is_wrapper=false,
+    package_license = "MIT",
+)
 
+end # module
 #=
 [Easy test] -- Copiare ed incollare nel terminale:
 
