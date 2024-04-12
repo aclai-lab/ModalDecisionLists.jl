@@ -60,3 +60,12 @@ Main:
         # labels predette dal modello, ma in principio le support_labels sono sufficienti 
         # per calcolare diverse metriche 
     
+
+    MLJ-Interface:
+        ✔ Constructor with keyword arguments @done(24-04-12 13:32)
+        ☐ fit
+            # parlare con gio di CategoricalArrays
+        ☐ predict
+        ☐ clean!
+            # https://juliaai.github.io/MLJModelInterface.jl/dev/quick_start_guide/
+        ☐ MMI.metadata_pkgMMI.metadata_pkg
