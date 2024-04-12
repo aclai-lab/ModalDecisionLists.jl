@@ -35,9 +35,17 @@ iris = dataset("datasets", "iris")
 # println("""\n##########################################################\n Iris""")
 y_iris = iris[:, :Species]
 X_iris = select(iris, Not([:Species]));
-learned_list = machine(list_model, X_iris, CategoricalValue.(y_iris))
-fit!(learned_list)
-yhat = MLJ.predict(learned_list, X_iris)
+learned_machine = machine(list_model, X_iris, CategoricalValue.(y_iris))
+fit!(learned_machine)
+yhat = MLJ.predict(learned_machine, X_iris)
+
+train, test = partition(eachindex(y_iris), 0.7; shuffle=true)
+@show train
+fit!(learned_machine, rows=train)
+yhat = MLJ.predict(learned_machine, X_iris[test, :])
+
+
+
 # #
 # println("""⊠ MLJ - DecisionTree\n""")
 # learned_tree = machine(tree_model, SoleData.gettable(X_train), CategoricalValue.(y_train))

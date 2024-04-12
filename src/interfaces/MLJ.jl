@@ -103,14 +103,3 @@ MMI.metadata_pkg.(
 )
 
 end # module
-#=
-[Easy test] -- Copiare ed incollare nel terminale:
-
-include("ModalDecisionLists/src/mlj.jl")
-seqcovering_model = SequentialCoveringLearner()
-
-include("ModalDecisionLists/test/cn2-accuracy.jl")
-learned_list = machine(seqcovering_model, iris_df, CategoricalValue.(y_iris))
-fit!(learned_list)
-MLJBase.predict(learned_list, iris_df)
-=#
