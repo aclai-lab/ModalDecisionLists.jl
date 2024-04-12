@@ -26,7 +26,6 @@ using ModalDecisionLists: RuleAntecedent, SatMask
 include("algorithms/base-cn2.jl")
 end
 
-
 export SequentialCoveringLearner
 
 # Interface

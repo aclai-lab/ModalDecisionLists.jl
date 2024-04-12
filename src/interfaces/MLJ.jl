@@ -1,7 +1,7 @@
 module MLJInterface
 
 export SequentialCoveringLearner
-export BeamSearch, RandSearch
+# export BeamSearch, RandSearch
 
 using ModalDecisionLists
 import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
@@ -20,13 +20,13 @@ const MDL = ModalDecisionLists
 
 const _package_url = "https://github.com/aclai-lab/$(MDL).jl"
 
-
+abstract type CoveringStrategy <: MLJModelInterface.Deterministic end
 
 ############################################################################################
 ############################ SequentialCoveringLearner #####################################
 ############################################################################################
 
-mutable struct SequentialCoveringLearner <: MLJModelInterface.Deterministic
+mutable struct SequentialCoveringLearner <: CoveringStrategy
     searchmethod::SearchMethod
     max_rulebase_length::Union{Nothing,Integer}
     suppress_parity_warning::Bool
@@ -61,20 +61,32 @@ function SequentialCoveringLearner(;
     return model
 end
 
-function MMI.fit(model::SequentialCoveringLearner, verbosity, X, y)
-    fitresult = sequentialcovering(
-                        PropositionalLogiset(X),
-                        Vector{CLabel}(y);
-                        model.searchmethod,
-                        model.max_rulebase_length,
-                        model.suppress_parity_warning)
+function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
+
+    X_pl = PropositionalLogiset(X)
+    y_cl = Vector{CLabel}(y)
+
+    model = begin
+        if m isa SequentialCoveringLearner
+            sequentialcovering(
+                        X_pl, y_cl;
+                        m.searchmethod,
+                        m.max_rulebase_length,
+                        m.suppress_parity_warning)
+        else
+            error("unexpected model type $(typeof(model))")
+        end
+    end
+    fitresult = (
+        model = model,
+    )
     cache = nothing
     report = nothing
     return fitresult, cache, report
 end
 
-function MMI.predict(model::SequentialCoveringLearner, fitresult, Xnew)
-    yhat = apply(fitresult, PropositionalLogiset(Xnew))
+function MMI.predict(m::SequentialCoveringLearner, fitresult, Xnew)
+    yhat = apply(fitresult.model, PropositionalLogiset(Xnew))
     return yhat
 end
 
