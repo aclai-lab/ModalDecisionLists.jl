@@ -66,7 +66,6 @@ function soleentropy(
     return -sum(prob .* log2.(prob))
 end
 
-
 """
     sortantecedents(
         antecedents::Vector{Tuple{RuleAntecedent, SatMask}},

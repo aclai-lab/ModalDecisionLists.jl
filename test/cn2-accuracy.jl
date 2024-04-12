@@ -12,7 +12,7 @@ using ModalDecisionLists: BaseCN2
 using CategoricalArrays: CategoricalValue, CategoricalArray
 
 @load DecisionTreeClassifier pkg=DecisionTree
-tree_model = MLJDecisionTreeInterface.DecisionTreeClassifier(max_depth=2)
+tree_model = MLJDecisionTreeInterface.DecisionTreeClassifier(max_depth=-1)
 
 ###################################### Utility Functions ###################################
 ############################################################################################
@@ -60,9 +60,7 @@ Xy = RDatasets.dataset("psych", "sat.act")
 Xy = RDatasets.dataset("ISLR", "Smarket")
 Xy = RDatasets.dataset("ISLR", "Default")
 Xy = RDatasets.dataset("Ecdat", "BudgetFood")
-
 =#
-
 
 
 # 150×5 DataFrame
@@ -78,10 +76,10 @@ Xy = RDatasets.dataset("Ecdat", "BudgetFood")
 #  149 │         6.2         3.4          5.4         2.3  virginica
 #  150 │         5.9         3.0          5.1         1.8  virginica
 #                                                    143 rows omitted
-iris_df = dataset("datasets", "iris")
+iris = dataset("datasets", "iris")
 println("""\n##########################################################\n Iris""")
-y_iris = iris_df[:, :Species]
-select!(iris_df, Not([:Species]));
+y_iris = iris[:, :Species]
+iris_df = select(iris, Not([:Species]));
 X_iris = PropositionalLogiset(iris_df)
 
 dl_iris =  ModalDecisionLists.sole_cn2(X_iris, y_iris)
@@ -158,9 +156,6 @@ learned_tree = machine(tree_model, SoleData.gettable(X_train), CategoricalArray(
 fit!(learned_tree)
 yhat = mode.(MLJ.predict(learned_tree, SoleData.gettable(X_test)))
 println("\t- 2/3 train:\t\t", MLJ.accuracy(yhat, y_test))
-
-
-
 
 
 # wage:
