@@ -8,8 +8,6 @@ Main:
 
         ☐ new section in docu
         ☐ MLJ interface for cn2
-        ✔ Aggiornare confronto tra LmCF @done(24-03-04 19:36)
-        # (rimuovere confronto tramite Base.:(==))
         ☐ Laplace
         ☐ entropyMDL
         ☐ Rule validation
@@ -18,7 +16,7 @@ Main:
     
     Utility:
         ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
-            ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-03-04 17:11)
+            ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-04-13 04:08)
             # già scritta soluzione temporanea
         ✔ add alphabet parameter @done(24-04-03 11:06)
         ✔ check empty row table in ProposiionlLogiset costruction @done(24-04-03 17:35)
@@ -27,7 +25,7 @@ Main:
             # scalarminimizer
         ✔ BoundedScalarCond -> UnivariateScalarCondion @done(24-04-10 16:31)
         ☐ Aggiungere operazioni di pulizia del dataset prima di usarlo come training-dataset.
-            # Rimuovere istanze duplicate
+            ☐ # Rimuovere istanze duplicate
                 # Istanze duplicate con classe UGUALE. 
                 # istamze duplicate con classe DIVERSA
             # gestione missing values  
@@ -36,15 +34,19 @@ Main:
         ✔ Verificare 100% accuratezza sul dataset di trainig ? @done(24-03-01 03:02)
         ☐ Test accuratezza
             ☐ Only real attributes
-                ☐ Xy = RDatasets.dataset("psych", "sat.act")
-                ☐ Xy = RDatasets.dataset("gamair", "wesdr")
-                ☐ Xy = RDatasets.dataset("gamair", "wesdr")
-                ☐ Xy = RDatasets.dataset("ISLR", "Weekly")     Too large
-                ☐ Xy = RDatasets.dataset("ISLR", "OJ")
-                ☐ Xy = RDatasets.dataset("ISLR", "Caravan")
-                ☐ Xy = RDatasets.dataset("ISLR", "Smarket")
+                ✔ Xy = RDatasets.dataset("datasets", "iris") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("Ecdat", "Bwages") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("psych", "sat.act") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("gamair", "wesdr") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("ISLR", "Smarket") @done(24-04-13 04:04)
                 ☐ Xy = RDatasets.dataset("ISLR", "Default")
-                ☐ Xy = RDatasets.dataset("Ecdat", "BudgetFood")
+                    # only one categorical column addition to the target (exclude ?)
+                
+                Too large datasets for now
+                # Xy = RDatasets.dataset("ISLR", "Caravan")
+                # Xy = RDatasets.dataset("Ecdat", "BudgetFood")
+                # Xy = RDatasets.dataset("ISLR", "Weekly")         
+                # Xy = RDatasets.dataset("ISLR", "OJ")
             ☐ With categorical real attributes
                 ☐ Xy = RDatasets.dataset("mlmRev", "Early")
                 ☐ Xy = RDatasets.dataset("mlmRev", "Contraception")
@@ -53,7 +55,7 @@ Main:
             
     Future: 
         ✔ Differenziare caso attributi discreti/categoriali
-        ☐ Aggiungere campo supporting_labels (vettore)
+        ✔ Aggiungere campo supporting_labels (vettore) @done(24-04-13 04:06)
         # Vettore delle labels delle istanze su cui la regola è costruita (ovvero, quelle che non sono coperte dalle regole precedenti), e nel 
         # info del constant model ci metti un campo supp_labels con le labels delle istanze che, tra queste, sono coperte dalla regola. 
         ☐ Aggiungere campo predicted_labels (forse)
@@ -68,4 +70,4 @@ Main:
         ☐ predict
         ☐ clean!
             # https://juliaai.github.io/MLJModelInterface.jl/dev/quick_start_guide/
-        ☐ MMI.metadata_pkgMMI.metadata_pkg
+        ☐ MMI.metadata_pkg.MMI.metadata_pkg

@@ -1,4 +1,5 @@
 using Test
+using Printf
 using SoleBase: CLabel
 using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list
@@ -11,44 +12,86 @@ using ModalDecisionLists
 using ModalDecisionLists: BaseCN2, MLJInterface
 using CategoricalArrays: CategoricalValue, CategoricalArray
 
-# @load DecisionTreeClassifier pkg=DecisionTree
-# tree_model = MLJDecisionTreeInterface.DecisionTreeClassifier(max_depth=-1)
+"""
+Dumb utility function to preprocess input data:
+    * remove duplicated rows
+    * remove rows with missing values
+"""
+function preprocess_inputdata(
+    X::AbstractDataFrame,
+    y
+)
+    allunique(X) && return (X, y)
+    nonunique_ind = nonunique(X)
+    Xy = hcat( X[findall((!).(nonunique_ind)), :],
+               y[findall((!).(nonunique_ind))]
+    ) |> dropmissing
+    return Xy[:, 1:(end-1)], Xy[:, end]
+end
 
+############################################################################################
 const MLJI = MLJInterface
+@load DecisionTreeClassifier pkg=DecisionTree
+
+tree_model = MLJDecisionTreeInterface.DecisionTreeClassifier(max_depth=-1)
 list_model = MLJI.SequentialCoveringLearner()
 
+_rng = MersenneTwister(16)
+_partition = 0.7
 
-# 150×5 DataFrame
-#  Row │ SepalLength  SepalWidth  PetalLength  PetalWidth  Species
-#      │ Float64      Float64     Float64      Float64     Cat…
-# ─────┼─────────────────────────────────────────────────────────────
-#    1 │         5.1         3.5          1.4         0.2  setosa
-#    2 │         4.9         3.0          1.4         0.2  setosa
-#    3 │         4.7         3.2          1.3         0.2  setosa
-#    4 │         4.6         3.1          1.5         0.2  setosa
-#      │      ⋮           ⋮            ⋮           ⋮           ⋮
-#  148 │         6.5         3.0          5.2         2.0  virginica
-#  149 │         6.2         3.4          5.4         2.3  virginica
-#  150 │         5.9         3.0          5.1         1.8  virginica
-#                                                    143 rows omitted
-iris = dataset("datasets", "iris")
-# println("""\n##########################################################\n Iris""")
-y_iris = iris[:, :Species]
-X_iris = select(iris, Not([:Species]));
-learned_machine = machine(list_model, X_iris, CategoricalValue.(y_iris))
-fit!(learned_machine)
-yhat = MLJ.predict(learned_machine, X_iris)
+Xy = RDatasets.dataset("psych", "sat.act")
 
-train, test = partition(eachindex(y_iris), 0.7; shuffle=true)
-@show train
-fit!(learned_machine, rows=train)
-yhat = MLJ.predict(learned_machine, X_iris[test, :])
+table_ntuples = [
+    (package = "datasets", tablename = "iris",
+        target  = :Species,
+        exclude = [:Species]),
+    (package = "gamair", tablename = "wesdr",
+        target  = :ret,
+        exclude = [:Column1, :ret]),
+    (package = "Ecdat", tablename = "Bwages",
+        target  = :Sex,
+        exclude = [:Sex]),
+    (package = "psych", tablename = "sat.act",
+        target  = :Gender,
+        exclude = [:Gender]),
+    (package = "ISLR", tablename = "Smarket",
+        target  = :Direction,
+        exclude = [:Direction]),
+]
+
+############################################################################################
 
 
+for table_nt in table_ntuples
 
-# #
-# println("""⊠ MLJ - DecisionTree\n""")
-# learned_tree = machine(tree_model, SoleData.gettable(X_train), CategoricalValue.(y_train))
-# fit!(learned_tree)
-# yhat = mode.(MLJ.predict(learned_tree, SoleData.gettable(X_test)))
-# println("\t- 2/3 train:\t\t", MLJ.accuracy(yhat, y_test))
+    printstyled("\n $(table_nt.tablename) \n\n", color=:red,bold=true)
+
+    table = dataset(table_nt.package, table_nt.tablename)
+    y = table[:, table_nt.target] |> CategoricalArray
+    X = select(table, Not([table_nt.target]));
+
+    X, y = preprocess_inputdata(X,y)
+
+    learned_machine = machine(list_model, X, y);
+    # Full training
+    fit!(learned_machine)
+    yhat = MLJ.predict(learned_machine, X)
+    printstyled("Full training accuracy: ",
+                    trunc(MLJ.accuracy(y, yhat),digits=3),"\n",
+                    color=:blue,bold=true)
+    # Partial training
+    train, test = partition(eachindex(y), _partition; rng=_rng)
+    fit!(learned_machine, rows=train)
+    yhat = MLJ.predict(learned_machine, X[test, :])
+    printstyled("Partial training (0.7) accuracy: ",
+                    trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
+                    color=:blue,bold=true)
+
+    # Partial training on decision tree
+    learned_tree = machine(tree_model, X, y)
+    fit!(learned_tree, rows=train)
+    yhat = mode.(MLJ.predict(learned_tree, X[test, :]))
+    printstyled("Partial training (0.7) accuracy: ",
+                    trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
+                    color=:green,bold=true)
+end
