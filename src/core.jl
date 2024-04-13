@@ -41,17 +41,28 @@ include("algorithms/searchmethods/randsearch.jl")
 ############ Utils #########################################################################
 ############################################################################################
 
-function maptointeger(y::AbstractVector{<:CLabel})
+# TODO è come se diventasse un problema biclasse ?
+"""
+class LaplaceAccuracyEvaluator(Evaluator):
+    def evaluate_rule(self, rule):
+        # as an exception, when target class is not set,
+        # the majority class is chosen to stand against
+        # all others
+        tc = rule.target_class
+        dist = rule.curr_class_dist
+        if tc is not None:
+            k = 2
+            target = dist[tc]
+        else:
+            k = len(dist)
+            target = bn.nanmax(dist)
+        return (target + 1) / (dist.sum() + k)
+"""
 
-    # ordered values
-    values = unique(y)
-    integer_y = zeros(Int64, length(y))
-
-    for (i, v) in enumerate(values)
-        integer_y[y.==v] .= i
-    end
-    return integer_y, values
-end
+# function sole_laplace_estimator(
+#     y::AbstractVector{CLabel}
+# )
+# end
 
 function soleentropy(
     y::AbstractVector{<:CLabel},
@@ -64,6 +75,18 @@ function soleentropy(
 
     prob = distribution ./ sum(distribution)
     return -sum(prob .* log2.(prob))
+end
+
+function maptointeger(y::AbstractVector{<:CLabel})
+
+    # ordered values
+    values = unique(y)
+    integer_y = zeros(Int64, length(y))
+
+    for (i, v) in enumerate(values)
+        integer_y[y.==v] .= i
+    end
+    return integer_y, values
 end
 
 """

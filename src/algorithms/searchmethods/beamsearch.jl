@@ -36,6 +36,7 @@ See also
     max_rule_length::Union{Nothing,Integer}=nothing
     min_rule_coverage::Union{Integer}=1
     truerfirst::Bool=false
+    discretizedomain::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
 end
 
@@ -104,19 +105,49 @@ of X and can further refine the input antecedent.
 """
 function newatoms(
     X::PropositionalLogiset,
+    y::AbstractVector{<:CLabel},
     antecedent_info::Tuple{RuleAntecedent,BitVector};
     optimize=false,
     truerfirst=false,
+    discretizedomain=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},BitVector}}
     (antecedent, satindexes) = antecedent_info
     coveredX = slicedataset(X, satindexes; return_view=true)
+    coveredy = y[satindexes]
     selectedalphabet = !isnothing(alph) ? alph :
-                       alphabet(coveredX, truerfirst=truerfirst)
+                       alphabet(coveredX, coveredy;
+                            truerfirst=truerfirst,
+                            discretizedomain=discretizedomain)
     possibleconditions = optimize ? filteralphabetoptimized(X, selectedalphabet, antecedent_info) :
-                         filteralphabet(X, selectedalphabet, antecedent)
+                        filteralphabet(X, selectedalphabet, antecedent)
     return possibleconditions
 end
+
+
+function univariate_unaryantecedents(
+    X::PropositionalLogiset,
+    univ_alphabet::AbstractAlphabet
+)
+    atomslist = atoms(univ_alphabet)
+    antdslist = Tuple{RuleAntecedent,SatMask}[]
+
+    cumulativemask = zeros(Bool, ninstances(X))
+    prevant_coverage = collect(1:ninstances(X))
+
+    for atom in atomslist
+        isempty(prevant_coverage) && break
+        atom_satmask = begin
+            uncoveredX = slicedataset(X, prevant_coverage; return_view=false)
+            check(atom, uncoveredX)
+        end
+        cumulativemask[prevant_coverage] = atom_satmask
+        prevant_coverage = prevant_coverage[atom_satmask]
+        push!(antdslist, (RuleAntecedent([atom]), cumulativemask))
+    end
+    return antdslist
+end
+
 
 """
     specializeantecedents(
@@ -130,42 +161,37 @@ Specialize rule *antecedents*.
 function specializeantecedents(
     antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
     X::PropositionalLogiset,
+    y::AbstractVector{<:CLabel},
     max_rule_length::Union{Nothing,Integer}=nothing,
     truerfirst::Bool=false,
+    discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Tuple{RuleAntecedent,SatMask}}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
+
     specializedants = Tuple{RuleAntecedent,SatMask}[]
 
     if isempty(antecedents)
-        selectedalphabet = isnothing(default_alphabet) ? alphabet(X, truerfirst=truerfirst) : default_alphabet
+        selectedalphabet = isnothing(default_alphabet) ? alphabet(
+                                                    X, y,
+                                                    truerfirst = truerfirst,
+                                                    discretizedomain = discretizedomain) :
+                                                        #= Or =#
+                                                    default_alphabet
         for univ_alphabet in alphabets(selectedalphabet)
-            atomslist = atoms(univ_alphabet)
-            metacond_relativeants = Tuple{RuleAntecedent,SatMask}[]
-
-            # Remember that tresholds are sorted !
-            cumulative_satmask = zeros(Bool, ninstances(X))
-            prevant_coveredslice = collect(1:ninstances(X))
-            for atom in atomslist
-                isempty(prevant_coveredslice) && break
-                atom_satmask = begin
-                    uncoveredX = slicedataset(X, prevant_coveredslice; return_view=false)
-                    check(atom, uncoveredX)
-                end
-                cumulative_satmask[prevant_coveredslice] = atom_satmask
-                prevant_coveredslice = prevant_coveredslice[atom_satmask]
-                push!(metacond_relativeants, (RuleAntecedent([atom]), cumulative_satmask))
-            end
-            append!(specializedants, metacond_relativeants)
+            univariate_ants = univariate_unaryantecedents(X, univ_alphabet)
+            append!(specializedants, univariate_ants)
         end
         return specializedants
     else
         for _ant ∈ antecedents
-            conjunctibleatoms = newatoms(X, _ant;
-                truerfirst=truerfirst,
+            conjunctibleatoms = newatoms(X,y, _ant;
                 optimize=true,
-                alph=default_alphabet)
+                truerfirst=truerfirst,
+                alph=default_alphabet,
+                discretizedomain=discretizedomain,)
+            #
             isempty(conjunctibleatoms) && continue
             for (_atom, _cov) ∈ conjunctibleatoms
 
@@ -206,7 +232,7 @@ function findbestantecedent(
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     @unpack beam_width, quality_evaluator, max_rule_length,
-        min_rule_coverage, truerfirst, alphabet = bs
+        min_rule_coverage, truerfirst, discretizedomain, alphabet = bs
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w)
@@ -219,9 +245,10 @@ function findbestantecedent(
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
         newcandidates = specializeantecedents(candidates,
-                                    X,
+                                    X,y,
                                     max_rule_length,
                                     truerfirst,
+                                    discretizedomain,
                                     alphabet)
         isempty(newcandidates) && break
         (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
