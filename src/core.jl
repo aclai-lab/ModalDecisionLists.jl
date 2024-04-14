@@ -1,5 +1,6 @@
 using SoleBase: CLabel
 using SoleData: PropositionalLogiset
+using SoleModels: bestguess
 using Parameters
 using FillArrays
 using StatsBase
@@ -59,14 +60,22 @@ class LaplaceAccuracyEvaluator(Evaluator):
         return (target + 1) / (dist.sum() + k)
 """
 
-# function sole_laplace_estimator(
-#     y::AbstractVector{CLabel}
-# )
-# end
+function sole_laplace_estimator(
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector=default_weights(length(y));
+    n_labels::Integer = 2
+)
+    N = length(y)
+    target_class = SoleModels.bestguess(y, suppress_parity_warning=true)
+    n = countmap(y)[target_class]
+
+    return -(n + 1) / (N + n_labels)
+end
 
 function soleentropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector=default_weights(length(y));
+    kwargs...
 )
     isempty(y) && return Inf
 
@@ -111,13 +120,13 @@ function sortantecedents(
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
-    quality_evaluator::Function,
+    quality_evaluator::Function;
+    kwargs...
 )::Tuple{Vector{Int},<:Real}
     isempty(antecedents) && return [], Inf
-
     antsquality = map(antd -> begin
             _, satinds = antd
-            quality_evaluator(y[satinds], w[satinds])
+            quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
 
     newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))

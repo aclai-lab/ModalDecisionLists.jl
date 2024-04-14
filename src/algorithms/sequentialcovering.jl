@@ -133,6 +133,8 @@ function sequentialcovering(
 
     y, labels = y |> maptointeger
 
+    n_labels = labels |> length
+
     # DEBUG
     # uncoveredslice = collect(1:ninstances(X))
 
@@ -147,7 +149,8 @@ function sequentialcovering(
             searchmethod,
             uncoveredX,
             uncoveredy,
-            uncoveredw
+            uncoveredw,
+            n_labels
         )
         bestantecedent == ⊤ && break
 

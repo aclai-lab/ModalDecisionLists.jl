@@ -113,7 +113,7 @@ function newatoms(
     alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},BitVector}}
     (antecedent, satindexes) = antecedent_info
-    coveredX = slicedataset(X, satindexes; return_view=true)
+    coveredX = slicedataset(X, satindexes; return_view=false)
     coveredy = y[satindexes]
     selectedalphabet = !isnothing(alph) ? alph :
                        alphabet(coveredX, coveredy;
@@ -183,6 +183,7 @@ function specializeantecedents(
             univariate_ants = univariate_unaryantecedents(X, univ_alphabet)
             append!(specializedants, univariate_ants)
         end
+        # @showlc specializedants :blue
         return specializedants
     else
         for _ant ∈ antecedents
@@ -228,14 +229,15 @@ function findbestantecedent(
     bs::BeamSearch,
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    w::AbstractVector;
+    w::AbstractVector,
+    n_labels::Integer;
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     @unpack beam_width, quality_evaluator, max_rule_length,
         min_rule_coverage, truerfirst, discretizedomain, alphabet = bs
 
     best = (⊤, ones(Bool, nrow(X)))
-    best_quality = quality_evaluator(y, w)
+    best_quality = quality_evaluator(y, w; n_labels)
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
@@ -251,7 +253,7 @@ function findbestantecedent(
                                     discretizedomain,
                                     alphabet)
         isempty(newcandidates) && break
-        (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator)
+        (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator; n_labels)
 
         newcandidates = newcandidates[perm_]
         if bestcandidate_quality < best_quality
