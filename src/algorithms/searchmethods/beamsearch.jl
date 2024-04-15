@@ -1,5 +1,5 @@
 using SoleLogics: AbstractAlphabet, pushconjunct!
-using SoleData: isordered, polarity
+using SoleData: isordered, polarity, metacond
 using Parameters
 
 ############################################################################################
@@ -119,6 +119,15 @@ function newatoms(
                        alphabet(coveredX, coveredy;
                             truerfirst=truerfirst,
                             discretizedomain=discretizedomain)
+
+    scalarconditions = value.(children(antecedent))
+    metaconditions = metacond.(scalarconditions)
+
+    # Exlude metaconditons tha are already in `antecedent`
+    selectedalphabet = [ a for a in alphabets(selectedalphabet)
+                                if metacond(a) ∉ metaconditions
+                        ] |> UnionAlphabet
+
     possibleconditions = optimize ? filteralphabetoptimized(X, selectedalphabet, antecedent_info) :
                         filteralphabet(X, selectedalphabet, antecedent)
     return possibleconditions

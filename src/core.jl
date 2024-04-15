@@ -43,22 +43,6 @@ include("algorithms/searchmethods/randsearch.jl")
 ############################################################################################
 
 # TODO è come se diventasse un problema biclasse ?
-"""
-class LaplaceAccuracyEvaluator(Evaluator):
-    def evaluate_rule(self, rule):
-        # as an exception, when target class is not set,
-        # the majority class is chosen to stand against
-        # all others
-        tc = rule.target_class
-        dist = rule.curr_class_dist
-        if tc is not None:
-            k = 2
-            target = dist[tc]
-        else:
-            k = len(dist)
-            target = bn.nanmax(dist)
-        return (target + 1) / (dist.sum() + k)
-"""
 
 function sole_laplace_estimator(
     y::AbstractVector{<:CLabel},
@@ -80,6 +64,16 @@ function soleentropy(
     isempty(y) && return Inf
 
     distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
+    length(distribution) == 1 && return 0.0
+
+    prob = distribution ./ sum(distribution)
+    return -sum(prob .* log2.(prob))
+end
+
+
+function soleentropy(
+    distribution::Vector{Integer}
+)
     length(distribution) == 1 && return 0.0
 
     prob = distribution ./ sum(distribution)
