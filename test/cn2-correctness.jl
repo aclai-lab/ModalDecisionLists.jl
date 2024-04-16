@@ -30,7 +30,7 @@ end
 # Test
 
 # base
-base_decisionlist = BaseCN2.base_cn2(X_df, y)
+base_decisionlist = BaseCN2.build_base_cn2(X_df, y)
 @test base_decisionlist isa DecisionList
 
 base_outcome_on_training = apply(base_decisionlist, X)
@@ -38,7 +38,7 @@ base_outcome_on_training = apply(base_decisionlist, X)
 
 
 # sole
-sole_decisionlist = sole_cn2(X, y)
+sole_decisionlist = build_cn2(X, y)
 @test sole_decisionlist isa DecisionList
 sole_outcome_on_training = apply(sole_decisionlist, X)
 
@@ -131,10 +131,10 @@ antpairs = zip(SoleModels.antecedent.(rulebase(imported_decisionlist)),
 # X_test = SoleData.instances(X, test_slice, Val(false))
 
 # # ================================
-# decisionlist = sole_cn2(X_train, y[train_slice])
+# decisionlist = build_cn2(X_train, y[train_slice])
 # outcomes = apply(decisionlist, X_test)
 
-# decisionlist2 = BaseCN2.base_cn2(SoleData.gettable(X_train), y[train_slice])
+# decisionlist2 = BaseCN2.build_base_cn2(SoleData.gettable(X_train), y[train_slice])
 # outcomes2 = apply(decisionlist2, X_test)
 
 # @test all(outcomes .== outcomes2)

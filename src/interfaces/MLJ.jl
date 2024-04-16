@@ -3,6 +3,7 @@ module MLJInterface
 export SequentialCoveringLearner
 # export BeamSearch, RandSearch
 
+# using ModalDecisionTrees.MLJInterface: wrapdataset
 using ModalDecisionLists
 import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
 import ModalDecisionLists:  sequentialcovering
@@ -10,7 +11,6 @@ import ModalDecisionLists:  sequentialcovering
 import SoleData: PropositionalLogiset
 import SoleBase: CLabel
 import SoleModels: apply
-import MLJBase
 
 import MLJModelInterface
 using Parameters
@@ -63,6 +63,7 @@ end
 
 function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
 
+    # TODO wrapdataset
     X_pl = PropositionalLogiset(X)
     y_cl = Vector{CLabel}(y)
 

@@ -7,7 +7,7 @@ using StatsBase: countmap
 import SoleLogics: LogicalInstance, Formula, LeftmostLinearForm
 import SoleModels: Rule, AbstractModel, ConstantModel
 import SoleBase: CLabel
-import SoleData: PropositionalLogiset, UnionAlphabet, UnivariateSymbolValue
+import SoleData: UnivariateSymbolValue
 import SoleData: features
 
 struct Selector
@@ -250,7 +250,7 @@ function mostcommonvalue(classlist)
 end
 
 
-function base_cn2(
+function build_base_cn2(
     X::AbstractDataFrame,
     y::AbstractVector{<:CLabel};
     beam_width = 3

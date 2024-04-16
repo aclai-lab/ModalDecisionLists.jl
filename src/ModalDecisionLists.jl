@@ -27,8 +27,11 @@ include("algorithms/base-cn2.jl")
 end
 
 export SequentialCoveringLearner
+export build_cn2
 
 # Interface
 include("interfaces/MLJ.jl")
+
+using .MLJInterface
 
 end

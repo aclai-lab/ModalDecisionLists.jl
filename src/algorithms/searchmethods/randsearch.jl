@@ -15,7 +15,7 @@ function findbestantecedent(
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
     cardinality::Integer=10,
-    quality_evaluator::Function=soleentropy,
+    quality_evaluator::Function=ModalDecisionLists.Measures.entropy,
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION],
     syntaxheight::Integer=2
 )::Tuple{Formula,SatMask}

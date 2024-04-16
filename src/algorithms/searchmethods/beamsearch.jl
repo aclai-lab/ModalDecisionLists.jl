@@ -32,7 +32,7 @@ See also
 """
 @with_kw struct BeamSearch <: SearchMethod
     beam_width::Integer=3
-    quality_evaluator::Function=soleentropy
+    quality_evaluator::Function=ModalDecisionLists.Measures.entropy
     max_rule_length::Union{Nothing,Integer}=nothing
     min_rule_coverage::Union{Integer}=1
     truerfirst::Bool=false
@@ -116,9 +116,10 @@ function newatoms(
     coveredX = slicedataset(X, satindexes; return_view=false)
     coveredy = y[satindexes]
     selectedalphabet = !isnothing(alph) ? alph :
-                       alphabet(coveredX, coveredy;
+                       alphabet(coveredX;
                             truerfirst=truerfirst,
-                            discretizedomain=discretizedomain)
+                            discretizedomain=discretizedomain,
+                            y=coveredy)
 
     scalarconditions = value.(children(antecedent))
     metaconditions = metacond.(scalarconditions)
@@ -183,9 +184,10 @@ function specializeantecedents(
 
     if isempty(antecedents)
         selectedalphabet = isnothing(default_alphabet) ? alphabet(
-                                                    X, y,
+                                                    X;
                                                     truerfirst = truerfirst,
-                                                    discretizedomain = discretizedomain) :
+                                                    discretizedomain=discretizedomain,
+                                                    y=y) :
                                                         #= Or =#
                                                     default_alphabet
         for univ_alphabet in alphabets(selectedalphabet)

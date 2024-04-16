@@ -8,6 +8,7 @@ using MLJ
 using StatsBase
 using Random
 using RDatasets
+using MLJDecisionTreeInterface
 using ModalDecisionLists
 using ModalDecisionLists: BaseCN2, MLJInterface
 using CategoricalArrays: CategoricalValue, CategoricalArray
@@ -34,7 +35,10 @@ const MLJI = MLJInterface
 @load DecisionTreeClassifier pkg=DecisionTree
 
 tree_model = MLJDecisionTreeInterface.DecisionTreeClassifier(max_depth=-1)
-list_model = MLJI.SequentialCoveringLearner()
+list_model = MLJI.SequentialCoveringLearner(;beam_width = 3)
+# TODO add to benchmark
+# list_model = MLJI.SequentialCoveringLearner(;beam_width = 10)
+# list_model = MLJI.SequentialCoveringLearner(;beam_width = 20)
 
 _rng = MersenneTwister(16)
 _partition = 0.7
@@ -147,17 +151,18 @@ for table_nt in table_ntuples
 
     X, y = preprocess_inputdata(X,y)
 
-    learned_machine = machine(list_model, X, y);
+    mach = machine(list_model, X, y);
     # Full training
-    fit!(learned_machine)
-    yhat = MLJ.predict(learned_machine, X)
+    # fit!(mach; verbosity=0)
+    fit!(mach)
+    yhat = MLJ.predict(mach, X)
     printstyled("Full training accuracy: ",
                     trunc(MLJ.accuracy(y, yhat),digits=3),"\n",
                     color=:blue,bold=true)
     # Partial training
     train, test = partition(eachindex(y), _partition; rng=_rng)
-    fit!(learned_machine, rows=train)
-    yhat = MLJ.predict(learned_machine, X[test, :])
+    fit!(mach, rows=train)
+    yhat = MLJ.predict(mach, X[test, :])
     printstyled("Partial training (0.7) accuracy: ",
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)

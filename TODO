@@ -3,8 +3,8 @@ Main:
     Generic:
         ☐ Eliminare implementazione superflua cn2
             ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)
-                ✔ sole_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
-                ✔ base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
+                ✔ build_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
+                ✔ build_base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
 
         ☐ new section in docu
         ☐ MLJ interface for cn2

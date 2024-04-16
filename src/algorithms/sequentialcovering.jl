@@ -182,8 +182,8 @@ function sequentialcovering(
     return DecisionList(rulebase, labels[defaultconsequent])
 end
 
-function sole_cn2(
-    X::PropositionalLogiset,
+function build_cn2(
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
     kwargs...
@@ -192,7 +192,7 @@ function sole_cn2(
 end
 
 function sole_cn2_orange(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
     kwargs...
@@ -202,7 +202,7 @@ function sole_cn2_orange(
 end
 
 function sole_rand(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
     kwargs...
