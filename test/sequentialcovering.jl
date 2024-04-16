@@ -17,7 +17,7 @@ X = DataFrame(X) |> PropositionalLogiset
 
 y_clabel = Vector{CLabel}(y)
 y_string = Vector{String}(y)
-y_intger = maptointeger(y)
+y_intger, _ = maptointeger(y)
 
 n_instances = ninstances(X)
 
@@ -84,14 +84,14 @@ bs5 = BeamSearch(; beam_width=5)
 ######### PropositionalLogiset, Target, beamwidth ##########################################
 ############################################################################################
 
-@test_nowarn sole_cn2(X, y_clabel; beam_width=5)
-@test_nowarn sole_cn2(X, y_clabel; beam_width=1)
-@test_throws AssertionError sole_cn2(X, y_clabel; beam_width=0)
+@test_nowarn build_cn2(X, y_clabel; beam_width=5)
+@test_nowarn build_cn2(X, y_clabel; beam_width=1)
+@test_throws AssertionError build_cn2(X, y_clabel; beam_width=0)
 
-@test_nowarn sole_cn2(X, y_clabel; max_rule_length=1000)
-@test_nowarn sole_cn2(X, y_clabel; max_rule_length=1)
+@test_nowarn build_cn2(X, y_clabel; max_rule_length=1000)
+@test_nowarn build_cn2(X, y_clabel; max_rule_length=1)
 
-@test_throws AssertionError sole_cn2(X, y_clabel; max_rule_length=0)
+@test_throws AssertionError build_cn2(X, y_clabel; max_rule_length=0)
 
 
 

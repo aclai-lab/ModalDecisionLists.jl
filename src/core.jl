@@ -28,7 +28,7 @@ For each new SearchMethod, findbestantecedent must be implemented.
 """
 function findbestantecedent(
     ::SearchMethod,
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
 )
