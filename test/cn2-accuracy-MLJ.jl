@@ -2,32 +2,17 @@ using Test
 using Printf
 using SoleBase: CLabel
 using DataFrames
-using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list
+using SoleModels: ClassificationRule, apply, DecisionList
 using SoleData
 using MLJ
 using StatsBase
 using Random
 using RDatasets
 using ModalDecisionLists
-using ModalDecisionLists: BaseCN2, MLJInterface, sole_laplace_estimator
+using ModalDecisionLists: BaseCN2, MLJInterface
+using ModalDecisionLists: sole_laplace_estimator, preprocess_inputdata
 using CategoricalArrays: CategoricalValue, CategoricalArray
 
-"""
-Dumb utility function to preprocess input data:
-    * remove duplicated rows
-    * remove rows with missing values
-"""
-function preprocess_inputdata(
-    X::AbstractDataFrame,
-    y
-)
-    allunique(X) && return (X, y)
-    nonunique_ind = nonunique(X)
-    Xy = hcat( X[findall((!).(nonunique_ind)), :],
-               y[findall((!).(nonunique_ind))]
-    ) |> dropmissing
-    return Xy[:, 1:(end-1)], Xy[:, end]
-end
 
 ############################################################################################
 const MLJI = MLJInterface

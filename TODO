@@ -1,5 +1,10 @@
 Main:
 
+
+    Parlare Con Giovanni:
+        ☐ Arrotondare valori colonne tabella di input
+        
+
     Generic:
         ☐ Eliminare implementazione superflua cn2
             ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)

@@ -9,10 +9,19 @@ using StatsBase
 using Random
 using RDatasets
 using ModalDecisionLists
-using ModalDecisionLists: BaseCN2, MLJInterface, sole_laplace_estimator
+using ModalDecisionLists: BaseCN2, MLJInterface
+using ModalDecisionLists: sole_laplace_estimator, preprocess_inputdata
 using CategoricalArrays: CategoricalValue, CategoricalArray
 
 using BenchmarkTools
+
+
+
+"""
+Dumb utility function to preprocess input data:
+    * remove duplicated rows
+    * remove rows with missing values
+"""
 
 const MLJI = MLJInterface
 list_model = MLJI.SequentialCoveringLearner()
@@ -44,9 +53,9 @@ for table_nt in table_ntuples
     table = dataset(table_nt.package, table_nt.tablename)
     y = table[:, table_nt.target] |> CategoricalArray
     X = select(table, Not([table_nt.target]));
+    X,y = preprocess_inputdata(X, y)
 
     learned_machine = machine(list_model, X, y);
     # Full training
-    # display(@benchmark fit!(learned_machine) setup=(learned_machine=$learned_machine));
-    fit!(learned_machine)
+    display(@benchmark fit!(learned_machine) setup=(learned_machine=$learned_machine););
 end

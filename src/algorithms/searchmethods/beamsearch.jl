@@ -1,4 +1,5 @@
 using SoleLogics: AbstractAlphabet, pushconjunct!
+using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
 using Parameters
 
@@ -42,7 +43,7 @@ end
 
 """
     function filteralphabet(
-        X::PropositionalLogiset,
+        X::AbstractLogiset,
         alph::UnionAlphabet,
         antecedent_info::Tuple{RuleAntecedent,SatMask}
     )::Vector{Tuple{Atom,SatMask}}
@@ -57,7 +58,7 @@ See also
 [`specializeantecedents`](@ref).
 """
 function filteralphabet(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     alph::AbstractAlphabet,
     antecedent::RuleAntecedent
 )::Vector{Tuple{Atom,SatMask}}
@@ -70,7 +71,7 @@ end
 
 """
     function filteralphabetoptimized(
-        X::PropositionalLogiset,
+        X::AbstractLogiset,
         alph::UnionAlphabet,
         antecedent_info::Tuple{RuleAntecedent,SatMask}
     )::Vector{Tuple{Atom,SatMask}}
@@ -81,7 +82,7 @@ trivial specialization for the antecedent.
 A trivial specialization correspond to an antecedent covering exactly the same instances as its parent.
 """
 function filteralphabetoptimized(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     alph::UnionAlphabet,
     antecedent_info::Tuple{RuleAntecedent,SatMask}
 )::Vector{Tuple{Atom,SatMask}}
@@ -96,7 +97,7 @@ end
 
 """
     newatoms(
-        X::PropositionalLogiset,
+        X::AbstractLogiset,
         antecedent::Tuple{RuleAntecedent, SatMask}
     )::Vector{Tuple{Atom, SatMask}}
 
@@ -104,7 +105,7 @@ Returns the list of all possible conditions (atoms) that can be derived from ins
 of X and can further refine the input antecedent.
 """
 function newatoms(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     antecedent_info::Tuple{RuleAntecedent,BitVector};
     optimize=false,
@@ -136,7 +137,7 @@ end
 # Siamo sicuri che la vogliamo cosi ????
 # Pensa a quando verrà parallelizzata
 function univariate_unaryantecedents(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     univ_alphabet::AbstractAlphabet
 )
     atomslist = atoms(univ_alphabet)
@@ -162,7 +163,7 @@ end
 """
     specializeantecedents(
         antecedents::Vector{Tuple{RuleAntecbedent,SatMask}},
-        X::PropositionalLogiset,
+        X::AbstractLogiset,
         max_rule_length::Union{Nothing,Integer} = nothing,
     )::Vector{Tuple{RuleAntecedent, SatMask}}
 
@@ -170,7 +171,7 @@ Specialize rule *antecedents*.
 """
 function specializeantecedents(
     antecedents::Vector{Tuple{RuleAntecedent,SatMask}},
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     max_rule_length::Union{Nothing,Integer}=nothing,
     truerfirst::Bool=false,
@@ -220,7 +221,7 @@ end
 """
     function findbestantecedent(
         ::BeamSearch,
-        X::PropositionalLogiset,
+        X::AbstractLogiset,
         y::AbstractVector{<:CLabel},
         w::AbstractVector;
         beam_width::Integer = 3,
@@ -235,7 +236,7 @@ For further details, please refer to [`BeamSearch`](@ref).
 """
 function findbestantecedent(
     bs::BeamSearch,
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     n_labels::Integer;

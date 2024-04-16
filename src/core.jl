@@ -38,9 +38,6 @@ end
 include("algorithms/searchmethods/beamsearch.jl")
 include("algorithms/searchmethods/randsearch.jl")
 
-############################################################################################
-############ Utils #########################################################################
-############################################################################################
 
 # TODO è come se diventasse un problema biclasse ?
 
@@ -117,6 +114,28 @@ function sortantecedents(
     bestantecedent_quality = antsquality[newstar_perm[1]]
 
     return (newstar_perm, bestantecedent_quality)
+end
+
+############################################################################################
+############ Utils #########################################################################
+############################################################################################
+
+
+"""
+Dumb utility function to preprocess input data:
+    * remove duplicated rows
+    * remove rows with missing values
+"""
+function preprocess_inputdata(
+    X::AbstractDataFrame,
+    y
+)
+    allunique(X) && return (X, y)
+    nonunique_ind = nonunique(X)
+    Xy = hcat( X[findall((!).(nonunique_ind)), :],
+               y[findall((!).(nonunique_ind))]
+    ) |> dropmissing
+    return Xy[:, 1:(end-1)], Xy[:, end]
 end
 
 
