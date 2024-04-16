@@ -144,6 +144,7 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
+        @show length(uncoveredy)
         # TODO è una soluzione accettabile per il passaggio dei parametri ?
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,

@@ -9,7 +9,7 @@ using StatsBase
 using Random
 using RDatasets
 using ModalDecisionLists
-using ModalDecisionLists: BaseCN2, MLJInterface
+using ModalDecisionLists: BaseCN2, MLJInterface, sole_laplace_estimator
 using CategoricalArrays: CategoricalValue, CategoricalArray
 
 """
@@ -38,8 +38,6 @@ list_model = MLJI.SequentialCoveringLearner()
 
 _rng = MersenneTwister(16)
 _partition = 0.7
-
-Xy = RDatasets.dataset("psych", "sat.act")
 
 table_ntuples = [
     (package = "datasets", tablename = "iris",
@@ -136,7 +134,7 @@ table_ntuples = [
 
 ############################################################################################
 
-
+# come faccio a far variare tutti i parametri ?
 for table_nt in table_ntuples
 
     printstyled("\n $(table_nt.tablename) \n\n", color=:red,bold=true)

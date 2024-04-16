@@ -133,7 +133,8 @@ function newatoms(
     return possibleconditions
 end
 
-
+# Siamo sicuri che la vogliamo cosi ????
+# Pensa a quando verrà parallelizzata
 function univariate_unaryantecedents(
     X::PropositionalLogiset,
     univ_alphabet::AbstractAlphabet
@@ -192,8 +193,6 @@ function specializeantecedents(
             univariate_ants = univariate_unaryantecedents(X, univ_alphabet)
             append!(specializedants, univariate_ants)
         end
-        # @showlc specializedants :blue
-        return specializedants
     else
         for _ant ∈ antecedents
             conjunctibleatoms = newatoms(X,y, _ant;

@@ -70,16 +70,6 @@ function soleentropy(
     return -sum(prob .* log2.(prob))
 end
 
-
-function soleentropy(
-    distribution::Vector{Integer}
-)
-    length(distribution) == 1 && return 0.0
-
-    prob = distribution ./ sum(distribution)
-    return -sum(prob .* log2.(prob))
-end
-
 function maptointeger(y::AbstractVector{<:CLabel})
 
     # ordered values
