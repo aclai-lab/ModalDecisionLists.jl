@@ -10,9 +10,9 @@ using Random
 using RDatasets
 using ModalDecisionLists
 using ModalDecisionLists: BaseCN2, MLJInterface
-using ModalDecisionLists: sole_laplace_estimator, preprocess_inputdata
+using ModalDecisionLists: preprocess_inputdata
 using CategoricalArrays: CategoricalValue, CategoricalArray
-
+using ModalDecisionLists. Measures: laplace_accuracy
 using BenchmarkTools
 
 

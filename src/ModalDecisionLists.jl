@@ -12,6 +12,11 @@ using Reexport
 @reexport using SoleModels
 @reexport using SoleData
 
+
+include("measures.jl")
+
+using .Measures
+
 include("core.jl")
 # Temporaneamente qui
 
@@ -19,7 +24,6 @@ export sequentialcovering
 
 include("algorithms/sequentialcovering.jl")
 
-export BaseCN2
 
 module BaseCN2
 using ModalDecisionLists: RuleAntecedent, SatMask

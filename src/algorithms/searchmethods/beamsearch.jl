@@ -2,6 +2,7 @@ using SoleLogics: AbstractAlphabet, pushconjunct!
 using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
 using Parameters
+using ModalDecisionLists.Measures: entropy
 
 ############################################################################################
 ############## Beam search #################################################################
@@ -33,7 +34,7 @@ See also
 """
 @with_kw struct BeamSearch <: SearchMethod
     beam_width::Integer=3
-    quality_evaluator::Function=ModalDecisionLists.Measures.entropy
+    quality_evaluator::Function=entropy
     max_rule_length::Union{Nothing,Integer}=nothing
     min_rule_coverage::Union{Integer}=1
     truerfirst::Bool=false
@@ -240,8 +241,8 @@ function findbestantecedent(
     bs::BeamSearch,
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    w::AbstractVector,
-    n_labels::Integer;
+    w::AbstractVector;
+    n_labels::Integer
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     @unpack beam_width, quality_evaluator, max_rule_length,

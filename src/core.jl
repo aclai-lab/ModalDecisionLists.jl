@@ -1,10 +1,10 @@
 using SoleBase: CLabel
-using SoleData: PropositionalLogiset
+using SoleData: AbstractLogiset, PropositionalLogiset
 using SoleModels: bestguess
 using Parameters
 using FillArrays
 using StatsBase
-
+using ModalDecisionLists: Measures
 
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
 const SatMask = BitVector
@@ -27,45 +27,17 @@ abstract type SearchMethod end
 For each new SearchMethod, findbestantecedent must be implemented.
 """
 function findbestantecedent(
-    ::SearchMethod,
+    sm::SearchMethod,
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
+    kwards...
 )
     return error("Please, provide method...")
 end
 
 include("algorithms/searchmethods/beamsearch.jl")
 include("algorithms/searchmethods/randsearch.jl")
-
-
-# TODO è come se diventasse un problema biclasse ?
-
-function sole_laplace_estimator(
-    y::AbstractVector{<:CLabel},
-    w::AbstractVector=default_weights(length(y));
-    n_labels::Integer = 2
-)
-    N = length(y)
-    target_class = SoleModels.bestguess(y, suppress_parity_warning=true)
-    n = countmap(y)[target_class]
-
-    return -(n + 1) / (N + n_labels)
-end
-
-function soleentropy(
-    y::AbstractVector{<:CLabel},
-    w::AbstractVector=default_weights(length(y));
-    kwargs...
-)
-    isempty(y) && return Inf
-
-    distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
-    length(distribution) == 1 && return 0.0
-
-    prob = distribution ./ sum(distribution)
-    return -sum(prob .* log2.(prob))
-end
 
 function maptointeger(y::AbstractVector{<:CLabel})
 
