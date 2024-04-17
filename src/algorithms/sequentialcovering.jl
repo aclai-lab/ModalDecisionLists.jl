@@ -126,8 +126,6 @@ function sequentialcovering(
         w
     end
 
-    # Non funziona, lascia  i campi di searchmethod invariati (ma non ritorna errore)
-
     searchmethod = reconstruct(searchmethod,  kwargs)
 
     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
@@ -147,7 +145,7 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
-        # @show length(uncoveredy)
+        @show length(uncoveredy)
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,
             uncoveredX,
@@ -175,7 +173,7 @@ function sequentialcovering(
         uncoveredy = @view uncoveredy[(!).(bestantecedent_coverage)]
         uncoveredw = @view uncoveredw[(!).(bestantecedent_coverage)]
 
-        if !isnothing(max_rulebase_length) && length(rulebase) > max_rulebase_length
+        if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
             break
         end
     end

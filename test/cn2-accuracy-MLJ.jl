@@ -54,8 +54,7 @@ _partition = 0.7
 
     mach = machine(list_model, X, y);
     # Full training
-    # fit!(mach; verbosity=0)
-    fit!(mach)
+    fit!(mach; verbosity=0)
     yhat = MLJ.predict(mach, X)
     printstyled("Full training accuracy: ",
                     trunc(MLJ.accuracy(y, yhat),digits=3),"\n",
@@ -64,7 +63,7 @@ _partition = 0.7
     train, test = partition(eachindex(y), _partition; rng=_rng)
     fit!(mach, rows=train)
     yhat = MLJ.predict(mach, X[test, :])
-    printstyled("Partial training (0.7) accuracy: ",
+    printstyled("Partial training ($(_partition)) accuracy: ",
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
 
