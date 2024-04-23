@@ -81,7 +81,7 @@ function sortantecedents(
             _, satinds = antd
             quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
-
+    # @show antsquality
     newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
     bestantecedent_quality = antsquality[newstar_perm[1]]
 

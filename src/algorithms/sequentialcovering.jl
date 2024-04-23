@@ -153,7 +153,7 @@ function sequentialcovering(
             uncoveredw;
             n_labels=n_labels
         )
-        @show bestantecedent
+        # @show bestantecedent
         bestantecedent == ⊤ && break
 
         rule = begin
