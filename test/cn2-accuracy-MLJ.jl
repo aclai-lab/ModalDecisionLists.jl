@@ -169,14 +169,13 @@ _partition = 0.7
     #                 color=:green,bold=true)
 
 ###########################################################################################
-
+    len=1000
     printstyled("\n abalone \n\n", color=:red,bold=true)
 
     table = CSV.read("datasets/abalone.csv", DataFrame)
     y = table[:, :Rings] |> CategoricalArray
     X = select(table, Not([:Rings, :Sex]));
-    println(y)
-    X, y = preprocess_inputdata(X,y)
+    X, y = preprocess_inputdata(X[1:len, :],y[1:len])
 
     mach = machine(list_model, X, y);
     # Full training
