@@ -199,6 +199,10 @@ function specializeantecedents(
         end
     else
         for _ant ∈ antecedents
+
+            (antformula, antcoverage) = _ant
+            # if the antedent does not cover any instances it is useless
+
             conjunctibleatoms = newatoms(X,y, _ant;
                 optimize=true,
                 truerfirst=truerfirst,
@@ -208,16 +212,19 @@ function specializeantecedents(
             isempty(conjunctibleatoms) && continue
             for (_atom, _cov) ∈ conjunctibleatoms
 
-                (antformula, antcoverage) = _ant
                 if !isnothing(max_rule_length) && nconjuncts(antformula) >= max_rule_length
                     continue
                 end
-                antformula = deepcopy(antformula)
-                pushconjunct!(antformula, _atom)
-                push!(specializedants, (antformula, antcoverage .& _cov))
+                antformula_copy = deepcopy(antformula)
+                pushconjunct!(antformula_copy, _atom)
+                # new antecedent coverage
+                push!(specializedants, (antformula_copy, antcoverage .& _cov))
             end
         end
+
     end
+    # rimuovo gli antecdenti che non coprono nessuna istanza
+    specializedants = [sa for sa in specializedants if ((_, cov) = sa; any(cov))]
     return specializedants
 end
 
@@ -250,7 +257,7 @@ function findbestantecedent(
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w; n_labels)
-
+    # println("BEFORE: ",best[1]," ->", best_quality)
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
@@ -267,11 +274,14 @@ function findbestantecedent(
         isempty(newcandidates) && break
         (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator; n_labels)
 
+
         newcandidates = newcandidates[perm_]
         if bestcandidate_quality < best_quality
             best = newcandidates[1]
             best_quality = bestcandidate_quality
         end
     end
+    # println("AFTER: ",best[1]," ->", best_quality)
+    # @show y[best[2]]
     return best
 end

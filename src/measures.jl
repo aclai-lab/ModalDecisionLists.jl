@@ -27,10 +27,13 @@ function entropy(
     isempty(y) && return Inf
 
     distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
+    distribution = distribution[distribution .!= 0]
+    # @show distribution
     length(distribution) == 1 && return 0.0
 
     prob = distribution ./ sum(distribution)
-    return -sum(prob .* log2.(prob))
+    e = -sum(prob .* log2.(prob))
+    return e
 end
 
 
