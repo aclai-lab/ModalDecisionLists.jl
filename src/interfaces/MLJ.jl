@@ -81,6 +81,9 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
     fitresult = (
         model = model,
     )
+    if verbosity > 1
+        println(model)
+    end
     cache = nothing
     report = nothing
     return fitresult, cache, report

@@ -15,8 +15,10 @@ println("Julia version: ", VERSION)
 test_suites = [
     # ("Core", ["sequentialcovering.jl",]),
     # ("CN2 correctness", ["cn2-correctness.jl"]),
-    ("MLJ", ["cn2-accuracy-MLJ.jl"]),
+    # ("MLJ", ["cn2-accuracy-MLJ.jl"]),
     # ("CN2 benchmark", ["cn2-benchmark.jl"]),
+    ("Orange", ["orange-decisionlists.jl"]),
+
 ]
 
 @testset "ModalDecisionLists.jl" begin

@@ -1,5 +1,6 @@
 using Parameters
 using SoleLogics
+using FillArrays
 ############################################################################################
 ############## Random search ###############################################################
 ############################################################################################
@@ -25,16 +26,26 @@ function findbestantecedent(
     @unpack cardinality ,quality_evaluator ,operators ,syntaxheight = rs
 
     bestantecedent = begin
-        if !allunique(y)
+        if !allequal(y)
             randformulas = [
                 begin
-                    rfa = randformula(rs.syntaxheight, alphabet(X), rs.operators)
+                    rfa = randformula(syntaxheight, alphabet(X), operators)
                     (rfa, check(rfa, X))
-                end for _ in 1:rs.cardinality
+                end for _ in 1:cardinality
             ]
-            argmax(((rfa, satmask),) -> begin
-                    rs.quality_evaluator(y[satmask], w[satmask])
-                end, randformulas)[1]
+            (bestant_formula, bestant_satmask) = argmin(((rfa, satmask),) -> begin
+                	quality_evaluator(y[satmask], w[satmask])
+                end, randformulas)
+
+			# Cosa fare in questo caso ? quando l' antecedente migliore copre tutte le istanze
+			# quindi non siesce a splittare le istanze.
+			if all(bestant_satmask)
+				(⊤, bestant_satmask)
+            else
+				# bestantecedent
+				(bestant_formula,bestant_satmask)
+            end
+		#
         else
             (⊤, ones(Bool, length(y)))
         end
