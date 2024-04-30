@@ -5,8 +5,8 @@ using SoleBase: default_weights
 using SoleModels
 using FillArrays
 using StatsBase
-# TODO è come se diventasse un problema biclasse ?
 
+# TODO è come se diventasse un problema biclasse ?
 function laplace_accuracy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector=default_weights(length(y));
@@ -19,6 +19,8 @@ function laplace_accuracy(
     return -(n + 1) / (N + n_labels)
 end
 
+
+# TODO riguarda logica entropia !!! capire se è meglio versione bounded o unbounded
 function entropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector=default_weights(length(y));
@@ -36,5 +38,16 @@ function entropy(
     return e
 end
 
+############################################################################################
+#
+# entropy_unbounded([0,1,2,3,4,5,6,7])
+# 3.0
+# julia> entropy_bounded([0,1,2,3,4,5,6,7])
+# 1.0
+# ==========================================
+
+# | entropy_unbounded = entropy_bounded * log_2(n_classes)
+# |        3.0        =       1.0       * log_2(8)
+#
 
 end # module

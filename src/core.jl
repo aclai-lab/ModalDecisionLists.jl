@@ -33,7 +33,8 @@ function findbestantecedent(
     w::AbstractVector;
     kwards...
 )
-    return error("Please, provide method...")
+    return error("Please, provide method findbestantecedent(sm::$(typeof(sm)), X::$(typeof(X))," *
+    " y::$(typeof(y)), w::$(typeof(w)); kwargs...).")
 end
 
 include("algorithms/searchmethods/beamsearch.jl")
@@ -73,16 +74,40 @@ function sortantecedents(
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
-    quality_evaluator::Function;
+    quality_evaluator::Function,
+    maxpurity_gamma::Union{Real, Nothing}=nothing;
     kwargs...
 )::Tuple{Vector{Int},<:Real}
+
     isempty(antecedents) && return [], Inf
+
+    #############
+    indexes = 1:length(antecedents) |> collect
+    #############
     antsquality = map(antd -> begin
             _, satinds = antd
             quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
-    # @show antsquality
-    newstar_perm = partialsortperm(antsquality, 1:min(beam_width, length(antsquality)))
+
+    if !isnothing(maxpurity_gamma)
+
+        @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
+        #
+        maxpurity_value = maxpurity_gamma * quality_evaluator(y, w; kwargs...)
+
+        indexes = map(aq -> begin
+                        (index, quality) = aq
+                        quality >= maxpurity_value && index
+            end, enumerate(antsquality)
+        ) |> filter(x -> x != false)
+        #
+        isempty(indexes) && return [], Inf
+    end
+    beam_range = 1:min(beam_width, length(indexes))
+
+    valid_indexes = partialsortperm(antsquality[indexes], beam_range)
+
+    newstar_perm = indexes[valid_indexes]
     bestantecedent_quality = antsquality[newstar_perm[1]]
 
     return (newstar_perm, bestantecedent_quality)
@@ -100,13 +125,18 @@ Dumb utility function to preprocess input data:
 """
 function preprocess_inputdata(
     X::AbstractDataFrame,
-    y
+    y;
+    remove_duplicate_rows = false
 )
-    allunique(X) && return (X, y)
-    nonunique_ind = nonunique(X)
-    Xy = hcat( X[findall((!).(nonunique_ind)), :],
-               y[findall((!).(nonunique_ind))]
-    ) |> dropmissing
+    if remove_duplicate_rows
+        allunique(X) && return (X, y)
+        nonunique_ind = nonunique(X)
+        Xy = hcat( X[findall((!).(nonunique_ind)), :],
+                   y[findall((!).(nonunique_ind))]
+        ) |> dropmissing
+    else
+        Xy = hcat(X[:, :], y[:]) |> dropmissing
+    end
     return Xy[:, 1:(end-1)], Xy[:, end]
 end
 

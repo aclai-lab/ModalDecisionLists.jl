@@ -40,6 +40,7 @@ See also
     truerfirst::Bool=false
     discretizedomain::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    max_purity_const::Union{Real,Nothing}=nothing
 end
 
 """
@@ -253,35 +254,41 @@ function findbestantecedent(
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     @unpack beam_width, quality_evaluator, max_rule_length,
-        min_rule_coverage, truerfirst, discretizedomain, alphabet = bs
+        min_rule_coverage, truerfirst, discretizedomain, alphabet, max_purity_const = bs
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w; n_labels)
-    # println("BEFORE: ",best[1]," ->", best_quality)
+
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
-
     newcandidates = Tuple{RuleAntecedent,SatMask}[]
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
         newcandidates = specializeantecedents(candidates,
-                                    X,y,
+                                    X,
+                                    y,
                                     max_rule_length,
                                     truerfirst,
                                     discretizedomain,
-                                    alphabet)
-        isempty(newcandidates) && break
-        (perm_, bestcandidate_quality) = sortantecedents(newcandidates, y, w, beam_width, quality_evaluator; n_labels)
+                                    alphabet
+                                )
+        (perm, bestcandidate_quality) = sortantecedents(newcandidates,
+                                    y,
+                                    w,
+                                    beam_width,
+                                    quality_evaluator,
+                                    max_purity_const;
+                                    n_labels=n_labels
+                                )
+        isempty(perm) && break
+        newcandidates = newcandidates[perm]
 
-
-        newcandidates = newcandidates[perm_]
         if bestcandidate_quality < best_quality
             best = newcandidates[1]
             best_quality = bestcandidate_quality
         end
     end
-    # println("AFTER: ",best[1]," ->", best_quality)
-    # @show y[best[2]]
+
     return best
 end

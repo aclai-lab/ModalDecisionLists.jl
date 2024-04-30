@@ -125,6 +125,34 @@ bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y_clabel; beam_width=1, quality_evaluator=laplace_accuracy)
 
 ############################################################################################
+############################## beam_width ##################################################
+############################################################################################
+
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=1)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=3)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=5)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=25)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5))
+#=  Beam = 0 =#
+@test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0)
+@test_throws AssertionError sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=0))
+#= Mi assicuro che il parametro venga sovrascrito =#
+@test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0, searchmethod=BeamSearch(; beam_width=5))
+
+############################################################################################
+############################## quality_evaluator ###########################################
+############################################################################################
+
+bs5_ent = BeamSearch(; beam_width=5, quality_evaluator=entropy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5_ent)
+
+bs_entropy = BeamSearch(; quality_evaluator=entropy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_entropy)
+
+bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_laplace)
+@test_nowarn sequentialcovering(X, y_intger; searchmethod=bs_laplace)
+############################################################################################
 ############################## quality_evaluator + weights #################################
 ############################################################################################
 
@@ -146,15 +174,3 @@ bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
 ############################################################################################
 
 @test_nowarn sequentialcovering(X, y_clabel; discretizedomain=true)
-
-
-# TODO [@Edo] test for RandSearch
-
-
-# all_alphabet = slicedataset(X,collect(1:n_instances)) |> alphabet
-# large_alphabet = slicedataset(X,[1,2,3,51,52,53,101,102,103]) |> alphabet
-# small_alphabet = slicedataset(X,[1,2]) |> alphabet
-
-# @test_nowarn sequentialcovering(X, y_clabel,  alphabet=all_alphabet)
-# @test_nowarn sequentialcovering(X, y_clabel,  alphabet=large_alphabet)
-# @test_nowarn sequentialcovering(X, y_clabel,  alphabet=small_alphabet)

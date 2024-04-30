@@ -1,10 +1,5 @@
 Main:
 
-
-    Parlare Con Giovanni:
-        ☐ Arrotondare valori colonne tabella di input
-        
-
     Generic:
         ☐ Eliminare implementazione superflua cn2
             ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)
@@ -12,12 +7,21 @@ Main:
                 ✔ build_base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
 
         ☐ new section in docu
-        ☐ MLJ interface for cn2
-        ☐ Laplace
-        ☐ entropyMDL
-        ☐ Rule validation
-        ☐ LRS
-        ☐ Weighted relative accuracy
+        ✔ MLJ interface for cn2 @done(24-04-29 18:23)
+        ☐ Metrics  
+            ✔ Entropy @done(24-04-29 18:23)
+            ✔ Laplace @done(24-04-29 18:23)
+            ✔ entropyMDL @done(24-04-29 18:23)
+            ☐ Rule validation
+            ☐ LRS
+            ☐ Weighted relative accuracy
+        ☐ creare un altro metodo SyntaxSearch, che enumera tutte le formule con altezza sintattica h, e prende la migliore. 
+            # Formule di una certa grammatica e di un certo alfabeto si generan così
+                # a = ExplicitAlphabet(@atoms p q r s)
+                # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
+                # formulas(g; maxdepth = 2)
+                # formulas(g; maxdepth = 100, nformulas = 100)
+
     
     Utility:
         ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
