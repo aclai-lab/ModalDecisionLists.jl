@@ -13,6 +13,7 @@ function laplace_accuracy(
     n_labels::Integer = 2
 )
     N = length(y)
+
     target_class = SoleModels.bestguess(y, suppress_parity_warning=true)
     n = countmap(y)[target_class]
 

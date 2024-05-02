@@ -16,6 +16,8 @@ Generate random formulas (`SoleLogics.randformula`)
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
     rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
+    max_purity_const::Union{Real,Nothing}=nothing
+
 end
 
 
@@ -45,9 +47,14 @@ function findbestantecedent(
             randformulas = [
                 begin
                     rfa = randformula(rng, syntaxheight, alphabet(X), operators)
-                    (rfa, check(rfa, X))
+                    smk = check(rfa, X)
+                    # Se la formula non copre nessuna istanza è inutile
+                    if any(smk)
+                        (rfa, smk)
+                    end
                 end for _ in 1:cardinality
-            ]
+            ] |> filter(rf -> rf != nothing) # TODO @Gio brutto ?
+
             (bestant_formula, bestant_satmask) = argmin(((rfa, satmask),) -> begin
                 	quality_evaluator(y[satmask], w[satmask])
                 end, randformulas)
@@ -66,3 +73,11 @@ function findbestantecedent(
     end
     return bestantecedent
 end
+
+
+
+[begin if x > 4
+            x
+        end
+    end for x in [1,2,3,4,5,6,7]
+]

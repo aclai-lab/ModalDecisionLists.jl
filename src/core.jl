@@ -79,38 +79,31 @@ function sortantecedents(
     kwargs...
 )::Tuple{Vector{Int},<:Real}
 
+    # Exit point [1]
     isempty(antecedents) && return [], Inf
+    indexes = collect(1:length(antecedents))
 
-    #############
-    indexes = 1:length(antecedents) |> collect
-    #############
     antsquality = map(antd -> begin
             _, satinds = antd
             quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
 
     if !isnothing(maxpurity_gamma)
-
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
-        #
         maxpurity_value = maxpurity_gamma * quality_evaluator(y, w; kwargs...)
-
         indexes = map(aq -> begin
                         (index, quality) = aq
                         quality >= maxpurity_value && index
             end, enumerate(antsquality)
         ) |> filter(x -> x != false)
-        #
+        # Exit point [2]
         isempty(indexes) && return [], Inf
     end
-    beam_range = 1:min(beam_width, length(indexes))
-
-    valid_indexes = partialsortperm(antsquality[indexes], beam_range)
-
+    valid_indexes = partialsortperm(antsquality[indexes], 1:min(beam_width, length(indexes)))
     newstar_perm = indexes[valid_indexes]
     bestantecedent_quality = antsquality[newstar_perm[1]]
 
-    return (newstar_perm, bestantecedent_quality)
+    return newstar_perm, bestantecedent_quality
 end
 
 ############################################################################################

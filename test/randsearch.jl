@@ -44,8 +44,7 @@ n_instances = ninstances(X)
 w = rand(Float16, n_instances)
 
 # Defaul parameters
-
-@test sequentialcovering(X, y, nrg = MarsenneTwis searchmethod=RandSearch())
+sequentialcovering(X, y, nrg = MarsenneTwis searchmethod=RandSearch())
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ Cardinality ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # rs = RandSearch(cardinality = -1)
