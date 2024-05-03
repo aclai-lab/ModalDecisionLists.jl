@@ -89,6 +89,7 @@ function sortantecedents(
         end, antecedents)
 
     if !isnothing(maxpurity_gamma)
+        # TODO va fatto qui questa @assert o in `findbestantecedent` ?
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
         maxpurity_value = maxpurity_gamma * quality_evaluator(y, w; kwargs...)
         indexes = map(aq -> begin

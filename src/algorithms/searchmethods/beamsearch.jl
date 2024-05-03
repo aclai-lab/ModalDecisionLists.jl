@@ -126,7 +126,6 @@ function newatoms(
 
     scalarconditions = value.(children(antecedent))
     metaconditions = metacond.(scalarconditions)
-
     # Exlude metaconditons tha are already in `antecedent`
     selectedalphabet = [ a for a in alphabets(selectedalphabet)
                                 if metacond(a) ∉ metaconditions
@@ -202,7 +201,6 @@ function specializeantecedents(
         for _ant ∈ antecedents
 
             (antformula, antcoverage) = _ant
-            # if the antedent does not cover any instances it is useless
 
             conjunctibleatoms = newatoms(X,y, _ant;
                 optimize=true,
@@ -212,7 +210,6 @@ function specializeantecedents(
             #
             isempty(conjunctibleatoms) && continue
             for (_atom, _cov) ∈ conjunctibleatoms
-
                 if !isnothing(max_rule_length) && nconjuncts(antformula) >= max_rule_length
                     continue
                 end
@@ -222,11 +219,9 @@ function specializeantecedents(
                 push!(specializedants, (antformula_copy, antcoverage .& _cov))
             end
         end
-
     end
     # rimuovo gli antecdenti che non coprono nessuna istanza
-    specializedants = [sa for sa in specializedants if ((_, cov) = sa; any(cov))]
-    return specializedants
+    return [sa for sa in specializedants if ((_, cov) = sa; any(cov))]
 end
 
 """
