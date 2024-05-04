@@ -16,8 +16,36 @@ Generate random formulas (`SoleLogics.randformula`)
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
     rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
-    max_purity_const::Union{Real,Nothing}=nothing # TODO ancora da integrare
+    max_purity_const::Union{Real,Nothing}=nothing
+end
 
+# TODO non mi piaceeee
+function extract_optimalantecedent(
+    formulas::AbstractVector,
+    quality_evaluator,
+    max_purity,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector;
+    kwargs...
+)::Tuple{Formula,SatMask}
+    bestant_satmask = ones(Bool, length(y))
+    bestformula = begin
+        if !isempty(formulas)
+            (bestant_formula, bestant_satmask) = argmin(((rfa, satmask),) -> begin
+                relative_quality = quality_evaluator(y[satmask], w[satmask]; kwargs...) - max_purity
+                if relative_quality >= 0
+                    relative_quality
+                else Inf
+                end
+            end, formulas)
+        end
+        #
+        if all(bestant_satmask)
+            bestant_formula = TOP
+        end
+        (bestant_formula, bestant_satmask)
+    end
+    return bestformula
 end
 
 
@@ -33,6 +61,10 @@ function findbestantecedent(
             operators, syntaxheight, rng, max_purity_const = rs
     @assert cardinality > 0 "parameter `cardinality` must be greater than zero," * "
                             $(cardinality) is not an acceptable value."
+    @assert syntaxheight >= 0 "parameter `syntaxheight` must be greater than zero," * "
+                            $(syntaxheight) is not an acceptable value."
+    @assert all(o->o isa NamedConnective, operators) "all elements in `operators`" *
+                            " must  beNamedConnective"
     max_purity = 0.0
     if !isnothing(max_purity_const)
         @assert (max_purity_const >= 0) & (max_purity_const <= 1) "maxpurity_gamma not in range [0,1]"
@@ -50,24 +82,11 @@ function findbestantecedent(
                     end
                 end for _ in 1:cardinality
             ] |> filter(rf -> rf != nothing) # TODO @Gio brutto ?
-
-            (bestant_formula, bestant_satmask) = argmin(((rfa, satmask),) -> begin
-                relative_quality = quality_evaluator(y[satmask], w[satmask]; kwargs...) - max_purity
-                if relative_quality >= 0
-                    relative_quality
-                else
-                    Inf
-                end
-            end, randformulas)
-			if all(bestant_satmask)
-                # Cosa fare in questo caso ? quando l' antecedente migliore copre tutte le istanze
-                # quindi (non siesce a splittare).
-				(⊤, bestant_satmask)
-            else
-				(bestant_formula,bestant_satmask)
-            end
-        else # !allequal(y)
-            (⊤, ones(Bool, length(y)))
+            bestantecedent = extract_optimalantecedent(randformulas,
+                            quality_evaluator, max_purity, y, w;
+                            kwargs...)
+        else
+            (TOP, ones(Bool, length(y)))
         end
     end
     return bestantecedent
