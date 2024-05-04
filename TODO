@@ -21,6 +21,7 @@ Main:
                 # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
                 # formulas(g; maxdepth = 2)
                 # formulas(g; maxdepth = 100, nformulas = 100)
+        ☐ Definire DecisionSet ed il relativo metodo apply
 
     
     Utility:

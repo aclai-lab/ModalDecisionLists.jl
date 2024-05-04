@@ -17,9 +17,7 @@ X...,y = MLJ.load_iris()
 X = PropositionalLogiset(DataFrame(X))
 y = Vector{CLabel}(y)
 
-
-# TODO pesi ?
-
+# TODO strategia pesata
 
 # === Cardinality ==========================================================================
 

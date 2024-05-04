@@ -108,6 +108,7 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
+    unorderedstrategy::Bool = false,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     suppress_parity_warning::Bool=false,
     kwargs...
@@ -157,22 +158,36 @@ function sequentialcovering(
         )
         bestantecedent == ⊤ && break
 
-        rule = begin
+        rule, consequent_i = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]
             justcoveredw = uncoveredw[bestantecedent_coverage]
-            consequent = labels[bestguess(justcoveredy, justcoveredw)]
+            consequent_i = bestguess(justcoveredy, justcoveredw)
             info_cm = (;
+                # TODO anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
                 supporting_labels=collect(justcoveredy),
                 supporting_weights=collect(justcoveredw)
             )
-            consequent_cm = ConstantModel(consequent, info_cm)
-            Rule(bestantecedent, consequent_cm)
+            consequent_cm = ConstantModel(labels[consequent_i], info_cm)
+            #
+            (Rule(bestantecedent, consequent_cm), consequent_i)
         end
         push!(rulebase, rule)
+        # TODO Attenzione, la DecisionList risultante non è applicabile con apply in quanto
+        # non vale il metodo di applicazione della prima regola vera !!!!!!!!!!!!!!!!!!!!!!
+        uncovered_slice = begin
+            if unorderedstrategy
+                correctclass_coverage = (uncoveredy .== consequent_i) .& bestantecedent_coverage
+                @show uncoveredy[correctclass_coverage]
+                (!).(correctclass_coverage)
+            else
+                (!).(bestantecedent_coverage)
+            end
+        end
+        readline()
 
-        uncoveredX = slicedataset(uncoveredX, (!).(bestantecedent_coverage); return_view=true)
-        uncoveredy = @view uncoveredy[(!).(bestantecedent_coverage)]
-        uncoveredw = @view uncoveredw[(!).(bestantecedent_coverage)]
+        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+        uncoveredy = @view uncoveredy[uncovered_slice]
+        uncoveredw = @view uncoveredw[uncovered_slice]
 
         if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
             break
