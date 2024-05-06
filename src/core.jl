@@ -91,7 +91,7 @@ function sortantecedents(
             quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
 
-    @showlc antecedents :green
+    # @showlc antecedents :green
     if !isnothing(maxpurity_gamma)
         # TODO va fatto qui questa @assert o in `findbestantecedent` ?
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"

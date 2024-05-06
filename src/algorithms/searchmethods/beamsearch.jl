@@ -142,23 +142,25 @@ function univariate_unaryantecedents(
     X::AbstractLogiset,
     univ_alphabet::AbstractAlphabet
 )
-    atomslist = atoms(univ_alphabet)
-    antdslist = Tuple{RuleAntecedent,SatMask}[]
+    # antdslist = Tuple{RuleAntecedent,SatMask}[]
 
-    cumulativemask = zeros(Bool, ninstances(X))
-    prevant_coverage = collect(1:ninstances(X))
+    # cumulativemask = zeros(Bool, ninstances(X))
+    # prevant_coverage = collect(1:ninstances(X))
 
-    for atom in atomslist
-        isempty(prevant_coverage) && break
-        atom_satmask = begin
-            uncoveredX = slicedataset(X, prevant_coverage; return_view=false)
-            check(atom, uncoveredX)
-        end
-        cumulativemask[prevant_coverage] = atom_satmask
-        prevant_coverage = prevant_coverage[atom_satmask]
-        push!(antdslist, (RuleAntecedent([atom]), cumulativemask))
-    end
-    return antdslist
+    # for atom in atomslist
+    #     isempty(prevant_coverage) && break
+    #     atom_satmask = begin
+    #         uncoveredX = slicedataset(X, prevant_coverage; return_view=false)
+    #         check(atom, uncoveredX)
+    #     end
+    #     cumulativemask[prevant_coverage] = atom_satmask
+    #     prevant_coverage = prevant_coverage[atom_satmask]
+    #     push!(antdslist, (RuleAntecedent([atom]), cumulativemask))
+    # end
+
+    atomslist = Atom{ScalarCondition}.(atoms(univ_alphabet))
+    antslist = [(RuleAntecedent([a]), check(a, X)) for a in atomslist]
+    return antslist
 end
 
 
@@ -259,6 +261,7 @@ function findbestantecedent(
                                                                "than one. Please provide a valid value."
     newcandidates = Tuple{RuleAntecedent,SatMask}[]
     while true
+
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
         newcandidates = specializeantecedents(candidates,
                                     X,
@@ -309,18 +312,23 @@ function find_singlerule(
     max_purity_const::Union{Nothing,Real}=nothing
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
-    newcandidates = specializeantecedents(candidates,
-                        X, y,
-                        max_rule_length, truerfirst, discretizedomain, alphabet
-    )
+    while true
+        newcandidates = specializeantecedents(candidates,
+                            X, y,
+                            max_rule_length, truerfirst, discretizedomain, alphabet
+        )
 
-    (perm, bestcandidate_quality) = sortantecedents(newcandidates,
-                        y, w,
-                        beam_width, laplace_accuracy, max_purity_const;
-                        #
-                        target_class=target_class,
-                        n_labels=n_labels
-    )
+        (perm, bestcandidate_quality) = sortantecedents(newcandidates,
+                            y, w,
+                            beam_width, laplace_accuracy, max_purity_const;
+                            #
+                            target_class=target_class,
+                            n_labels=n_labels
+        )
+
+        @show (perm, bestcandidate_quality)
+        @show newcandidates[perm]
+    end
 end
 
 function find_rules(
