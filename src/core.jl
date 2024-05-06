@@ -5,6 +5,7 @@ using Parameters
 using FillArrays
 using StatsBase
 using ModalDecisionLists: Measures
+using ModalDecisionLists.Measures: laplace_accuracy
 
 const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
 const SatMask = BitVector
@@ -71,13 +72,15 @@ value of the best one.
 """
 function sortantecedents(
     antecedents::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
-    y::AbstractVector{<:CLabel},
+    y::AbstractVector{<:Integer},
     w::AbstractVector,
     beam_width::Integer,
     quality_evaluator::Function,
     maxpurity_gamma::Union{Real, Nothing}=nothing;
     kwargs...
 )::Tuple{Vector{Int},<:Real}
+
+    # quality_evaluator = laplace_accuracy
 
     # Exit point [1]
     isempty(antecedents) && return [], Inf
@@ -88,6 +91,7 @@ function sortantecedents(
             quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
 
+    @showlc antecedents :green
     if !isnothing(maxpurity_gamma)
         # TODO va fatto qui questa @assert o in `findbestantecedent` ?
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
@@ -103,7 +107,8 @@ function sortantecedents(
     valid_indexes = partialsortperm(antsquality[indexes], 1:min(beam_width, length(indexes)))
     newstar_perm = indexes[valid_indexes]
     bestantecedent_quality = antsquality[newstar_perm[1]]
-
+    # @show antecedents[newstar_perm]
+    # @show antsquality[newstar_perm]
     return newstar_perm, bestantecedent_quality
 end
 

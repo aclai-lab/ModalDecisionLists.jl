@@ -243,7 +243,7 @@ For further details, please refer to [`BeamSearch`](@ref).
 function findbestantecedent(
     bs::BeamSearch,
     X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
+    y::AbstractVector{<:Integer},
     w::AbstractVector;
     n_labels::Integer
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
@@ -276,6 +276,86 @@ function findbestantecedent(
                                     max_purity_const;
                                     n_labels=n_labels
                                 )
+        isempty(perm) && break
+        newcandidates = newcandidates[perm]
+
+        if bestcandidate_quality < best_quality
+            best = newcandidates[1]
+            best_quality = bestcandidate_quality
+        end
+    end
+
+    return best
+end
+
+############################################################################################
+############################################################################################
+############################################################################################
+
+function find_singlerule(
+    candidates::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
+    X::AbstractLogiset,
+    y::AbstractVector{<:Integer},
+    w::AbstractVector,
+    beam_width::Integer,
+    # laplace
+    target_class,
+    n_labels,
+    # optional positional
+    discretizedomain::Bool=false,
+    truerfirst::Bool=false,
+    max_rule_length::Union{Nothing,Integer}=nothing,
+    alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    max_purity_const::Union{Nothing,Real}=nothing
+)::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
+
+    newcandidates = specializeantecedents(candidates,
+                        X, y,
+                        max_rule_length, truerfirst, discretizedomain, alphabet
+    )
+
+    (perm, bestcandidate_quality) = sortantecedents(newcandidates,
+                        y, w,
+                        beam_width, laplace_accuracy, max_purity_const;
+                        #
+                        target_class=target_class,
+                        n_labels=n_labels
+    )
+end
+
+function find_rules(
+    bs::BeamSearch,
+    X::AbstractLogiset,
+    y::AbstractVector{<:Integer},
+    w::AbstractVector;
+    target_class::Integer,
+    n_labels::Integer
+)::Vector{Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}}
+
+    @unpack beam_width, quality_evaluator, max_rule_length,
+        min_rule_coverage, truerfirst, discretizedomain, alphabet, max_purity_const = bs
+
+    # best = (⊤, ones(Bool, nrow(X)))
+    # best_quality = quality_evaluator(y, w; n_labels, target_class)
+
+    @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
+    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
+                                                               "than one. Please provide a valid value."
+
+    # [1]
+    initial_classdistribution = counts(y)
+    newcandidates = Tuple{RuleAntecedent,SatMask}[]
+
+    while true
+        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
+        bestrule = find_singlerule(candidates,
+                X, y, w, beam_width,
+                # laplace
+                target_class, n_labels,
+                # general parameters
+                discretizedomain, truerfirst, max_rule_length, alphabet
+        )
+
         isempty(perm) && break
         newcandidates = newcandidates[perm]
 

@@ -137,25 +137,22 @@ function sequentialcovering(
 
     n_labels = labels |> length
 
-    # DEBUG
-    # uncoveredslice = collect(1:ninstances(X))
-
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
 
     rulebase = Rule[]
-    while true
-        # @show uncoveredy
-        # @show length(uncoveredy)
-        # readline()
-        bestantecedent, bestantecedent_coverage = findbestantecedent(
+    for target_class in 1:n_labels
+
+        bestantecedent, bestantecedent_coverage = find_rules(
             searchmethod,
             uncoveredX,
             uncoveredy,
             uncoveredw;
-            n_labels = n_labels
+            target_class,
+            n_labels
         )
+
         bestantecedent == ⊤ && break
 
         rule, consequent_i = begin
@@ -172,8 +169,7 @@ function sequentialcovering(
             (Rule(bestantecedent, consequent_cm), consequent_i)
         end
         push!(rulebase, rule)
-        # TODO Attenzione, la DecisionList risultante non è applicabile con apply in quanto
-        # non vale il metodo di applicazione della prima regola vera !!!!!!!!!!!!!!!!!!!!!!
+
         uncovered_slice = begin
             if unorderedstrategy
                 correctclass_coverage = (uncoveredy .== consequent_i) .& bestantecedent_coverage
@@ -198,6 +194,95 @@ function sequentialcovering(
     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
     return DecisionList(rulebase, labels[defaultconsequent])
 end
+
+# function sequentialcovering(
+#     X::AbstractLogiset,
+#     y::AbstractVector{<:CLabel},
+#     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+#     searchmethod::SearchMethod=BeamSearch(),
+#     unorderedstrategy::Bool = false,
+#     max_rulebase_length::Union{Nothing,Integer}=nothing,
+#     suppress_parity_warning::Bool=false,
+#     kwargs...
+# )::DecisionList where {U<:Real}
+
+
+#     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
+
+#     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+
+#     w = if isnothing(w) || w == :default
+#         default_weights(y)
+#     elseif w == :rebalance
+#         balanced_weights(y)
+#     else
+#         w
+#     end
+
+#     searchmethod = reconstruct(searchmethod,  kwargs)
+
+#     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+#     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+#     (ninstances(X) == 0) && error("Empty trainig set")
+
+#     y, labels = y |> maptointeger
+
+#     n_labels = labels |> length
+
+#     uncoveredX = X
+#     uncoveredy = y
+#     uncoveredw = w
+
+#     rulebase = Rule[]
+#     while true
+#         bestantecedent, bestantecedent_coverage = findbestantecedent(
+#             searchmethod,
+#             uncoveredX,
+#             uncoveredy,
+#             uncoveredw;
+#             n_labels = n_labels
+#         )
+#         bestantecedent == ⊤ && break
+
+#         rule, consequent_i = begin
+#             justcoveredy = uncoveredy[bestantecedent_coverage]
+#             justcoveredw = uncoveredw[bestantecedent_coverage]
+#             consequent_i = bestguess(justcoveredy, justcoveredw)
+#             info_cm = (;
+#                 # TODO anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
+#                 supporting_labels=collect(justcoveredy),
+#                 supporting_weights=collect(justcoveredw)
+#             )
+#             consequent_cm = ConstantModel(labels[consequent_i], info_cm)
+#             #
+#             (Rule(bestantecedent, consequent_cm), consequent_i)
+#         end
+#         push!(rulebase, rule)
+
+#         uncovered_slice = begin
+#             if unorderedstrategy
+#                 correctclass_coverage = (uncoveredy .== consequent_i) .& bestantecedent_coverage
+#                 @show uncoveredy[correctclass_coverage]
+#                 (!).(correctclass_coverage)
+#             else
+#                 (!).(bestantecedent_coverage)
+#             end
+#         end
+#         readline()
+
+#         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+#         uncoveredy = @view uncoveredy[uncovered_slice]
+#         uncoveredw = @view uncoveredw[uncovered_slice]
+
+#         if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
+#             break
+#         end
+#     end
+
+#     # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
+#     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
+#     return DecisionList(rulebase, labels[defaultconsequent])
+# end
 
 function build_cn2(
     X::AbstractLogiset,
