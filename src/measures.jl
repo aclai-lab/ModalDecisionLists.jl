@@ -8,18 +8,40 @@ using StatsBase
 
 # TODO è come se diventasse un problema biclasse ?
 function laplace_accuracy(
-    y::AbstractVector{<:CLabel},
+    y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
-    n_labels::Integer = 2
+    target_class::Union{Integer,Nothing} = nothing,
+    n_labels::Integer
 )
+
     N = length(y)
-
-    target_class = SoleModels.bestguess(y, suppress_parity_warning=true)
-    n = countmap(y)[target_class]
-
-    return -(n + 1) / (N + n_labels)
+    distribution = counts(y, n_labels)
+    # print(distribution)
+    # readline()
+    target_class = isnothing(target_class) ?
+            SoleModels.bestguess(y, suppress_parity_warning=true) : target_class
+    k, target = begin
+        if isnothing(target_class)
+            (length(distribution), max(distribution))
+        else
+            (2, distribution[target_class])
+        end
+    end
+    return -(target + 1) / (N + k)
 end
 
+# as an exception, when target class is not set,
+        # the majority class is chosen to stand against
+        # all others
+        # tc = rule.target_class
+        # dist = rule.curr_class_dist
+        # if tc is not None:
+        #     k = 2
+        #     target = dist[tc]
+        # else:
+        #     k = len(dist)
+        #     target = bn.nanmax(dist)
+        # return (target + 1) / (dist.sum() + k)
 
 # TODO riguarda logica entropia !!! capire se è meglio versione bounded o unbounded
 function entropy(

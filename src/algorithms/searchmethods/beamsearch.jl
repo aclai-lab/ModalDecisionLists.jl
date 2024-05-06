@@ -142,23 +142,25 @@ function univariate_unaryantecedents(
     X::AbstractLogiset,
     univ_alphabet::AbstractAlphabet
 )
+
+# TODO ho commentato perchè non funziona come dovrebbe... da rivere !!!
+# antdslist = Tuple{RuleAntecedent,SatMask}[]
+# cumulativemask = zeros(Bool, ninstances(X))
+    # prevant_coverage = collect(1:ninstances(X))
+
+    # for atom in atomslist
+    #     isempty(prevant_coverage) && break
+    #     atom_satmask = begin
+    #         uncoveredX = slicedataset(X, prevant_coverage; return_view=false)
+    #         check(atom, uncoveredX)
+    #     end
+    #     cumulativemask[prevant_coverage] = atom_satmask
+    #     prevant_coverage = prevant_coverage[atom_satmask]
+    #     push!(antdslist, (RuleAntecedent([atom]), cumulativemask))
+    # end
     atomslist = atoms(univ_alphabet)
-    antdslist = Tuple{RuleAntecedent,SatMask}[]
-
-    cumulativemask = zeros(Bool, ninstances(X))
-    prevant_coverage = collect(1:ninstances(X))
-
-    for atom in atomslist
-        isempty(prevant_coverage) && break
-        atom_satmask = begin
-            uncoveredX = slicedataset(X, prevant_coverage; return_view=false)
-            check(atom, uncoveredX)
-        end
-        cumulativemask[prevant_coverage] = atom_satmask
-        prevant_coverage = prevant_coverage[atom_satmask]
-        push!(antdslist, (RuleAntecedent([atom]), cumulativemask))
-    end
-    return antdslist
+    possible_conditions = [(a, check(a, X)) for a in atomslist]
+    return possible_conditions
 end
 
 
