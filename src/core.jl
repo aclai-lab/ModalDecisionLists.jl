@@ -80,9 +80,9 @@ function sortantecedents(
     kwargs...
 )::Tuple{Vector{Int},<:Real}
 
-    # quality_evaluator = laplace_accuracy
 
     # Exit point [1]
+
     isempty(antecedents) && return [], Inf
     indexes = collect(1:length(antecedents))
 
@@ -91,7 +91,11 @@ function sortantecedents(
             quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
 
-    # @showlc antecedents :green
+    for i in 1:length(antsquality)
+        println("E: $(counts(y[antecedents[i][2]], 3)) $(antsquality[i])")
+    end
+
+
     if !isnothing(maxpurity_gamma)
         # TODO va fatto qui questa @assert o in `findbestantecedent` ?
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
@@ -107,8 +111,8 @@ function sortantecedents(
     valid_indexes = partialsortperm(antsquality[indexes], 1:min(beam_width, length(indexes)))
     newstar_perm = indexes[valid_indexes]
     bestantecedent_quality = antsquality[newstar_perm[1]]
-    # @show antecedents[newstar_perm]
-    # @show antsquality[newstar_perm]
+    @show bestantecedent_quality
+
     return newstar_perm, bestantecedent_quality
 end
 

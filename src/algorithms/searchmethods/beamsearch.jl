@@ -2,7 +2,7 @@ using SoleLogics: AbstractAlphabet, pushconjunct!
 using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
 using Parameters
-using ModalDecisionLists.Measures: entropy
+using ModalDecisionLists.Measures: entropy, laplace_accuracy
 
 ############################################################################################
 ############## Beam search #################################################################
@@ -296,7 +296,6 @@ end
 ############################################################################################
 
 function find_singlerule(
-    candidates::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
     X::AbstractLogiset,
     y::AbstractVector{<:Integer},
     w::AbstractVector,
@@ -312,23 +311,34 @@ function find_singlerule(
     max_purity_const::Union{Nothing,Real}=nothing
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
+    best = (⊤, ones(Bool, nrow(X)))
+    best_quality = laplace_accuracy(y, w; n_labels, target_class)
+
+    newcandidates = Tuple{RuleAntecedent,SatMask}[]
+
+    @showlc ["FUORIIIII"] :red
     while true
+        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
         newcandidates = specializeantecedents(candidates,
                             X, y,
-                            max_rule_length, truerfirst, discretizedomain, alphabet
-        )
-
+                            max_rule_length, truerfirst, discretizedomain, alphabet)
         (perm, bestcandidate_quality) = sortantecedents(newcandidates,
                             y, w,
                             beam_width, laplace_accuracy, max_purity_const;
                             #
                             target_class=target_class,
-                            n_labels=n_labels
-        )
+                            n_labels=n_labels)
 
-        @show (perm, bestcandidate_quality)
-        @show newcandidates[perm]
-    end
+        isempty(perm) && break
+
+        newcandidates = newcandidates[perm]
+        if bestcandidate_quality < best_quality
+            best = newcandidates[1]
+            best_quality = bestcandidate_quality
+        end
+
+    end # end while
+    return best
 end
 
 function find_rules(
@@ -338,40 +348,52 @@ function find_rules(
     w::AbstractVector;
     target_class::Integer,
     n_labels::Integer
-)::Vector{Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}}
+)::Vector{Rule}
 
     @unpack beam_width, quality_evaluator, max_rule_length,
         min_rule_coverage, truerfirst, discretizedomain, alphabet, max_purity_const = bs
-
-    # best = (⊤, ones(Bool, nrow(X)))
-    # best_quality = quality_evaluator(y, w; n_labels, target_class)
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
 
+    Xuncovered = X
+    yuncovered = y
+    wuncovered = w
+
     # [1]
     initial_classdistribution = counts(y)
     newcandidates = Tuple{RuleAntecedent,SatMask}[]
 
+    bestrules = []
     while true
-        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
-        bestrule = find_singlerule(candidates,
-                X, y, w, beam_width,
+        bestantecedent = find_singlerule(
+                Xuncovered, yuncovered, wuncovered, beam_width,
                 # laplace
                 target_class, n_labels,
                 # general parameters
                 discretizedomain, truerfirst, max_rule_length, alphabet
         )
 
-        isempty(perm) && break
-        newcandidates = newcandidates[perm]
+        (bestant_formula, bestant_coverage) = bestantecedent
 
-        if bestcandidate_quality < best_quality
-            best = newcandidates[1]
-            best_quality = bestcandidate_quality
+        # TODO cambiare da target_class(Integer) a CLabel
+        newrule = Rule(bestant_formula, ConstantModel(target_class))
+        push!(bestrules, newrule)
+
+        uncovered_slice = begin
+            correctclass_coverage = (yuncovered .== target_class) .& bestant_coverage
+            @show countmap(yuncovered[bestant_coverage])
+            (!).(correctclass_coverage)
         end
+        @show uncovered_slice
+        Xuncovered = slicedataset(Xuncovered, uncovered_slice; return_view=true)
+        yuncovered = @view yuncovered[uncovered_slice]
+        wuncovered = @view wuncovered[uncovered_slice]
+        @show countmap(yuncovered)
+        readline()
+        !any(yuncovered .== target_class) && break
     end
 
-    return best
+    return bestrules
 end

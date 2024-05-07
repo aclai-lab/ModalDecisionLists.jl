@@ -13,26 +13,21 @@ function laplace_accuracy(
     target_class::Union{Integer,Nothing} = nothing,
     n_labels::Integer
 )
+    @show y
+    tc = target_class
+    dist = counts(y, n_labels)
+    @show dist
 
-    N = length(y)
-    distribution = counts(y, n_labels)
-    # print(distribution)
-    # readline()
-    target_class = isnothing(target_class) ?
-            SoleModels.bestguess(y, suppress_parity_warning=true) : target_class
     k, target = begin
-        if isnothing(target_class)
-            (length(distribution), max(distribution))
+        if !isnothing(tc)
+            (2, dist[tc])
         else
-            (2, distribution[target_class])
+            (length(dist), max(dist))
         end
     end
-    return -(target + 1) / (N + k)
+    return (-(target + 1) / (sum(dist) + k))
 end
 
-# as an exception, when target class is not set,
-        # the majority class is chosen to stand against
-        # all others
         # tc = rule.target_class
         # dist = rule.curr_class_dist
         # if tc is not None:

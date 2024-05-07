@@ -144,7 +144,7 @@ function sequentialcovering(
     rulebase = Rule[]
     for target_class in 1:n_labels
 
-        bestantecedent, bestantecedent_coverage = find_rules(
+        newrules = find_rules(
             searchmethod,
             uncoveredX,
             uncoveredy,
@@ -153,44 +153,13 @@ function sequentialcovering(
             n_labels
         )
 
-        bestantecedent == ⊤ && break
-
-        rule, consequent_i = begin
-            justcoveredy = uncoveredy[bestantecedent_coverage]
-            justcoveredw = uncoveredw[bestantecedent_coverage]
-            consequent_i = bestguess(justcoveredy, justcoveredw)
-            info_cm = (;
-                # TODO anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
-                supporting_labels=collect(justcoveredy),
-                supporting_weights=collect(justcoveredw)
-            )
-            consequent_cm = ConstantModel(labels[consequent_i], info_cm)
-            #
-            (Rule(bestantecedent, consequent_cm), consequent_i)
-        end
-        push!(rulebase, rule)
-
-        uncovered_slice = begin
-            if unorderedstrategy
-                correctclass_coverage = (uncoveredy .== consequent_i) .& bestantecedent_coverage
-                @show uncoveredy[correctclass_coverage]
-                (!).(correctclass_coverage)
-            else
-                (!).(bestantecedent_coverage)
-            end
-        end
-        readline()
-
-        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
-        uncoveredy = @view uncoveredy[uncovered_slice]
-        uncoveredw = @view uncoveredw[uncovered_slice]
-
+        # @show newrules
+        # readline()
         if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
             break
         end
     end
 
-    # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
     return DecisionList(rulebase, labels[defaultconsequent])
 end
