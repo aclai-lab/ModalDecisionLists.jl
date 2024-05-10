@@ -36,7 +36,6 @@ See also
     beam_width::Integer=3
     quality_evaluator::Function=entropy
     max_rule_length::Union{Nothing,Integer}=nothing
-    min_rule_coverage::Union{Integer}=1
     truerfirst::Bool=false
     discretizedomain::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
@@ -142,7 +141,6 @@ function univariate_unaryantecedents(
     X::AbstractLogiset,
     univ_alphabet::AbstractAlphabet
 )
-
 # TODO ho commentato perchè non funziona come dovrebbe... da rivere !!!
 # antdslist = Tuple{RuleAntecedent,SatMask}[]
 # cumulativemask = zeros(Bool, ninstances(X))
@@ -158,8 +156,8 @@ function univariate_unaryantecedents(
     #     prevant_coverage = prevant_coverage[atom_satmask]
     #     push!(antdslist, (RuleAntecedent([atom]), cumulativemask))
     # end
-    atomslist = atoms(univ_alphabet)
-    possible_conditions = [(a, check(a, X)) for a in atomslist]
+    atomslist = Atom{ScalarCondition}.(atoms(univ_alphabet))
+    possible_conditions = [(RuleAntecedent([a]), check(a, X)) for a in atomslist]
     return possible_conditions
 end
 
@@ -186,7 +184,6 @@ function specializeantecedents(
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
 
     specializedants = Tuple{RuleAntecedent,SatMask}[]
-
     if isempty(antecedents)
         selectedalphabet = isnothing(default_alphabet) ? alphabet(
                                                     X;
@@ -247,11 +244,12 @@ function findbestantecedent(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
+    min_rule_coverage::Integer,
     n_labels::Integer
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     @unpack beam_width, quality_evaluator, max_rule_length,
-        min_rule_coverage, truerfirst, discretizedomain, alphabet, max_purity_const = bs
+        truerfirst, discretizedomain, alphabet, max_purity_const = bs
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w; n_labels)
@@ -270,16 +268,16 @@ function findbestantecedent(
                                     discretizedomain,
                                     alphabet
                                 )
-        (perm, bestcandidate_quality) = sortantecedents(newcandidates,
+        (newcandidates, bestcandidate_quality) = sortantecedents(newcandidates,
                                     y,
                                     w,
                                     beam_width,
                                     quality_evaluator,
+                                    min_rule_coverage,
                                     max_purity_const;
                                     n_labels=n_labels
                                 )
-        isempty(perm) && break
-        newcandidates = newcandidates[perm]
+        isempty(newcandidates) && break
 
         if bestcandidate_quality < best_quality
             best = newcandidates[1]

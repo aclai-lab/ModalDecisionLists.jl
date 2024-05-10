@@ -110,10 +110,10 @@ function sequentialcovering(
     searchmethod::SearchMethod=BeamSearch(),
     unorderedstrategy::Bool = false,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-    suppress_parity_warning::Bool=false,
+    min_rule_coverage::Integer=1,
+    suppress_parity_warning::Bool=true,
     kwargs...
 )::DecisionList where {U<:Real}
-
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
@@ -154,6 +154,7 @@ function sequentialcovering(
             uncoveredX,
             uncoveredy,
             uncoveredw;
+            min_rule_coverage = min_rule_coverage,
             n_labels = n_labels
         )
         bestantecedent == ⊤ && break
@@ -161,7 +162,7 @@ function sequentialcovering(
         rule, consequent_i = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]
             justcoveredw = uncoveredw[bestantecedent_coverage]
-            consequent_i = bestguess(justcoveredy, justcoveredw)
+            consequent_i = SoleModels.bestguess(justcoveredy, justcoveredw; suppress_parity_warning=suppress_parity_warning)
             info_cm = (;
                 # TODO anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
                 supporting_labels=collect(justcoveredy),
@@ -183,7 +184,6 @@ function sequentialcovering(
                 (!).(bestantecedent_coverage)
             end
         end
-        readline()
 
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
@@ -195,6 +195,7 @@ function sequentialcovering(
     end
 
     # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
+
     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
     return DecisionList(rulebase, labels[defaultconsequent])
 end
@@ -226,65 +227,3 @@ function sole_rand(
 )
     return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
 end
-
-
-
-#= MEMO:
-    In questo caso (evidentemente) tra i possibili antecedenti generati randomicamente
-    nessuno è in grado di splittare le istanze di classe [2,3].
-
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.8524051786494786
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.5916727785823275
-uncoveredy = [2, 2, 2, 2, 3, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [2, 2, 2, 2, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 0.0
-uncoveredy = [2, 3]
-quality_evaluator(y[bestantecedent[2]], w[bestantecedent[2]]) = 1.0
-┌ Warning: Parity encountered in bestguess! counts (2 elements): Dict(2 => 1, 3 => 1), argmax: 2, max: 1 (sum = 2)
-└ @ SoleBase ~/.julia/dev/SoleBase/src/machine-learning-utils.jl:93
-ERROR: LoadError: AssertionError: Could not initialize PropositionalLogiset with a table with no rows.
-Stacktrace:
- [1] PropositionalLogiset(tabulardataset::SubDataFrame{DataFrame, DataFrames.Index, Vector{Int64}})
-   @ SoleData ~/.julia/dev/SoleData/src/scalar/scalar-propositional-logisets.jl:21
- [2] instances(X::PropositionalLogiset{SubDataFrame{DataFrame, DataFrames.Index, Vector{Int64}}}, inds::Vector{Bool}, return_view::Val{true})
-   @ SoleData ~/.julia/dev/SoleData/src/scalar/scalar-propositional-logisets.jl:102
- [3] slicedataset(dataset::PropositionalLogiset{SubDataFrame{DataFrame, DataFrames.Index, Vector{Int64}}}, dataset_slice::BitVector; allow_no_instances::Bool, return_view::Bool, kwargs::@Kwargs{})
-   @ SoleBase ~/.julia/dev/SoleBase/src/SoleBase.jl:67
- [4] slicedataset
-   @ ~/.julia/dev/SoleBase/src/SoleBase.jl:48 [inlined]
- [5] sequentialcovering(X::PropositionalLogiset{DataFrame}, y::Vector{Union{…}}, w::FillArrays.Ones{Int64, 1, Tuple{…}}; searchmethod::RandSearch, max_rulebase_length::Nothing, suppress_parity_warning::Bool, kwargs::@Kwargs{})
-   @ ModalDecisionLists /media/drive1/eponsanesi/.julia/dev/ModalDecisionLists/src/algorithms/sequentialcovering.jl:177
- [6] sequentialcovering
-   @ /media/drive1/eponsanesi/.julia/dev/ModalDecisionLists/src/algorithms/sequentialcovering.jl:106 [inlined]
- [7] top-level scope
-   @ /media/drive1/eponsanesi/.julia/dev/DevSole/src/test-random.jl:13
- [8] include(fname::String)
-   @ Base.MainInclude ./client.jl:489
- [9] top-level scope
-   @ REPL[26]:1
-in expression starting at /media/drive1/eponsanesi/.julia/dev/DevSole/src/test-random.jl:13
-Some type information was truncated. Use `show(err)` to see complete types.
- =#

@@ -39,9 +39,10 @@ function extract_optimalantecedent(
                 end
             end, formulas)
         end
-        #
-        if all(bestant_satmask)
+        # Minore non minore o uguale
+        if all(bestant_satmask) | ((quality_evaluator(y[bestant_satmask], w[bestant_satmask]; kwargs...) - max_purity) < 0)
             bestant_formula = TOP
+            bestant_satmask = ones(length(y))
         end
         (bestant_formula, bestant_satmask)
     end
@@ -66,9 +67,11 @@ function findbestantecedent(
     @assert all(o->o isa NamedConnective, operators) "all elements in `operators`" *
                             " must  beNamedConnective"
     max_purity = 0.0
+    @show max_purity_const
     if !isnothing(max_purity_const)
-        @assert (max_purity_const >= 0) & (max_purity_const <= 1) "maxpurity_gamma not in range [0,1]"
+        # @assert (max_purity_const >= 0) & (max_purity_const <= 1) "maxpurity_gamma not in range [0,1]"
         max_purity = quality_evaluator(y, w; kwargs...) * max_purity_const
+        @show max_purity
     end
     # isempty(operators) && syntaxheight = 0
     @assert !isempty(operators) "No `operator` for formula construction was provided."

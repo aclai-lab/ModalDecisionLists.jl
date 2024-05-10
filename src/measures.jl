@@ -22,26 +22,13 @@ function laplace_accuracy(
             SoleModels.bestguess(y, suppress_parity_warning=true) : target_class
     k, target = begin
         if isnothing(target_class)
-            (length(distribution), max(distribution))
+            (length(distribution), maximum(distribution))
         else
             (2, distribution[target_class])
         end
     end
     return -(target + 1) / (N + k)
 end
-
-# as an exception, when target class is not set,
-        # the majority class is chosen to stand against
-        # all others
-        # tc = rule.target_class
-        # dist = rule.curr_class_dist
-        # if tc is not None:
-        #     k = 2
-        #     target = dist[tc]
-        # else:
-        #     k = len(dist)
-        #     target = bn.nanmax(dist)
-        # return (target + 1) / (dist.sum() + k)
 
 # TODO riguarda logica entropia !!! capire se è meglio versione bounded o unbounded
 function entropy(

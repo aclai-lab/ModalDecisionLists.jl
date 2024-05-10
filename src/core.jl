@@ -10,6 +10,25 @@ const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{Scalar
 const SatMask = BitVector
 
 
+
+############################################################################################
+############ Helping function ##############################################################
+############################################################################################
+
+macro showlc(list, c)
+    return esc(quote
+        infolist = (length($list) == 0 ?
+                        "EMPTY" :
+                        "len: $(length($list))"
+                    )
+        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
+        for (ind, element) in enumerate($list)
+            printstyled(ind,") ",element, "\n", color=$c)
+        end
+    end)
+
+end
+
 ############################################################################################
 ############ SearchMethods #################################################################
 ############################################################################################
@@ -75,12 +94,22 @@ function sortantecedents(
     w::AbstractVector,
     beam_width::Integer,
     quality_evaluator::Function,
+    min_rule_coverage::Integer,
     maxpurity_gamma::Union{Real, Nothing}=nothing;
     kwargs...
-)::Tuple{Vector{Int},<:Real}
+)#= ::Tuple{Vector{Int},<:Real} =#
 
     # Exit point [1]
     isempty(antecedents) && return [], Inf
+
+    if min_rule_coverage > 1
+        validindexes = [(count(ant[2]) >= min_rule_coverage) for ant in antecedents
+            ] |> findall
+        # Exit point [2]
+        isempty(validindexes) && return [], Inf
+        #
+        antecedents = antecedents[validindexes]
+    end
     indexes = collect(1:length(antecedents))
 
     antsquality = map(antd -> begin
@@ -101,10 +130,13 @@ function sortantecedents(
         isempty(indexes) && return [], Inf
     end
     valid_indexes = partialsortperm(antsquality[indexes], 1:min(beam_width, length(indexes)))
+
     newstar_perm = indexes[valid_indexes]
+
+    newstar = antecedents[newstar_perm]
     bestantecedent_quality = antsquality[newstar_perm[1]]
 
-    return newstar_perm, bestantecedent_quality
+    return newstar, bestantecedent_quality
 end
 
 ############################################################################################
@@ -132,23 +164,4 @@ function preprocess_inputdata(
         Xy = hcat(X[:, :], y[:]) |> dropmissing
     end
     return Xy[:, 1:(end-1)], Xy[:, end]
-end
-
-
-############################################################################################
-############ Helping function ##############################################################
-############################################################################################
-
-macro showlc(list, c)
-    return esc(quote
-        infolist = (length($list) == 0 ?
-                        "EMPTY" :
-                        "len: $(length($list))"
-                    )
-        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
-        for (ind, element) in enumerate($list)
-            printstyled(ind,") ",element, "\n", color=$c)
-        end
-    end)
-
 end
