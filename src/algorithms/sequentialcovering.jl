@@ -115,9 +115,7 @@ function sequentialcovering(
     kwargs...
 )::DecisionList where {U<:Real}
 
-
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
-
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
 
     w = if isnothing(w) || w == :default
@@ -147,6 +145,7 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
+
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,
             uncoveredX,

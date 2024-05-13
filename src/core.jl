@@ -15,6 +15,8 @@ const SatMask = BitVector
 ############ Helping function ##############################################################
 ############################################################################################
 
+pp(str) = printstyled("$(str) \n", color = :red, bold = true)
+
 macro showlc(list, c)
     return esc(quote
         infolist = (length($list) == 0 ?
@@ -52,30 +54,33 @@ function findbestantecedent(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
-    kwards...
+    kwargs...
 )
     return error("Please, provide method findbestantecedent(sm::$(typeof(sm)), X::$(typeof(X))," *
     " y::$(typeof(y)), w::$(typeof(w)); kwargs...).")
 end
 
-include("algorithms/searchmethods/beamsearch.jl")
-include("algorithms/searchmethods/randsearch.jl")
+############################################################################################
+############ AtomSearch ####################################################################
+############################################################################################
 
+struct AtomSearch <: SearchMethod end
+
+function findbestantecedent(
+    as::AtomSearch,
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector;
+    kwargs...
+)
+    return findbestantecedent(BeamSearch(; conjuncts_search_method=as, max_rule_length=1), X, y, w; kwargs...)
+end
 
 ############################################################################################
 
-@with_kw struct AtomSearch <: SearchMethod
-    beam_width::Integer=3
-    quality_evaluator::Function=entropy
-    truerfirst::Bool=false
-    discretizedomain::Bool=false
-    alphabet::Union{Nothing,AbstractAlphabet}=nothing
-    max_purity_const::Union{Real,Nothing}=nothing
-end
 
-function findbestantecedent(bs::AtomSearch, args...; kwargs...)
-    return findbestantecedent(BeamSearch(; conjuncts_search_method=bs, max_rule_length=1), args...; kwargs...)
-end
+include("algorithms/searchmethods/beamsearch.jl")
+include("algorithms/searchmethods/randsearch.jl")
 
 
 function maptointeger(y::AbstractVector{<:CLabel})
@@ -108,7 +113,7 @@ Then the permutation of the bests *beam_search* sorted antecedent is returned wi
 value of the best one.
 """
 function sortantecedents(
-    antecedents::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
+    antecedents::AbstractVector{<:Tuple{Formula, BitVector}},
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
@@ -154,7 +159,6 @@ function sortantecedents(
 
     newstar = antecedents[newstar_perm]
     bestantecedent_quality = antsquality[newstar_perm[1]]
-
     return newstar, bestantecedent_quality
 end
 

@@ -21,6 +21,24 @@ Generate random formulas (`SoleLogics.randformula`)
     max_purity_const::Union{Real,Nothing}=nothing
 end
 
+function unaryantecedents(
+    rs::RandSearch,
+    a::AbstractAlphabet,
+    X::AbstractLogiset
+)
+    @unpack cardinality, operators, syntaxheight, rng = rs
+
+    randformulas = [ begin
+        formula = randformula(rng, syntaxheight, a, operators)
+        satmask = check(formula, X)
+        if any(satmask)
+            (formula, satmask)
+        end
+    end for _ in 1:cardinality] |> filter(rf -> rf != nothing)
+    #
+    return randformulas
+end
+
 # TODO non mi piaceeee
 function extract_optimalantecedent(
     formulas::AbstractVector,
@@ -80,15 +98,7 @@ function findbestantecedent(
     @assert !isempty(operators) "No `operator` for formula construction was provided."
     bestantecedent = begin
         if !allequal(y)
-            randformulas = [ begin
-                    rfa = randformula(rng, syntaxheight, alphabet(X), operators)
-                    smk = check(rfa, X)
-                    if any(smk) & (count(smk) > min_rule_coverage) & significance_test(y, y[smk], alpha; kwargs...)
-                        (rfa, smk)
-                    end
-                end for _ in 1:cardinality]
-            randformulas = randformulas |> filter(rf -> rf != nothing) # TODO @Gio brutto ?
-
+            randformulas = unaryantecedents(rs, X)
             bestantecedent = extract_optimalantecedent(randformulas,
                             quality_evaluator, max_purity, y, w;
                             kwargs...)
