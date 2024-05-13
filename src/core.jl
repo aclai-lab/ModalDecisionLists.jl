@@ -40,6 +40,8 @@ findbestantecedent
 
 See also [`BeamSearch`](@ref, [`RandSearch`](@ref).
 """
+############################################################################################
+
 abstract type SearchMethod end
 
 """
@@ -58,6 +60,23 @@ end
 
 include("algorithms/searchmethods/beamsearch.jl")
 include("algorithms/searchmethods/randsearch.jl")
+
+
+############################################################################################
+
+@with_kw struct AtomSearch <: SearchMethod
+    beam_width::Integer=3
+    quality_evaluator::Function=entropy
+    truerfirst::Bool=false
+    discretizedomain::Bool=false
+    alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    max_purity_const::Union{Real,Nothing}=nothing
+end
+
+function findbestantecedent(bs::AtomSearch, args...; kwargs...)
+    return findbestantecedent(BeamSearch(; conjuncts_search_method=bs, max_rule_length=1), args...; kwargs...)
+end
+
 
 function maptointeger(y::AbstractVector{<:CLabel})
 
