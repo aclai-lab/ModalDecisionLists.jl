@@ -5,19 +5,17 @@ using SoleBase: default_weights
 using SoleModels
 using FillArrays
 using StatsBase
-
+using Distributions
 # TODO è come se diventasse un problema biclasse ?
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
     target_class::Union{Integer,Nothing} = nothing,
-    n_labels::Integer
+    n_labels::Integer,
+    kwargs...
 )
-
     N = length(y)
     distribution = counts(y, n_labels)
-    # print(distribution)
-    # readline()
     target_class = isnothing(target_class) ?
             SoleModels.bestguess(y, suppress_parity_warning=true) : target_class
     k, target = begin
@@ -27,7 +25,7 @@ function laplace_accuracy(
             (2, distribution[target_class])
         end
     end
-    return -(target + 1) / (N + k)
+    return 1 - (target + 1) / (N + k)
 end
 
 # TODO riguarda logica entropia !!! capire se è meglio versione bounded o unbounded
@@ -46,6 +44,39 @@ function entropy(
     prob = distribution ./ sum(distribution)
     e = -sum(prob .* log2.(prob))
     return e
+end
+
+
+# ycurrent
+# yprev
+function significance_test(
+    ycurr::AbstractVector{<:Integer},
+    yprev::AbstractVector{<:Integer},
+    alpha::Real;
+    target_class::Union{Integer,Nothing} = nothing,
+    n_labels::Integer,
+    kwargs...
+)
+    currdist = counts(ycurr, n_labels)
+    prevdist = counts(yprev, n_labels)
+    if !isnothing(target_class)
+        x = Vector{Real}([currdist[tc], sum(currdist) - currdist[tc]])
+        y = Vector{Real}([prevdist[tc], sum(prevdist) - prevdist[tc]])
+    else
+        x = Vector{Real}(currdist)
+        y = Vector{Real}(prevdist)
+    end
+    lrs = begin
+        x[x .== 0] .= 1e-5
+        y[y .== 0] .= 1e-5
+        y = y * (sum(x)/sum(y))
+        # Likelihood Ratio Statistic
+        sum(x .* log.(x ./ y)) * 2
+    end
+
+    # Degrees of freedom
+    df = length(currdist) - 1
+    return ( lrs > 0 ) & (ccdf(Chisq(df), lrs) <= alpha)
 end
 
 ############################################################################################

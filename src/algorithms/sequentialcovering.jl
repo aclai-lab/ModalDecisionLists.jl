@@ -115,6 +115,7 @@ function sequentialcovering(
     kwargs...
 )::DecisionList where {U<:Real}
 
+
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
@@ -146,9 +147,6 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
-        # @show uncoveredy
-        # @show length(uncoveredy)
-        # readline()
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,
             uncoveredX,
@@ -178,7 +176,6 @@ function sequentialcovering(
         uncovered_slice = begin
             if unorderedstrategy
                 correctclass_coverage = (uncoveredy .== consequent_i) .& bestantecedent_coverage
-                @show uncoveredy[correctclass_coverage]
                 (!).(correctclass_coverage)
             else
                 (!).(bestantecedent_coverage)

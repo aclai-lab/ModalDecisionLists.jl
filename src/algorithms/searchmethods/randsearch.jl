@@ -2,6 +2,7 @@ using Parameters
 using SoleLogics
 using FillArrays
 using Random
+using ModalDecisionLists.Measures: entropy, significance_test
 ############################################################################################
 ############## Random search ###############################################################
 ############################################################################################
@@ -16,6 +17,7 @@ Generate random formulas (`SoleLogics.randformula`)
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
     rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
+    alpha::Real=1.0
     max_purity_const::Union{Real,Nothing}=nothing
 end
 
@@ -28,15 +30,17 @@ function extract_optimalantecedent(
     w::AbstractVector;
     kwargs...
 )::Tuple{Formula,SatMask}
+
+    # TODO mappare laplace accuracy in intervallo 0,1
     bestant_satmask = ones(Bool, length(y))
     bestformula = begin
         if !isempty(formulas)
             (bestant_formula, bestant_satmask) = argmin(((rfa, satmask),) -> begin
                 relative_quality = quality_evaluator(y[satmask], w[satmask]; kwargs...) - max_purity
-                if relative_quality >= 0
-                    relative_quality
-                else Inf
-                end
+                    if relative_quality >= 0
+                        relative_quality
+                    else Inf
+                    end
             end, formulas)
         end
         # Minore non minore o uguale
@@ -55,11 +59,12 @@ function findbestantecedent(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
+    min_rule_coverage::Integer,
     kwargs...
 )::Tuple{Formula,SatMask}
 
     @unpack cardinality, quality_evaluator,
-            operators, syntaxheight, rng, max_purity_const = rs
+            operators, syntaxheight, rng, alpha, max_purity_const = rs
     @assert cardinality > 0 "parameter `cardinality` must be greater than zero," * "
                             $(cardinality) is not an acceptable value."
     @assert syntaxheight >= 0 "parameter `syntaxheight` must be greater than zero," * "
@@ -67,11 +72,9 @@ function findbestantecedent(
     @assert all(o->o isa NamedConnective, operators) "all elements in `operators`" *
                             " must  beNamedConnective"
     max_purity = 0.0
-    @show max_purity_const
     if !isnothing(max_purity_const)
-        # @assert (max_purity_const >= 0) & (max_purity_const <= 1) "maxpurity_gamma not in range [0,1]"
+        @assert (max_purity_const >= 0) & (max_purity_const <= 1) "maxpurity_gamma not in range [0,1]"
         max_purity = quality_evaluator(y, w; kwargs...) * max_purity_const
-        @show max_purity
     end
     # isempty(operators) && syntaxheight = 0
     @assert !isempty(operators) "No `operator` for formula construction was provided."
@@ -80,11 +83,12 @@ function findbestantecedent(
             randformulas = [ begin
                     rfa = randformula(rng, syntaxheight, alphabet(X), operators)
                     smk = check(rfa, X)
-                    if any(smk)
+                    if any(smk) & (count(smk) > min_rule_coverage) & significance_test(y, y[smk], alpha; kwargs...)
                         (rfa, smk)
                     end
-                end for _ in 1:cardinality
-            ] |> filter(rf -> rf != nothing) # TODO @Gio brutto ?
+                end for _ in 1:cardinality]
+            randformulas = randformulas |> filter(rf -> rf != nothing) # TODO @Gio brutto ?
+
             bestantecedent = extract_optimalantecedent(randformulas,
                             quality_evaluator, max_purity, y, w;
                             kwargs...)
