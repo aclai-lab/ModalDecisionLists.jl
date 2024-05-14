@@ -75,17 +75,17 @@ end
 """
 Return the list of all possible antecedents containing a single condition from the alphabet.
 """
-function unaryantecedents(
+function unaryconditions(
     ::AtomSearch,
     a::AbstractAlphabet,
     X::AbstractLogiset
-)
-    antecedents = Tuple{RuleAntecedent,SatMask}[]
+)::Vector{Tuple{Atom,SatMask}}
+    conditions = Tuple{Atom{ScalarCondition},SatMask}[]
     for univalph in alphabets(a)
-        antslist = [(RuleAntecedent([a]), check(a, X)) for a in atoms(univalph)]
-        append!(antecedents, antslist)
+        newconds = [(a, check(a, X)) for a in atoms(univalph)]
+        append!(conditions, newconds)
     end
-    return antecedents
+    return conditions
 end
 
 """
@@ -98,16 +98,16 @@ Returns the list of all possible conditions (atoms) that can be derived from ins
 of X and can further refine the input antecedent.
 """
 function newconditions(
-    ::AtomSearch
+    ::AtomSearch,
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    antecedent_info::Tuple{RuleAntecedent,BitVector};
+    antecedent::Tuple{RuleAntecedent,BitVector};
     truerfirst=false,
     discretizedomain=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},BitVector}}
 
-    antecedent, satindexes = antecedent_info
+    antformula, satindexes = antecedent
     coveredX = slicedataset(X, satindexes; return_view=false)
     coveredy = y[satindexes]
 
@@ -117,61 +117,22 @@ function newconditions(
         else
             alphabet(coveredX;
                 discretizedomain = discretizedomain,
-                truerfirst  = truerfirst,
-                y           = coveredy
-            )
+                truerfirst       = truerfirst,
+                y                = coveredy)
         end
     end
     metaconditions = begin
-        scalarconditions = value.(children(antecedent))
+        scalarconditions = value.(children(antformula))
         metacond.(scalarconditions)
     end
     # Exlude metaconditons tha are already in `antecedent`
     selectedalphabet = UnionAlphabet([ a for a in alphabets(selectedalphabet)
             if metacond(a) ∉ metaconditions
         ])
-    return filteralphabet(X, selectedalphabet, antecedent_info)
+    return filteralphabet(X, selectedalphabet, antecedent)
 end
 
 
-################## RandSearch ##############################################################
-function newconditions(
-    ::RandSearch
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    antecedent_info::Tuple{Formula,BitVector};
-    truerfirst=false,
-    discretizedomain=false,
-    alph::Union{Nothing,AbstractAlphabet}=nothing
-)::Vector{Tuple{Formula,BitVector}}
-
-    antecedent, satindexes = antecedent_info
-    coveredX = slicedataset(X, satindexes; return_view=false)
-    coveredy = y[satindexes]
-
-    selectedalphabet = begin
-        if !isnothing(alph)
-            alph
-        else
-            alphabet(coveredX;
-                discretizedomain = discretizedomain,
-                truerfirst  = truerfirst,
-                y           = coveredy
-            )
-        end
-    end
-
-    # COntinue here......................................
-    metaconditions = begin
-        scalarconditions = value.(children(antecedent))
-        metacond.(scalarconditions)
-    end
-    # Exlude metaconditons tha are already in `antecedent`
-    selectedalphabet = UnionAlphabet([ a for a in alphabets(selectedalphabet)
-            if metacond(a) ∉ metaconditions
-        ])
-    return filteralphabet(X, selectedalphabet, antecedent_info)
-end
 ###
 prune_noncovering(antecedents) = [a for a in antecedents if ((_, cov) = a; any(cov))]
 
@@ -194,6 +155,7 @@ function specializeantecedents(
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Tuple{Formula,SatMask}}
+
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
 
     if isempty(antecedents)
@@ -206,28 +168,27 @@ function specializeantecedents(
             else default_alphabet
             end
         end
-        # SearchMethos
-        specializedants = unaryantecedents(sm, selectedalphabet, X)
+        specializedants =  map(cond -> begin
+                    (formula, satmask) = cond
+                    (LeftmostConjunctiveForm([formula]), satmask)
+        end, unaryconditions(sm, selectedalphabet, X))
     else
-        specializedants = Tuple{Formula,SatMask}[]
+        specializedants = Tuple{LeftmostConjunctiveForm,SatMask}[]
         for currentantecedent ∈ antecedents
 
-            antformula,antcoverage = currentantecedent
-            conjunctibleatoms = newconditions(sm, X, y, currentantecedent;
-                        optimize         = true,
+            antformula, antcoverage = currentantecedent
+            conjunctibleconditions = newconditions(sm, X, y, currentantecedent;
                         truerfirst       = truerfirst,
                         alph             = default_alphabet,
-                        discretizedomain = discretizedomain
-                    )
-            isempty(conjunctibleatoms) && continue
+                        discretizedomain = discretizedomain)
+            isempty(conjunctibleconditions) && continue
 
             currentant_specialization = [ begin
                 newantformula = deepcopy(antformula)
                 pushconjunct!(newantformula, newatom)
 
                 (newantformula, antcoverage .& newatom_satmsk)
-            end for (newatom, newatom_satmsk) ∈ conjunctibleatoms ]
-
+            end for (newatom, newatom_satmsk) ∈ conjunctibleconditions ]
             append!(specializedants, currentant_specialization)
         end
     end
@@ -291,12 +252,18 @@ function findbestantecedent(
     while true
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Tuple{Formula, SatMask}[]
+
+        # @showlc candidates :red
         newcandidates = specializeantecedents(conjuncts_search_method,
                                             candidates, X, y,
                                             max_rule_length,
                                             truerfirst,
                                             discretizedomain,
                                             alphabet)
+
+        # @showlc newcandidates :green
+        # readline()
+
         # Sort the new candidates
         (newcandidates, bestcandidate_quality) = sortantecedents(newcandidates,
                                             y, w,
@@ -305,7 +272,10 @@ function findbestantecedent(
                                             min_rule_coverage,
                                             max_purity_const;
                                             n_labels=n_labels)
+
+
         isempty(newcandidates) && break
+
         new_bestcandidate, new_bestcandidate_satmask = newcandidates[begin]
         # Update the best candidate and its quality
         if bestcandidate_quality < best_quality

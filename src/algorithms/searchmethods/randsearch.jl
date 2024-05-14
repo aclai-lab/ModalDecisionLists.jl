@@ -21,14 +21,22 @@ Generate random formulas (`SoleLogics.randformula`)
     max_purity_const::Union{Real,Nothing}=nothing
 end
 
-function unaryantecedents(
+
+#
+#
+# Potrei mettere in OR regole successive nella DL aventi stessa classe?
+#
+#
+function unaryconditions(
     rs::RandSearch,
     a::AbstractAlphabet,
     X::AbstractLogiset
-)
+)::Vector{Tuple{SyntaxBranch,SatMask}}
+
     @unpack cardinality, operators, syntaxheight, rng = rs
 
-    randformulas = [ begin
+    # TODO devo generare 10 foirmule comprese quelle non buone ?
+    conditions = [ begin
         formula = randformula(rng, syntaxheight, a, operators)
         satmask = check(formula, X)
         if any(satmask)
@@ -36,7 +44,42 @@ function unaryantecedents(
         end
     end for _ in 1:cardinality] |> filter(rf -> rf != nothing)
     #
-    return randformulas
+    return conditions
+end
+
+function newconditions(
+    rs::RandSearch,
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    antecedent::Tuple{Formula,BitVector};
+    discretizedomain=false,
+    alph::Union{Nothing,AbstractAlphabet}=nothing,
+    kwargs...
+)::Vector{Tuple{Formula,BitVector}}
+
+    antecedent, satindexes = antecedent
+    coveredX = slicedataset(X, satindexes; return_view=false)
+    coveredy = y[satindexes]
+
+    # If all instances already belong to the same class,
+    # further specializations make no sense.
+    allequal(coveredy) && return []
+
+    selectedalphabet = begin
+        if !isnothing(alph)
+            alph
+        else
+            alphabet(coveredX;
+                discretizedomain = discretizedomain,
+                y                = coveredy
+            )
+        end
+    end
+    selectedalphabet = UnionAlphabet([ a for a in alphabets(selectedalphabet)])
+
+    # Where new unary conditions are randomly generated (and checked on X) formulas.
+    return unaryconditions(rs, selectedalphabet, X)
+
 end
 
 # TODO non mi piaceeee
@@ -72,6 +115,8 @@ function extract_optimalantecedent(
 end
 
 
+
+
 function findbestantecedent(
     rs::RandSearch,
     X::PropositionalLogiset,
@@ -98,7 +143,7 @@ function findbestantecedent(
     @assert !isempty(operators) "No `operator` for formula construction was provided."
     bestantecedent = begin
         if !allequal(y)
-            randformulas = unaryantecedents(rs, X)
+            randformulas = unaryconditions(rs, X)
             bestantecedent = extract_optimalantecedent(randformulas,
                             quality_evaluator, max_purity, y, w;
                             kwargs...)
