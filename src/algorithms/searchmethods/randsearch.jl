@@ -16,17 +16,17 @@ Generate random formulas (`SoleLogics.randformula`)
     quality_evaluator::Function=ModalDecisionLists.Measures.entropy
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
+    discretizedomain::Bool=false
     rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
     alpha::Real=1.0
     max_purity_const::Union{Real,Nothing}=nothing
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
 end
 
 
-#
+
 #
 # Potrei mettere in OR regole successive nella DL aventi stessa classe?
-#
-#
 function unaryconditions(
     rs::RandSearch,
     a::AbstractAlphabet,
@@ -35,7 +35,7 @@ function unaryconditions(
 
     @unpack cardinality, operators, syntaxheight, rng = rs
 
-    # TODO devo generare 10 foirmule comprese quelle non buone ?
+    # TODO devo generare 10 formule comprese quelle non buone ?
     conditions = [ begin
         formula = randformula(rng, syntaxheight, a, operators)
         satmask = check(formula, X)
@@ -46,6 +46,7 @@ function unaryconditions(
     #
     return conditions
 end
+
 
 function newconditions(
     rs::RandSearch,
@@ -126,7 +127,7 @@ function findbestantecedent(
     kwargs...
 )::Tuple{Formula,SatMask}
 
-    @unpack cardinality, quality_evaluator,
+    @unpack cardinality, quality_evaluator, discretizedomain, default_alphabet,
             operators, syntaxheight, rng, alpha, max_purity_const = rs
     @assert cardinality > 0 "parameter `cardinality` must be greater than zero," * "
                             $(cardinality) is not an acceptable value."
@@ -143,7 +144,17 @@ function findbestantecedent(
     @assert !isempty(operators) "No `operator` for formula construction was provided."
     bestantecedent = begin
         if !allequal(y)
-            randformulas = unaryconditions(rs, X)
+            # select the alphabet parametrization
+            selectedalphabet = begin
+                if isnothing(default_alphabet)
+                    alphabet(X;
+                        discretizedomain = discretizedomain,
+                        y = y
+                    )
+                else default_alphabet
+                end
+            end
+            randformulas = unaryconditions(rs, selectedalphabet, X)
             bestantecedent = extract_optimalantecedent(randformulas,
                             quality_evaluator, max_purity, y, w;
                             kwargs...)
