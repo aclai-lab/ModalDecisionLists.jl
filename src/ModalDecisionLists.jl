@@ -3,7 +3,7 @@ module ModalDecisionLists
 # Write your package code here.
 using Random
 
-export BeamSearch, RandSearch, SearchMethod
+export BeamSearch, RandSearch, AtomSearch, SearchMethod
 
 using Reexport
 @reexport using SoleBase
