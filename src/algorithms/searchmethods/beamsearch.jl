@@ -43,33 +43,6 @@ See also
     max_purity_const::Union{Real,Nothing}=nothing
 end
 
-"""
-    function filteralphabet(
-        X::AbstractLogiset,
-        alph::UnionAlphabet,
-        antecedent_info::Tuple{RuleAntecedent,SatMask}
-    )::Vector{Tuple{Atom,SatMask}}
-
-Return every atom that can be derived from 'alph', except those already in the antecedent.
-
-For optimization purposes each atom is returned paired with its coverage bitmask on X
-
-See also
-[`BeamSearch`](@ref).
-[`filteralphabetoptimized`](@ref),
-[`specializeantecedents`](@ref).
-"""
-function filteralphabet(
-    X::AbstractLogiset,
-    alph::AbstractAlphabet,
-    antecedent::RuleAntecedent
-)::Vector{Tuple{Atom,SatMask}}
-
-    conditions = Atom{ScalarCondition}.(atoms(alph))
-    possible_conditions = [(a, check(a, X)) for a in conditions if a ∉ atoms(antecedent)]
-
-    return possible_conditions
-end
 
 """
     function filteralphabetoptimized(
@@ -130,9 +103,8 @@ function newatoms(
     selectedalphabet = [ a for a in alphabets(selectedalphabet)
                                 if metacond(a) ∉ metaconditions
                         ] |> UnionAlphabet
+    possibleconditions = filteralphabetoptimized(X, selectedalphabet, antecedent_info)
 
-    possibleconditions = optimize ? filteralphabetoptimized(X, selectedalphabet, antecedent_info) :
-                        filteralphabet(X, selectedalphabet, antecedent)
     return possibleconditions
 end
 
@@ -181,6 +153,7 @@ function specializeantecedents(
     truerfirst::Bool=false,
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    target_class::Union{Integer,Nothing}=nothing,
 )::Vector{Tuple{RuleAntecedent,SatMask}}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
@@ -203,12 +176,12 @@ function specializeantecedents(
         for _ant ∈ antecedents
 
             (antformula, antcoverage) = _ant
-
             conjunctibleatoms = newatoms(X,y, _ant;
                 optimize=true,
                 truerfirst=truerfirst,
                 alph=default_alphabet,
-                discretizedomain=discretizedomain,)
+                discretizedomain=discretizedomain
+            )
             #
             isempty(conjunctibleatoms) && continue
             for (_atom, _cov) ∈ conjunctibleatoms
@@ -222,6 +195,9 @@ function specializeantecedents(
             end
         end
     end
+
+    specializedants = [sant for sant in specializedants if ((_, cov) = sant; any(cov))]
+
     # rimuovo gli antecdenti che non coprono nessuna istanza
     return [sa for sa in specializedants if ((_, cov) = sa; any(cov))]
 end
@@ -316,22 +292,29 @@ function find_singlerule(
 
     newcandidates = Tuple{RuleAntecedent,SatMask}[]
 
-    @showlc ["FUORIIIII"] :red
     while true
         (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
         newcandidates = specializeantecedents(candidates,
                             X, y,
-                            max_rule_length, truerfirst, discretizedomain, alphabet)
+                            max_rule_length, truerfirst, discretizedomain, alphabet
+                        )
+        # In case of DecisionSet learning all the antecedents that do not cover any instances
+        # labeled with the target_class are removed.
+        newcandidates = [sant for sant in newcandidates if (
+                            (_, satmask) = sant;
+                            any(y[satmask] .== target_class)
+                        )]
         (perm, bestcandidate_quality) = sortantecedents(newcandidates,
                             y, w,
                             beam_width, laplace_accuracy, max_purity_const;
-                            #
                             target_class=target_class,
-                            n_labels=n_labels)
+                            n_labels=n_labels
+                        )
 
         isempty(perm) && break
 
         newcandidates = newcandidates[perm]
+
         if bestcandidate_quality < best_quality
             best = newcandidates[1]
             best_quality = bestcandidate_quality
@@ -356,13 +339,11 @@ function find_rules(
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
-
     Xuncovered = X
     yuncovered = y
     wuncovered = w
 
-    # [1]
-    initial_classdistribution = counts(y)
+    initial_classdistribution = counts(y, n_labels)
     newcandidates = Tuple{RuleAntecedent,SatMask}[]
 
     bestrules = []
@@ -374,24 +355,21 @@ function find_rules(
                 # general parameters
                 discretizedomain, truerfirst, max_rule_length, alphabet
         )
-
         (bestant_formula, bestant_coverage) = bestantecedent
 
         # TODO cambiare da target_class(Integer) a CLabel
         newrule = Rule(bestant_formula, ConstantModel(target_class))
+        @show newrule
         push!(bestrules, newrule)
 
         uncovered_slice = begin
             correctclass_coverage = (yuncovered .== target_class) .& bestant_coverage
-            @show countmap(yuncovered[bestant_coverage])
             (!).(correctclass_coverage)
         end
-        @show uncovered_slice
         Xuncovered = slicedataset(Xuncovered, uncovered_slice; return_view=true)
         yuncovered = @view yuncovered[uncovered_slice]
         wuncovered = @view wuncovered[uncovered_slice]
-        @show countmap(yuncovered)
-        readline()
+
         !any(yuncovered .== target_class) && break
     end
 

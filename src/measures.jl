@@ -7,36 +7,25 @@ using FillArrays
 using StatsBase
 
 # TODO è come se diventasse un problema biclasse ?
+
+
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
     target_class::Union{Integer,Nothing} = nothing,
     n_labels::Integer
 )
-    @show y
-    tc = target_class
     dist = counts(y, n_labels)
-    @show dist
 
     k, target = begin
-        if !isnothing(tc)
-            (2, dist[tc])
+        if !isnothing(target_class)
+            (2, dist[target_class])
         else
             (length(dist), max(dist))
         end
     end
-    return (-(target + 1) / (sum(dist) + k))
+    return -((target + 1) / (sum(dist) + k))
 end
-
-        # tc = rule.target_class
-        # dist = rule.curr_class_dist
-        # if tc is not None:
-        #     k = 2
-        #     target = dist[tc]
-        # else:
-        #     k = len(dist)
-        #     target = bn.nanmax(dist)
-        # return (target + 1) / (dist.sum() + k)
 
 # TODO riguarda logica entropia !!! capire se è meglio versione bounded o unbounded
 function entropy(

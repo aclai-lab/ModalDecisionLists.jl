@@ -12,6 +12,25 @@ const SatMask = BitVector
 
 
 ############################################################################################
+############ Helping function ##############################################################
+############################################################################################
+
+macro showlc(list, c)
+    return esc(quote
+        infolist = (length($list) == 0 ?
+                        "EMPTY" :
+                        "len: $(length($list))"
+                    )
+        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
+        for (ind, element) in enumerate($list)
+            printstyled(ind,") ",element, "\n", color=$c)
+        end
+    end)
+
+end
+
+
+############################################################################################
 ############ SearchMethods #################################################################
 ############################################################################################
 
@@ -82,6 +101,7 @@ function sortantecedents(
 
 
     # Exit point [1]
+    # printstyled(" TARGET[$(counts(y, kwargs[:n_labels])[kwargs[:target_class]])] \n", color=:red )
 
     isempty(antecedents) && return [], Inf
     indexes = collect(1:length(antecedents))
@@ -90,12 +110,6 @@ function sortantecedents(
             _, satinds = antd
             quality_evaluator(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
-
-    for i in 1:length(antsquality)
-        println("E: $(counts(y[antecedents[i][2]], 3)) $(antsquality[i])")
-    end
-
-
     if !isnothing(maxpurity_gamma)
         # TODO va fatto qui questa @assert o in `findbestantecedent` ?
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
@@ -111,7 +125,6 @@ function sortantecedents(
     valid_indexes = partialsortperm(antsquality[indexes], 1:min(beam_width, length(indexes)))
     newstar_perm = indexes[valid_indexes]
     bestantecedent_quality = antsquality[newstar_perm[1]]
-    @show bestantecedent_quality
 
     return newstar_perm, bestantecedent_quality
 end
@@ -141,23 +154,4 @@ function preprocess_inputdata(
         Xy = hcat(X[:, :], y[:]) |> dropmissing
     end
     return Xy[:, 1:(end-1)], Xy[:, end]
-end
-
-
-############################################################################################
-############ Helping function ##############################################################
-############################################################################################
-
-macro showlc(list, c)
-    return esc(quote
-        infolist = (length($list) == 0 ?
-                        "EMPTY" :
-                        "len: $(length($list))"
-                    )
-        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
-        for (ind, element) in enumerate($list)
-            printstyled(ind,") ",element, "\n", color=$c)
-        end
-    end)
-
 end
