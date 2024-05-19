@@ -19,7 +19,7 @@ efficient exploration of the solution space without examining all possibilities.
 
 # Keyword Arguments
 * `beam_width::Integer = 3` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
-* `quality_evaluator::Function = soleentropy` is the function that assigns a score to each partial solution.
+* `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
 * `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
 * `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
 If not specified, the beam will be update until no more possible specializations exist.
@@ -34,14 +34,13 @@ See also
 """
 @with_kw struct BeamSearch <: SearchMethod
     conjuncts_search_method::SearchMethod=AtomSearch()
-    #
     beam_width::Integer=3
-    quality_evaluator::Function=entropy
+    loss_function::Function=entropy
     max_rule_length::Union{Nothing,Integer}=nothing
-    truerfirst::Bool=false
     discretizedomain::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
     max_purity_const::Union{Real,Nothing}=nothing
+    significance_alpha::Union{Real,Nothing}=nothing
 end
 
 
@@ -102,7 +101,6 @@ function newconditions(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     antecedent::Tuple{RuleAntecedent,BitVector};
-    truerfirst=false,
     discretizedomain=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},BitVector}}
@@ -117,7 +115,6 @@ function newconditions(
         else
             alphabet(coveredX;
                 discretizedomain = discretizedomain,
-                truerfirst       = truerfirst,
                 y                = coveredy)
         end
     end
@@ -151,7 +148,6 @@ function specializeantecedents(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     max_rule_length::Union{Nothing,Integer}=nothing,
-    truerfirst::Bool=false,
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Tuple{Formula,SatMask}}
@@ -178,7 +174,6 @@ function specializeantecedents(
 
             antformula, antcoverage = currentantecedent
             conjunctibleconditions = newconditions(sm, X, y, currentantecedent;
-                        truerfirst       = truerfirst,
                         alph             = default_alphabet,
                         discretizedomain = discretizedomain)
             isempty(conjunctibleconditions) && continue
@@ -221,7 +216,7 @@ end
         y::AbstractVector{<:CLabel},
         w::AbstractVector;
         beam_width::Integer = 3,
-        quality_evaluator::Function = soleentropy,
+        loss_function::Function = soleentropy,
         max_rule_length::Union{Nothing,Integer} = nothing,
         alphabet::Union{Nothing,AbstractAlphabet} = nothing
     )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
@@ -239,11 +234,11 @@ function findbestantecedent(
     n_labels::Integer
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
-    @unpack conjuncts_search_method, beam_width, quality_evaluator, max_rule_length,
-            truerfirst, discretizedomain, alphabet, max_purity_const = bs
+    @unpack conjuncts_search_method, beam_width, loss_function, max_rule_length,
+             discretizedomain, alphabet, max_purity_const, significance_alpha = bs
 
     best = (⊤, ones(Bool, nrow(X)))
-    best_quality = quality_evaluator(y, w; n_labels = n_labels)
+    best_lossfnctn = loss_function(y, w; n_labels = n_labels)
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
@@ -251,36 +246,30 @@ function findbestantecedent(
     newcandidates = Tuple{Formula,SatMask}[]
     while true
         # Generate new specialized candidates
-        (candidates, newcandidates) = newcandidates, Tuple{Formula, SatMask}[]
+        (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
 
         # @showlc candidates :red
         newcandidates = specializeantecedents(conjuncts_search_method,
                                             candidates, X, y,
                                             max_rule_length,
-                                            truerfirst,
                                             discretizedomain,
                                             alphabet)
-
-        # @showlc newcandidates :green
-        # readline()
-
         # Sort the new candidates
-        (newcandidates, bestcandidate_quality) = sortantecedents(newcandidates,
+        (newcandidates, bestcandidate_lossfnctn) = sortantecedents(newcandidates,
                                             y, w,
                                             beam_width,
-                                            quality_evaluator,
+                                            loss_function,
                                             min_rule_coverage,
-                                            max_purity_const;
+                                            max_purity_const,
+                                            significance_alpha;
                                             n_labels=n_labels)
-
-
         isempty(newcandidates) && break
 
         new_bestcandidate, new_bestcandidate_satmask = newcandidates[begin]
-        # Update the best candidate and its quality
-        if bestcandidate_quality < best_quality
+        # Update the best candidate and its lossfnctn
+        if (bestcandidate_lossfnctn < best_lossfnctn)
             best = (new_bestcandidate, new_bestcandidate_satmask)
-            best_quality = bestcandidate_quality
+            best_lossfnctn = bestcandidate_lossfnctn
         end
     end
     return best

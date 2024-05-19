@@ -346,9 +346,9 @@ _partition = 0.7
     len=1500
     printstyled("\n abalone \n\n", color=:red,bold=true)
 
-    table = CSV.read("datasets/abalone.csv", DataFrame)
-    y = table[:, :Rings] |> CategoricalArray
-    X = select(table, Not([:Rings]));
+    table = CSV.read("datasets/yeast.csv", DataFrame)
+    y = table[:, :localization_site] |> CategoricalArray
+    X = select(table, Not([:localization_site, :Sequence_Name]));
     X, y = preprocess_inputdata(X[1:len, :],y[1:len])
 
     mach = machine(list_model, X, y);

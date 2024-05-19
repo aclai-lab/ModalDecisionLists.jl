@@ -145,6 +145,7 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
+
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,
             uncoveredX,

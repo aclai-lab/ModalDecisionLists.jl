@@ -13,7 +13,7 @@ Generate random formulas (`SoleLogics.randformula`)
 """
 @with_kw struct RandSearch <: SearchMethod
     cardinality::Integer=10
-    quality_evaluator::Function=ModalDecisionLists.Measures.entropy
+    loss_function::Function=ModalDecisionLists.Measures.entropy
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
     discretizedomain::Bool=false
@@ -31,7 +31,7 @@ function unaryconditions(
     rs::RandSearch,
     a::AbstractAlphabet,
     X::AbstractLogiset
-)::Vector{Tuple{SyntaxBranch,SatMask}}
+)::Vector{Tuple{Formula,SatMask}}
 
     @unpack cardinality, operators, syntaxheight, rng = rs
 
@@ -86,7 +86,7 @@ end
 # TODO non mi piaceeee
 function extract_optimalantecedent(
     formulas::AbstractVector,
-    quality_evaluator,
+    loss_function,
     max_purity,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
@@ -98,15 +98,15 @@ function extract_optimalantecedent(
     bestformula = begin
         if !isempty(formulas)
             (bestant_formula, bestant_satmask) = argmin(((rfa, satmask),) -> begin
-                relative_quality = quality_evaluator(y[satmask], w[satmask]; kwargs...) - max_purity
-                    if relative_quality >= 0
-                        relative_quality
+                relative_lossfnctn = loss_function(y[satmask], w[satmask]; kwargs...) - max_purity
+                    if relative_lossfnctn >= 0
+                        relative_lossfnctn
                     else Inf
                     end
             end, formulas)
         end
         # Minore non minore o uguale
-        if all(bestant_satmask) | ((quality_evaluator(y[bestant_satmask], w[bestant_satmask]; kwargs...) - max_purity) < 0)
+        if all(bestant_satmask) | ((loss_function(y[bestant_satmask], w[bestant_satmask]; kwargs...) - max_purity) < 0)
             bestant_formula = TOP
             bestant_satmask = ones(length(y))
         end
@@ -127,7 +127,7 @@ function findbestantecedent(
     kwargs...
 )::Tuple{Formula,SatMask}
 
-    @unpack cardinality, quality_evaluator, discretizedomain, default_alphabet,
+    @unpack cardinality, loss_function, discretizedomain, default_alphabet,
             operators, syntaxheight, rng, alpha, max_purity_const = rs
     @assert cardinality > 0 "parameter `cardinality` must be greater than zero," * "
                             $(cardinality) is not an acceptable value."
@@ -138,7 +138,7 @@ function findbestantecedent(
     max_purity = 0.0
     if !isnothing(max_purity_const)
         @assert (max_purity_const >= 0) & (max_purity_const <= 1) "maxpurity_gamma not in range [0,1]"
-        max_purity = quality_evaluator(y, w; kwargs...) * max_purity_const
+        max_purity = loss_function(y, w; kwargs...) * max_purity_const
     end
     # isempty(operators) && syntaxheight = 0
     @assert !isempty(operators) "No `operator` for formula construction was provided."
@@ -156,7 +156,7 @@ function findbestantecedent(
             end
             randformulas = unaryconditions(rs, selectedalphabet, X)
             bestantecedent = extract_optimalantecedent(randformulas,
-                            quality_evaluator, max_purity, y, w;
+                            loss_function, max_purity, y, w;
                             kwargs...)
         else
             (TOP, ones(Bool, length(y)))
