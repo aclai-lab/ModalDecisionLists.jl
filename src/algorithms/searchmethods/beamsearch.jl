@@ -36,7 +36,6 @@ See also
     conjuncts_search_method::SearchMethod=AtomSearch()
     beam_width::Integer=3
     loss_function::Function=entropy
-    max_rule_length::Union{Nothing,Integer}=nothing
     discretizedomain::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
     max_purity_const::Union{Real,Nothing}=nothing
@@ -59,7 +58,7 @@ A trivial specialization correspond to an antecedent covering exactly the same i
 function filteralphabet(
     X::AbstractLogiset,
     alph::UnionAlphabet,
-    antecedent::Tuple{RuleAntecedent,SatMask}
+    antecedent::Tuple{Formula,SatMask}
 )::Vector{Tuple{Atom,SatMask}}
 
     antecedent, ant_mask = antecedent
@@ -100,7 +99,7 @@ function newconditions(
     ::AtomSearch,
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    antecedent::Tuple{RuleAntecedent,BitVector};
+    antecedent::Tuple{Formula,BitVector};
     discretizedomain=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},BitVector}}
@@ -138,7 +137,7 @@ prune_noncovering(antecedents) = [a for a in antecedents if ((_, cov) = a; any(c
         antecedents::Vector{Tuple{RuleAntecbedent,SatMask}},
         X::AbstractLogiset,
         max_rule_length::Union{Nothing,Integer} = nothing,
-    )::Vector{Tuple{RuleAntecedent, SatMask}}
+    )::Vector{Tuple{Formula, SatMask}}
 
 Specialize rule *antecedents*.
 """
@@ -150,7 +149,7 @@ function specializeantecedents(
     max_rule_length::Union{Nothing,Integer}=nothing,
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-)::Vector{Tuple{RuleAntecedent,SatMask}}
+)::Vector{Tuple{Formula,SatMask}}
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
 
     if isempty(antecedents)
@@ -230,11 +229,12 @@ function findbestantecedent(
     y::AbstractVector{<:Integer},
     w::AbstractVector;
     min_rule_coverage::Integer,
-    n_labels::Integer
-)::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
+    n_labels::Integer,
+    max_rule_length::Union{Integer,Nothing},
+)::Tuple{Union{Truth,Formula},SatMask}
 
-    @unpack conjuncts_search_method, beam_width, loss_function, max_rule_length,
-             discretizedomain, alphabet, max_purity_const, significance_alpha = bs
+    @unpack conjuncts_search_method, beam_width, loss_function,
+            discretizedomain, alphabet, max_purity_const, significance_alpha = bs
 
     best = (⊤, ones(Bool, nrow(X)))
     best_lossfnctn = loss_function(y, w; n_labels = n_labels)
@@ -283,26 +283,25 @@ function find_singlerule(
     w::AbstractVector,
     beam_width::Integer,
     # laplace
-    target_class,
-    n_labels,
-    # optional positional
+    target_class::Integer,
+    n_labels::Integer,
+
     discretizedomain::Bool=false,
-    truerfirst::Bool=false,
     max_rule_length::Union{Nothing,Integer}=nothing,
     alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     max_purity_const::Union{Nothing,Real}=nothing
-)::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
+)::Tuple{Union{Truth,Formula},SatMask}
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = laplace_accuracy(y, w; n_labels, target_class)
 
-    newcandidates = Tuple{RuleAntecedent,SatMask}[]
+    newcandidates = Tuple{Formula,SatMask}[]
 
     while true
-        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
+        (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
         newcandidates = specializeantecedents(candidates,
                             X, y,
-                            max_rule_length, truerfirst, discretizedomain, alphabet
+                            max_rule_length, discretizedomain, alphabet
                         )
         # In case of DecisionSet learning all the antecedents that do not cover any instances
         # labeled with the target_class are removed.
@@ -339,8 +338,8 @@ function find_rules(
     n_labels::Integer
 )::Vector{Rule}
 
-    @unpack beam_width, quality_evaluator, max_rule_length,
-        min_rule_coverage, truerfirst, discretizedomain, alphabet, max_purity_const = bs
+    @unpack beam_width, loss_function, max_rule_length,
+        discretizedomain, alphabet, max_purity_const = bs
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
@@ -359,7 +358,7 @@ function find_rules(
                 # laplace
                 target_class, n_labels,
                 # general parameters
-                discretizedomain, truerfirst, max_rule_length, alphabet
+                discretizedomain, max_rule_length, alphabet
         )
         (bestant_formula, bestant_coverage) = bestantecedent
 

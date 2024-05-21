@@ -34,25 +34,6 @@ macro showlc(list, c)
 end
 
 ############################################################################################
-############ Helping function ##############################################################
-############################################################################################
-
-macro showlc(list, c)
-    return esc(quote
-        infolist = (length($list) == 0 ?
-                        "EMPTY" :
-                        "len: $(length($list))"
-                    )
-        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
-        for (ind, element) in enumerate($list)
-            printstyled(ind,") ",element, "\n", color=$c)
-        end
-    end)
-
-end
-
-
-############################################################################################
 ############ SearchMethods #################################################################
 ############################################################################################
 
@@ -134,13 +115,8 @@ Then the permutation of the bests *beam_search* sorted antecedent is returned wi
 value of the best one.
 """
 function sortantecedents(
-<<<<<<< HEAD
-    antecedents::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
-    y::AbstractVector{<:Integer},
-=======
     antecedents::AbstractVector{<:Tuple{Formula, BitVector}},
     y::AbstractVector{<:CLabel},
->>>>>>> edo-memo
     w::AbstractVector,
     beam_width::Integer,
     loss_function::Function,
@@ -168,19 +144,12 @@ function sortantecedents(
             _, satinds = antd
             loss_function(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
-<<<<<<< HEAD
-=======
-
-    # for (i, a) in enumerate(antecedents)
-    #     println(tokens(a[1]),": ", antslossfnctn[i])
-    # end
-    # readline()
-
->>>>>>> edo-memo
     if !isnothing(maxpurity_gamma)
 
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
+
         maxpurity_value = maxpurity_gamma * loss_function(y, w; kwargs...)
+
         indexes = map(aq -> begin
                         (index, lossfnctn) = aq
                         lossfnctn >= maxpurity_value && index

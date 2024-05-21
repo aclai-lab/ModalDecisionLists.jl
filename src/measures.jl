@@ -8,12 +8,8 @@ using StatsBase
 using Distributions
 
 
-# TODO è come se diventasse un problema biclasse ?
-
-
 ############################################################################################
 ############################# Loss Functions ###############################################
-
 
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
@@ -27,7 +23,7 @@ function laplace_accuracy(
         if !isnothing(target_class)
             (2, dist[target_class])
         else
-            (length(dist), max(dist))
+            (length(dist), maximum(dist))
         end
     end
     return -((target + 1) / (sum(dist) + k))
@@ -49,7 +45,6 @@ function entropy(
     e = -sum(prob .* log2.(prob))
     return e
 end
-
 
 ############################################################################################
 ############################# Significance Test ############################################

@@ -14,6 +14,7 @@ import SoleModels: apply
 
 import MLJModelInterface
 using Parameters
+using StatsBase
 
 const MMI = MLJModelInterface
 const MDL = ModalDecisionLists
@@ -61,6 +62,8 @@ function SequentialCoveringLearner(;
     return model
 end
 
+################ Fit #######################################################################
+
 function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
 
     # TODO wrapdataset
@@ -78,21 +81,33 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
             error("unexpected model type $(typeof(model))")
         end
     end
+
+    if verbosity == 1
+        println(model)
+    end
+
+    # Outs ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     fitresult = (
         model = model,
     )
-    if verbosity > 1
-        println(model)
-    end
+    report = (
+        rulebase_length = length(rulebase(model)),
+        avg_ruleslength = mean([natoms(antecedent(rule)) for rule in rulebase(model)])
+    )
     cache = nothing
-    report = nothing
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
     return fitresult, cache, report
 end
+
+################ Predict ###################################################################
 
 function MMI.predict(m::SequentialCoveringLearner, fitresult, Xnew)
     yhat = apply(fitresult.model, PropositionalLogiset(Xnew))
     return yhat
 end
+
+############### Metadata ###################################################################
 
 MMI.metadata_pkg.(
     (

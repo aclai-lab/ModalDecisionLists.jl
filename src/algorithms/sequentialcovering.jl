@@ -19,7 +19,7 @@ using Parameters
 ################### SequentialCovering - DecisionSet #######################################
 ############################################################################################
 
-function sequentialcovering(
+function sequentialcovering_unordered(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
@@ -76,12 +76,9 @@ function sequentialcovering(
     return DecisionList(rulebase, labels[defaultconsequent])
 end
 
-
 ############################################################################################
 ################### SequentialCovering - DecisionList ######################################
 ############################################################################################
-
-
 
 """
     function sequentialcovering(
@@ -162,7 +159,6 @@ julia> sequentialcovering(X, y)
 │└ virginica
 └✘ versicolor
 ```
-
 See also
 [`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 
@@ -172,8 +168,9 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
-    unorderedstrategy::Bool = false,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
+    max_rule_length::Union{Nothing,Integer}=nothing,
+    min_rule_coverage::Integer=1,
     suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
@@ -213,6 +210,7 @@ function sequentialcovering(
             uncoveredy,
             uncoveredw;
             min_rule_coverage = min_rule_coverage,
+            max_rule_length = max_rule_length,
             n_labels = n_labels
         )
         bestantecedent == ⊤ && break
@@ -232,14 +230,7 @@ function sequentialcovering(
         end
         push!(rulebase, rule)
 
-        uncovered_slice = begin
-            if unorderedstrategy
-                correctclass_coverage = (uncoveredy .== consequent_i) .& bestantecedent_coverage
-                (!).(correctclass_coverage)
-            else
-                (!).(bestantecedent_coverage)
-            end
-        end
+        uncovered_slice = (!).(bestantecedent_coverage)
 
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
