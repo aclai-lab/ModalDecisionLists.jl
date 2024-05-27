@@ -6,6 +6,7 @@ using SoleModels
 using FillArrays
 using StatsBase
 using Distributions
+
 # TODO è come se diventasse un problema biclasse ?
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
