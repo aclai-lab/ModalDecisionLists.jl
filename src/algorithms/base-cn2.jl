@@ -1,3 +1,6 @@
+# This is a baseline implementation of CN2, drawing inspiration from Orange's implementation
+# Author: @edo-007
+
 using SoleData
 using SoleLogics
 using SoleBase

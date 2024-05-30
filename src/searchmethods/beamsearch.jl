@@ -2,13 +2,21 @@ using SoleLogics: AbstractAlphabet, pushconjunct!
 using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
 using Parameters
-using ModalDecisionLists.Measures: entropy
+using ModalDecisionLists.LossFunctions: entropy
 
 ############################################################################################
 ############## Beam search #################################################################
 ############################################################################################
 
 # TODO docu for min_rule_coverage
+
+# beam_width::Integer = 3,
+# quality_evaluator::Function = soleentropy,
+# max_rule_length::Union{Nothing,Integer} = nothing,
+# alphabet::Union{Nothing,AbstractAlphabet} = nothing
+
+# Performs a beam search to find the best antecedent for a given dataset and labels.
+
 """
 Search method to be used in
 [`sequentialcovering`](@ref) that explores the solution space selectively,
@@ -223,22 +231,6 @@ function specializeantecedents(
     return [sa for sa in specializedants if ((_, cov) = sa; any(cov))]
 end
 
-"""
-    function findbestantecedent(
-        ::BeamSearch,
-        X::AbstractLogiset,
-        y::AbstractVector{<:CLabel},
-        w::AbstractVector;
-        beam_width::Integer = 3,
-        quality_evaluator::Function = soleentropy,
-        max_rule_length::Union{Nothing,Integer} = nothing,
-        alphabet::Union{Nothing,AbstractAlphabet} = nothing
-    )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
-
-Performs a beam search to find the best antecedent for a given dataset and labels.
-
-For further details, please refer to [`BeamSearch`](@ref).
-"""
 function findbestantecedent(
     bs::BeamSearch,
     X::AbstractLogiset,
@@ -250,6 +242,11 @@ function findbestantecedent(
 
     @unpack beam_width, quality_evaluator, max_rule_length,
         truerfirst, discretizedomain, alphabet, max_purity_const = bs
+
+    maxpurity_gamma = max_purity_const
+    if !isnothing(maxpurity_gamma)
+        @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma must be in range [0,1], but $(maxpurity_gamma) encountered."
+    end
 
     best = (⊤, ones(Bool, nrow(X)))
     best_quality = quality_evaluator(y, w; n_labels)
@@ -274,7 +271,7 @@ function findbestantecedent(
                                     beam_width,
                                     quality_evaluator,
                                     min_rule_coverage,
-                                    max_purity_const;
+                                    maxpurity_gamma;
                                     n_labels=n_labels
                                 )
         isempty(newcandidates) && break

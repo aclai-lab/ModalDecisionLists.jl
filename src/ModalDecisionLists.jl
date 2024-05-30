@@ -9,16 +9,14 @@ using Reexport
 @reexport using SoleBase
 @reexport using SoleLogics
 @reexport using MultiData
-@reexport using SoleModels
 @reexport using SoleData
+@reexport using SoleModels
 
+include("loss-functions.jl")
 
-include("measures.jl")
-
-using .Measures
+using .LossFunctions
 
 include("core.jl")
-# Temporaneamente qui
 
 export sequentialcovering
 
@@ -33,8 +31,11 @@ end
 export SequentialCoveringLearner
 export build_cn2
 
-# Interface
+# MLJ Interface
 include("interfaces/MLJ.jl")
+
+
+include("deprecate.jl")
 
 using .MLJInterface
 

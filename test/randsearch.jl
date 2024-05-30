@@ -10,7 +10,7 @@ using RDatasets
 using SoleBase: CLabel
 using ModalDecisionLists
 using ModalDecisionLists: maptointeger
-using ModalDecisionLists.Measures: entropy, laplace_accuracy
+using ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
 using MLJ
 
 X...,y = MLJ.load_iris()

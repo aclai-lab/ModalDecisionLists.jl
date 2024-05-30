@@ -26,6 +26,7 @@ abstract type CoveringStrategy <: MLJModelInterface.Deterministic end
 ############################ SequentialCoveringLearner #####################################
 ############################################################################################
 
+# TODO add documentation for SequentialCoveringLearner
 mutable struct SequentialCoveringLearner <: CoveringStrategy
     searchmethod::SearchMethod
     max_rulebase_length::Union{Nothing,Integer}
@@ -63,7 +64,7 @@ end
 
 function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
 
-    # TODO wrapdataset
+    # TODO use wrapdataset...?
     X_pl = PropositionalLogiset(X)
     y_cl = Vector{CLabel}(y)
 

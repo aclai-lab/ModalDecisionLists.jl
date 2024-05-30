@@ -15,18 +15,15 @@ using FillArrays
 using ModalDecisionLists
 using Parameters
 
-############################################################################################
-############## Sequential Covering #########################################################
-############################################################################################
+################################################################################
+############## Sequential Covering #############################################
+################################################################################
 
 """
     function sequentialcovering(
         X::AbstractLogiset,
         y::AbstractVector{<:CLabel},
         w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
-        search_method::SearchMethod=BeamSearch(),
-        max_rulebase_length::Union{Nothing,Integer}=nothing,
-        suppress_parity_warning::Bool=false,
         kwargs...
     )::DecisionList where {U<:Real}
 
@@ -36,9 +33,12 @@ This involves iteratively learning a single rule, and removing the newly covered
 
 # Keyword Arguments
 
-* `search_method::SearchMethod`: Search method for finding single rules;
-* `max_rulebase_length` is the maximum length of the rulebase;
-* `suppress_parity_warning` if true, suppresses parity warnings.
+* `searchmethod::SearchMethod`: The search method for finding single rules (see [`SearchMethod`](@ref));
+* `max_rulebase_length::Union{Nothing,Integer}` is the maximum length of the rulebase;
+* `suppress_parity_warning::Bool` if `true`, suppresses parity warnings.
+* `unorderedstrategy::Bool`: TODO @Edo explain
+* `min_rule_coverage::Integer`: TODO @Edo explain
+* Any additional keyword argument will be imputed to the `searchmethod`, replacing its original value.
 
 # Examples
 
@@ -101,7 +101,6 @@ julia> sequentialcovering(X, y)
 
 See also
 [`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
-
 """
 function sequentialcovering(
     X::AbstractLogiset,
@@ -128,7 +127,7 @@ function sequentialcovering(
         w
     end
 
-    searchmethod = reconstruct(searchmethod,  kwargs)
+    searchmethod = reconstruct(searchmethod, kwargs)
 
     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
@@ -162,7 +161,7 @@ function sequentialcovering(
             justcoveredw = uncoveredw[bestantecedent_coverage]
             consequent_i = SoleModels.bestguess(justcoveredy, justcoveredw; suppress_parity_warning=suppress_parity_warning)
             info_cm = (;
-                # TODO anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
+                # TODO @Italian anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
                 supporting_labels=collect(justcoveredy),
                 supporting_weights=collect(justcoveredw)
             )
@@ -171,7 +170,7 @@ function sequentialcovering(
             (Rule(bestantecedent, consequent_cm), consequent_i)
         end
         push!(rulebase, rule)
-        # TODO Attenzione, la DecisionList risultante non è applicabile con apply in quanto
+        # TODO @Italian Attenzione, la DecisionList risultante non è applicabile con apply in quanto
         # non vale il metodo di applicazione della prima regola vera !!!!!!!!!!!!!!!!!!!!!!
         uncovered_slice = begin
             if unorderedstrategy
@@ -206,17 +205,17 @@ function build_cn2(
     return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
 end
 
-function sole_cn2_orange(
+function build_orange_cn2(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
     kwargs...
 )
-    # TODO
+    error("TODO: what's the default parametrization for orange CN2?")
     # return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
 end
 
-function sole_rand(
+function build_randcn2(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
@@ -224,3 +223,4 @@ function sole_rand(
 )
     return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
 end
+

@@ -12,7 +12,7 @@ using MLJDecisionTreeInterface
 using ModalDecisionLists
 using ModalDecisionLists: BaseCN2, MLJInterface
 using ModalDecisionLists: preprocess_inputdata
-using ModalDecisionLists.Measures: laplace_accuracy
+using ModalDecisionLists.LossFunctions: laplace_accuracy
 using CategoricalArrays: CategoricalValue, CategoricalArray
 using CSV
 

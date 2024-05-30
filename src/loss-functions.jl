@@ -1,4 +1,4 @@
-module Measures
+module LossFunctions
 
 using SoleBase: CLabel
 using SoleBase: default_weights
@@ -7,7 +7,7 @@ using FillArrays
 using StatsBase
 using Distributions
 
-# TODO è come se diventasse un problema biclasse ?
+# TODO is it like a binary classification problem?
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
@@ -29,7 +29,7 @@ function laplace_accuracy(
     return 1 - (target + 1) / (N + k)
 end
 
-# TODO riguarda logica entropia !!! capire se è meglio versione bounded o unbounded
+# TODO bounded or unbounded version?
 function entropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector=default_weights(length(y));
@@ -48,8 +48,6 @@ function entropy(
 end
 
 
-# ycurrent
-# yprev
 function significance_test(
     ycurr::AbstractVector{<:Integer},
     yprev::AbstractVector{<:Integer},

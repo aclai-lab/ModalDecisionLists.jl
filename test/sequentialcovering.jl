@@ -9,7 +9,7 @@ using SoleBase: CLabel
 using ModalDecisionLists
 import ModalDecisionLists: maptointeger
 
-import ModalDecisionLists.Measures: entropy, laplace_accuracy
+import ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
 
 # Iris dataset
 X...,y = load_iris()
@@ -27,7 +27,7 @@ w = rand(Float16, n_instances)
 #     X::AbstractLogiset,
 #     y::AbstractVector{<:CLabel},
 #     w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
-#     search_method::SearchMethod=BeamSearch(),
+#     searchmethod::SearchMethod=BeamSearch(),
 #     max_rulebase_length::Union{Nothing,Integer}=nothing,
 #     suppress_parity_warning::Bool=false,
 #     kwargs...

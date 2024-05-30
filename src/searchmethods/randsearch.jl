@@ -2,7 +2,7 @@ using Parameters
 using SoleLogics
 using FillArrays
 using Random
-using ModalDecisionLists.Measures: entropy, significance_test
+using ModalDecisionLists.LossFunctions: entropy, significance_test
 ############################################################################################
 ############## Random search ###############################################################
 ############################################################################################
@@ -13,7 +13,7 @@ Generate random formulas (`SoleLogics.randformula`)
 """
 @with_kw struct RandSearch <: SearchMethod
     cardinality::Integer=10
-    quality_evaluator::Function=ModalDecisionLists.Measures.entropy
+    quality_evaluator::Function=ModalDecisionLists.LossFunctions.entropy
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
     rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
