@@ -47,7 +47,7 @@ end
     function filteralphabetoptimized(
         X::AbstractLogiset,
         alph::UnionAlphabet,
-        antecedent_info::Tuple{RuleAntecedent,SatMask}
+        antecedent_info::Tuple{Formula,SatMask}
     )::Vector{Tuple{Atom,SatMask}}
 
 Like filteralphabet but with an additional filtering step ensuring that each atom is not a
@@ -89,7 +89,7 @@ end
 """
     newconditions(
         X::AbstractLogiset,
-        antecedent::Tuple{RuleAntecedent, SatMask}
+        antecedent::Tuple{Formula, SatMask}
     )::Vector{Tuple{Atom, SatMask}}
 
 Returns the list of all possible conditions (atoms) that can be derived from instances
@@ -279,7 +279,7 @@ end
 ############################################################################################
 
 function find_singlerule(
-    candidates::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
+    candidates::AbstractVector{<:Tuple{Formula, BitVector}},
     X::AbstractLogiset,
     y::AbstractVector{<:Integer},
     w::AbstractVector,
@@ -309,106 +309,10 @@ function find_singlerule(
     )
 end
 
-function find_rules(
-    bs::BeamSearch,
-    X::AbstractLogiset,
-    y::AbstractVector{<:Integer},
-    w::AbstractVector;
-    target_class::Integer,
-    n_labels::Integer
-)::Vector{Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}}
-
-    @unpack beam_width, quality_evaluator, max_rule_length,
-        min_rule_coverage, truerfirst, discretizedomain, alphabet, max_purity_const = bs
-
-    # best = (⊤, ones(Bool, nrow(X)))
-    # best_quality = quality_evaluator(y, w; n_labels, target_class)
-
-    @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
-    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
-                                                               "than one. Please provide a valid value."
-
-    # [1]
-    initial_classdistribution = counts(y)
-    newcandidates = Tuple{RuleAntecedent,SatMask}[]
-
-    while true
-        (candidates, newcandidates) = newcandidates, Tuple{RuleAntecedent,SatMask}[]
-        bestrule = find_singlerule(candidates,
-                X, y, w, beam_width,
-                # laplace
-                target_class, n_labels,
-                # general parameters
-                discretizedomain, truerfirst, max_rule_length, alphabet
-        )
-
-        isempty(perm) && break
-        newcandidates = newcandidates[perm]
-
-        if bestcandidate_quality < best_quality
-            best = newcandidates[1]
-            best_quality = bestcandidate_quality
-        end
-    end
-
-    return best
-end
-
 ############################################################################################
 ############################################################################################
 ############################################################################################
 
-function find_singlerule(
-    X::AbstractLogiset,
-    y::AbstractVector{<:Integer},
-    w::AbstractVector,
-    beam_width::Integer,
-    # laplace
-    target_class::Integer,
-    n_labels::Integer,
-
-    discretizedomain::Bool=false,
-    max_rule_length::Union{Nothing,Integer}=nothing,
-    alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-    max_purity_const::Union{Nothing,Real}=nothing
-)::Tuple{Union{Truth,Formula},SatMask}
-
-    best = (⊤, ones(Bool, nrow(X)))
-    best_quality = laplace_accuracy(y, w; n_labels, target_class)
-
-    newcandidates = Tuple{Formula,SatMask}[]
-
-    while true
-        (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
-        newcandidates = specializeantecedents(candidates,
-                            X, y,
-                            max_rule_length, discretizedomain, alphabet
-                        )
-        # In case of DecisionSet learning all the antecedents that do not cover any instances
-        # labeled with the target_class are removed.
-        newcandidates = [sant for sant in newcandidates if (
-                            (_, satmask) = sant;
-                            any(y[satmask] .== target_class)
-                        )]
-        (perm, bestcandidate_quality) = sortantecedents(newcandidates,
-                            y, w,
-                            beam_width, laplace_accuracy, max_purity_const;
-                            target_class=target_class,
-                            n_labels=n_labels
-                        )
-
-        isempty(perm) && break
-
-        newcandidates = newcandidates[perm]
-
-        if bestcandidate_quality < best_quality
-            best = newcandidates[1]
-            best_quality = bestcandidate_quality
-        end
-
-    end # end while
-    return best
-end
 
 function find_rules(
     bs::BeamSearch,
@@ -430,7 +334,7 @@ function find_rules(
     wuncovered = w
 
     initial_classdistribution = counts(y, n_labels)
-    newcandidates = Tuple{RuleAntecedent,SatMask}[]
+    newcandidates = Tuple{Formula,SatMask}[]
 
     bestrules = []
     while true
