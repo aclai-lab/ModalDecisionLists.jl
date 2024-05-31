@@ -2,13 +2,14 @@ using MLJ: load_iris
 using DataFrames
 using Random
 using Test
-
+using CategoricalArrays
 # using Logging
 using SoleBase
 using SoleBase: CLabel
 using ModalDecisionLists
 import ModalDecisionLists: maptointeger
 
+import ModalDecisionLists.Measures: entropy, laplace_accuracy
 
 # Iris dataset
 X...,y = load_iris()
@@ -17,17 +18,25 @@ X = DataFrame(X) |> PropositionalLogiset
 
 y_clabel = Vector{CLabel}(y)
 y_string = Vector{String}(y)
-y_intger = maptointeger(y)
-
+y_catgcl = CategoricalArray(y)
+y_intger, _ = maptointeger(y)
 n_instances = ninstances(X)
-
 w = rand(Float16, n_instances)
+
+# function sequentialcovering(
+#     X::AbstractLogiset,
+#     y::AbstractVector{<:CLabel},
+#     w::Union{Nothing,AbstractVector{U},Symbol} = default_weights(length(y));
+#     search_method::SearchMethod=BeamSearch(),
+#     max_rulebase_length::Union{Nothing,Integer}=nothing,
+#     suppress_parity_warning::Bool=false,
+#     kwargs...
+# )::DecisionList where {U<:Real}
+
 
 ############################################################################################
 ######## empty/mismatch TABLE/TARGET/WEIGHTS ###############################################
 ############################################################################################
-
-X_empty = @test_throws AssertionError DataFrame(Float64[],Float64[]) |> PropositionalLogiset
 
 y_empty = CLabel[]
 y_mstch = y_clabel[1:20]
@@ -35,74 +44,139 @@ y_mstch = y_clabel[1:20]
 w_empty = Float16[]
 w_mstch = w[1:20]
 
-
-# @test_throws ErrorException sequentialcovering(X_empty,   y_empty)
-# @test_throws ErrorException sequentialcovering(X_empty,   y_clabel)
 @test_throws ErrorException sequentialcovering(X,         y_empty)
 @test_throws ErrorException sequentialcovering(X,         y_mstch)
-@test_throws ErrorException sequentialcovering(X,         y_clabel,        w_empty)
-@test_throws ErrorException sequentialcovering(X,         y_clabel,        w_mstch)
+@test_throws ErrorException sequentialcovering(X,         y_clabel,   w_empty)
+@test_throws ErrorException sequentialcovering(X,         y_clabel,   w_mstch)
 
 ############################################################################################
-######## PropositionalLogiset, Target ######################################################
+############################## Target ######################################################
 ############################################################################################
 
-@test sequentialcovering(X, y_clabel) isa DecisionList
-@test sequentialcovering(X, y_intger) isa DecisionList
-@test sequentialcovering(X, y_string) isa DecisionList
+@test_nowarn sequentialcovering(X, y_clabel)
+@test_nowarn sequentialcovering(X, y_intger)
+@test_nowarn sequentialcovering(X, y_string)
+@test_nowarn sequentialcovering(X, y_catgcl)
 
-oneinst_X = slicedataset(X, 1; return_view = true)
-oneinst_y = y_clabel[1:1]
-@test sequentialcovering(oneinst_X, oneinst_y) isa DecisionList
+oneinst_X, oneinst_y = slicedataset(X, 1; return_view = true), y_clabel[1:1]
+@test_nowarn sequentialcovering(oneinst_X, oneinst_y)
 
 ############################################################################################
-######## PropositionalLogiset, Target, Weights #############################################
+############################## Weights #####################################################
+############################################################################################
+@test_nowarn sequentialcovering(X, y_clabel, w)
+@test_nowarn sequentialcovering(X, y_clabel, :default)
+@test_nowarn sequentialcovering(X, y_clabel, :rebalance)
+@test_throws AssertionError sequentialcovering(X, y_clabel, :nomeaning)
+
+
+############################################################################################
+############################## suppress_parity_warning #####################################
 ############################################################################################
 
-@test sequentialcovering(X, y_clabel, w) isa DecisionList
-@test sequentialcovering(X, y_clabel, :default) isa DecisionList
-@test sequentialcovering(X, y_clabel, :rebalance) isa DecisionList
+@test_throws AssertionError sequentialcovering(X, y_clabel; max_rulebase_length=0)
 
-# Test BeamSearch
+@test_nowarn sequentialcovering(X, y_clabel; max_rulebase_length=1, suppress_parity_warning=true)
+@test_logs (:warn,"Parity encountered in bestguess! counts (149 elements):" *
+            " Dict(2 => 50, 3 => 50, 1 => 49), argmax: 2, max: 50 (sum = 149)"
+    ) sequentialcovering(X, y_clabel; max_rulebase_length=1)
+
+@test_nowarn sequentialcovering(X, y_clabel; max_rulebase_length=3, suppress_parity_warning=true)
+dl = sequentialcovering(X, y_clabel; max_rulebase_length=3, suppress_parity_warning=true)
+@test length(rulebase(dl)) <= 3
+
+@test_nowarn sequentialcovering(X, y_clabel; max_rulebase_length=5, suppress_parity_warning=true)
+dl = sequentialcovering(X, y_clabel; max_rulebase_length=5, suppress_parity_warning=true)
+@test length(rulebase(dl)) <= 5
+
+@test_nowarn sequentialcovering(X, y_clabel; max_rulebase_length=1000, suppress_parity_warning=true)
+
+############################################################################################
+############################## beam_width ##################################################
+############################################################################################
+
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=1)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=3)
 @test_nowarn sequentialcovering(X, y_clabel; beam_width=5)
-@test_nowarn sequentialcovering(X, y_clabel; searchmethod=BeamSearch(), beam_width=5)
-@test_nowarn sequentialcovering(X, y_clabel; searchmethod=RandSearch(), cardinality=5)
-
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=25)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5))
-@test_nowarn sequentialcovering(X, y_clabel; searchmethod=RandSearch(; cardinality=5))
+#=  Beam = 0 =#
+@test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0)
+@test_throws AssertionError sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=0))
+#= Mi assicuro che il parametro venga sovrascrito =#
+@test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0, searchmethod=BeamSearch(; beam_width=5))
 
+############################################################################################
+############################## loss_function ###########################################
+############################################################################################
 
-bs5 = BeamSearch(; beam_width=5)
+bs5_ent = BeamSearch(; beam_width=5, loss_function=entropy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5_ent)
 
+<<<<<<< HEAD
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5, evaluator=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5), beam_width=10)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=RandSearch(; cardinality=5), cardinality=10)
+=======
+bs_entropy = BeamSearch(; loss_function=entropy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_entropy)
+>>>>>>> edo-memo
 
+bs_laplace = BeamSearch(; loss_function=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_laplace)
+@test_nowarn sequentialcovering(X, y_intger; searchmethod=bs_laplace)
+@test_nowarn sequentialcovering(X, y_catgcl; searchmethod=bs_laplace)
+@test_nowarn sequentialcovering(X, y_clabel; loss_function=laplace_accuracy)
+
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=1, loss_function=laplace_accuracy)
+
+############################################################################################
+############################## beam_width ##################################################
+############################################################################################
+
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=1)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=3)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=5)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=25)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5))
+#=  Beam = 0 =#
+@test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0)
+@test_throws AssertionError sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=0))
+#= Mi assicuro che il parametro venga sovrascrito =#
+@test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0, searchmethod=BeamSearch(; beam_width=5))
+
+############################################################################################
+############################## loss_function ###########################################
+############################################################################################
+
+bs5_ent = BeamSearch(; beam_width=5, loss_function=entropy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5_ent)
+
+bs_entropy = BeamSearch(; loss_function=entropy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_entropy)
+
+bs_laplace = BeamSearch(; loss_function=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_laplace)
+@test_nowarn sequentialcovering(X, y_intger; searchmethod=bs_laplace)
+############################################################################################
+############################## loss_function + weights #################################
+############################################################################################
+
+bs_laplace = BeamSearch(; loss_function=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel, w; searchmethod=bs_laplace)
 
 
 ############################################################################################
-######### PropositionalLogiset, Target, beamwidth ##########################################
+############################## truerfirst #################################################
 ############################################################################################
 
-@test_nowarn sole_cn2(X, y_clabel; beam_width=5)
-@test_nowarn sole_cn2(X, y_clabel; beam_width=1)
-@test_throws AssertionError sole_cn2(X, y_clabel; beam_width=0)
-
-@test_nowarn sole_cn2(X, y_clabel; max_rule_length=1000)
-@test_nowarn sole_cn2(X, y_clabel; max_rule_length=1)
-
-@test_throws AssertionError sole_cn2(X, y_clabel; max_rule_length=0)
-
-
+@test_nowarn sequentialcovering(X, y_clabel; truerfirst=true)
+@test_nowarn sequentialcovering(X, y_clabel; truerfirst=true, beam_width=1)
+@test_nowarn sequentialcovering(X, y_clabel; truerfirst=true, loss_function=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel; truerfirst=true, max_rulebase_length=2, suppress_parity_warning = true)
 
 ############################################################################################
-######### PropositionalLogiset, Target, Alphabet ###########################################
+############################## discretizedomain ############################################
 ############################################################################################
 
-all_alphabet = slicedataset(X,collect(1:n_instances)) |> alphabet
-large_alphabet = slicedataset(X,[1,2,3,51,52,53,101,102,103]) |> alphabet
-small_alphabet = slicedataset(X,[1,2]) |> alphabet
-
-@test_nowarn sequentialcovering(X, y_clabel,  alphabet=all_alphabet)
-@test_nowarn sequentialcovering(X, y_clabel,  alphabet=large_alphabet)
-@test_nowarn sequentialcovering(X, y_clabel,  alphabet=small_alphabet)
+@test_nowarn sequentialcovering(X, y_clabel; discretizedomain=true)

@@ -3,46 +3,81 @@ Main:
     Generic:
         ☐ Eliminare implementazione superflua cn2
             ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)
-                ✔ sole_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
-                ✔ base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
-            ☐ Testing
-    
+                ✔ build_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
+                ✔ build_base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
+
         ☐ new section in docu
-        ☐ MLJ interface for cn2
-        ✔ Aggiornare confronto tra LmCF @done(24-03-04 19:36)
-        # (rimuovere confronto tramite Base.:(==))
-        ☐ Laplace
-        ☐ entropyMDL
-        ☐ Rule validation
-        ☐ LRS
-        ☐ Weighted relative accuracy
+        ✔ MLJ interface for cn2 @done(24-04-29 18:23)
+        ☐ Metrics  
+            ✔ Entropy @done(24-04-29 18:23)
+            ✔ Laplace @done(24-04-29 18:23)
+            ✔ entropyMDL @done(24-04-29 18:23)
+            ☐ Rule validation
+            ☐ LRS
+            ☐ Weighted relative accuracy
+        ☐ creare un altro metodo SyntaxSearch, che enumera tutte le formule con altezza sintattica h, e prende la migliore. 
+            # Formule di una certa grammatica e di un certo alfabeto si generan così
+                # a = ExplicitAlphabet(@atoms p q r s)
+                # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
+                # formulas(g; maxdepth = 2)
+                # formulas(g; maxdepth = 100, nformulas = 100)
+        ☐ Definire DecisionSet ed il relativo metodo apply
+
     
     Utility:
         ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
-            ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-03-04 17:11)
+            ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-04-13 04:08)
             # già scritta soluzione temporanea
         ✔ add alphabet parameter @done(24-04-03 11:06)
         ✔ check empty row table in ProposiionlLogiset costruction @done(24-04-03 17:35)
-        ☐ map from integer to original class names
+        ✔ map from integer to original class names @done(24-04-10 16:31)
         ☐ semplificazione LmCF o LmDF 
-        # scalarminimizer
-        ☐ Fare benchmark su più dataset
-        ☐ BoundedScalarCond -> UnivariateScalarCondion
-
+            # scalarminimizer
+        ✔ BoundedScalarCond -> UnivariateScalarCondion @done(24-04-10 16:31)
+        ☐ Aggiungere operazioni di pulizia del dataset prima di usarlo come training-dataset.
+            ☐ # Rimuovere istanze duplicate
+                # Istanze duplicate con classe UGUALE. 
+                # istamze duplicate con classe DIVERSA
+            # gestione missing values  
     
     Testing:
-        ☐ Scrivere test che chiama CN2, e che valuta la qualità del risultato
         ✔ Verificare 100% accuratezza sul dataset di trainig ? @done(24-03-01 03:02)
-        ☐ Divisione train/test come nei test di ModalDecisionTrees.jl, (vedi iris)
-        ☐ Time (@time) 
-        ☐ Aggiungi qualche test (su un altro file test dedicato, per pulizia) che per verificare la robustezza di sole_cn2 e sequential_covering;
-    
+        ☐ Test accuratezza
+            ☐ Only real attributes
+                ✔ Xy = RDatasets.dataset("datasets", "iris") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("Ecdat", "Bwages") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("psych", "sat.act") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("gamair", "wesdr") @done(24-04-13 04:04)
+                ✔ Xy = RDatasets.dataset("ISLR", "Smarket") @done(24-04-13 04:04)
+                ☐ Xy = RDatasets.dataset("ISLR", "Default")
+                    # only one categorical column addition to the target (exclude ?)
+                
+                Too large datasets for now
+                # Xy = RDatasets.dataset("ISLR", "Caravan")
+                # Xy = RDatasets.dataset("Ecdat", "BudgetFood")
+                # Xy = RDatasets.dataset("ISLR", "Weekly")         
+                # Xy = RDatasets.dataset("ISLR", "OJ")
+            ☐ With categorical real attributes
+                ☐ Xy = RDatasets.dataset("mlmRev", "Early")
+                ☐ Xy = RDatasets.dataset("mlmRev", "Contraception")
+                ☐ Xy = RDatasets.dataset("mlmRev", "guPrenat")
+                ☐ Xy = RDatasets.dataset("survival", "logan")
+            
     Future: 
         ✔ Differenziare caso attributi discreti/categoriali
-        ☐ Aggiungere campo supporting_labels (vettore)
+        ✔ Aggiungere campo supporting_labels (vettore) @done(24-04-13 04:06)
         # Vettore delle labels delle istanze su cui la regola è costruita (ovvero, quelle che non sono coperte dalle regole precedenti), e nel 
         # info del constant model ci metti un campo supp_labels con le labels delle istanze che, tra queste, sono coperte dalla regola. 
         ☐ Aggiungere campo predicted_labels (forse)
         # labels predette dal modello, ma in principio le support_labels sono sufficienti 
         # per calcolare diverse metriche 
     
+
+    MLJ-Interface:
+        ✔ Constructor with keyword arguments @done(24-04-12 13:32)
+        ☐ fit
+            # parlare con gio di CategoricalArrays
+        ☐ predict
+        ☐ clean!
+            # https://juliaai.github.io/MLJModelInterface.jl/dev/quick_start_guide/
+        ☐ MMI.metadata_pkg.MMI.metadata_pkg

@@ -3,6 +3,7 @@ using SoleBase: CLabel
 using SoleLogics
 using SoleLogics: nconjuncts, pushconjunct!
 using SoleData
+using SoleData: AbstractLogiset
 import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, UnionAlphabet
 import SoleData: alphabet, test_operator, isordered, polarity, atoms
 using SoleModels
@@ -15,9 +16,69 @@ using ModalDecisionLists
 using Parameters
 
 ############################################################################################
-############## Sequential Covering #########################################################
+################### SequentialCovering - DecisionSet #######################################
 ############################################################################################
 
+function sequentialcovering_unordered(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+    searchmethod::SearchMethod=BeamSearch(),
+    unorderedstrategy::Bool = false,
+    max_rulebase_length::Union{Nothing,Integer}=nothing,
+    min_rule_coverage::Integer=1,
+    suppress_parity_warning::Bool=true,
+    kwargs...
+)::DecisionList where {U<:Real}
+
+    !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
+    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+
+    w = if isnothing(w) || w == :default
+        default_weights(y)
+    elseif w == :rebalance
+        balanced_weights(y)
+    else
+        w
+    end
+
+    searchmethod = reconstruct(searchmethod,  kwargs)
+
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty trainig set")
+
+    y, labels = y |> maptointeger
+
+    n_labels = labels |> length
+
+    uncoveredX = X
+    uncoveredy = y
+    uncoveredw = w
+
+    rulebase = Rule[]
+    for target_class in 1:n_labels
+
+        newrules = find_rules(
+            searchmethod,
+            uncoveredX,
+            uncoveredy,
+            uncoveredw;
+            target_class,
+            n_labels
+        )
+        if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
+            break
+        end
+    end
+
+    defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
+    return DecisionList(rulebase, labels[defaultconsequent])
+end
+
+############################################################################################
+################### SequentialCovering - DecisionList ######################################
+############################################################################################
 
 """
     function sequentialcovering(
@@ -98,7 +159,6 @@ julia> sequentialcovering(X, y)
 │└ virginica
 └✘ versicolor
 ```
-
 See also
 [`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 
@@ -109,9 +169,13 @@ function sequentialcovering(
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
+    max_rule_length::Union{Nothing,Integer}=nothing,
+    min_rule_coverage::Integer=1,
     suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
+
+    !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
 
@@ -123,8 +187,6 @@ function sequentialcovering(
         w
     end
 
-    # Non funziona, lascia  i campi di searchmethod invariati (ma non ritorna errore)
-
     searchmethod = reconstruct(searchmethod,  kwargs)
 
     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
@@ -133,8 +195,7 @@ function sequentialcovering(
 
     y, labels = y |> maptointeger
 
-    # DEBUG
-    # uncoveredslice = collect(1:ninstances(X))
+    n_labels = labels |> length
 
     uncoveredX = X
     uncoveredy = y
@@ -142,34 +203,39 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
-        # TODO è una soluzione accettabile per il passaggio dei parametri ?
         bestantecedent, bestantecedent_coverage = findbestantecedent(
             searchmethod,
             uncoveredX,
             uncoveredy,
-            uncoveredw
+            uncoveredw;
+            min_rule_coverage = min_rule_coverage,
+            max_rule_length = max_rule_length,
+            n_labels = n_labels
         )
         bestantecedent == ⊤ && break
 
-        rule = begin
+        rule, consequent_i = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]
             justcoveredw = uncoveredw[bestantecedent_coverage]
-            consequent = labels[bestguess(justcoveredy, justcoveredw)]
+            consequent_i = SoleModels.bestguess(justcoveredy, justcoveredw; suppress_parity_warning=suppress_parity_warning)
             info_cm = (;
+                # TODO anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
                 supporting_labels=collect(justcoveredy),
                 supporting_weights=collect(justcoveredw)
             )
-            consequent_cm = ConstantModel(consequent, info_cm)
-            Rule(bestantecedent, consequent_cm)
+            consequent_cm = ConstantModel(labels[consequent_i], info_cm)
+            #
+            (Rule(bestantecedent, consequent_cm), consequent_i)
         end
-
         push!(rulebase, rule)
 
-        uncoveredX = slicedataset(uncoveredX, (!).(bestantecedent_coverage); return_view=true)
-        uncoveredy = @view uncoveredy[(!).(bestantecedent_coverage)]
-        uncoveredw = @view uncoveredw[(!).(bestantecedent_coverage)]
+        uncovered_slice = (!).(bestantecedent_coverage)
 
-        if !isnothing(max_rulebase_length) && length(rulebase) > max_rulebase_length
+        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+        uncoveredy = @view uncoveredy[uncovered_slice]
+        uncoveredw = @view uncoveredw[uncovered_slice]
+
+        if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
             break
         end
     end
@@ -177,11 +243,11 @@ function sequentialcovering(
     # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
 
     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
-    return DecisionList(rulebase, defaultconsequent)
+    return DecisionList(rulebase, labels[defaultconsequent])
 end
 
-function sole_cn2(
-    X::PropositionalLogiset,
+function build_cn2(
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
     kwargs...
@@ -190,7 +256,7 @@ function sole_cn2(
 end
 
 function sole_cn2_orange(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
     kwargs...
@@ -200,7 +266,7 @@ function sole_cn2_orange(
 end
 
 function sole_rand(
-    X::PropositionalLogiset,
+    X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
     kwargs...
