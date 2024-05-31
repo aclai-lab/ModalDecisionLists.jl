@@ -1,6 +1,6 @@
 module MLJInterface
 
-export SequentialCoveringLearner
+export ExtendedSequentialCovering
 export OrderedCN2Learner
 # export BeamSearch, RandSearch
 
@@ -26,17 +26,17 @@ const _package_url = "https://github.com/aclai-lab/$(MDL).jl"
 abstract type CoveringStrategy <: MLJModelInterface.Deterministic end
 
 ############################################################################################
-############################ SequentialCoveringLearner #####################################
+############################ ExtendedSequentialCovering #####################################
 ############################################################################################
 
-mutable struct SequentialCoveringLearner <: CoveringStrategy
+mutable struct ExtendedSequentialCovering <: CoveringStrategy
     searchmethod::SearchMethod
     max_rulebase_length::Union{Nothing,Integer}
     min_rule_coverage::Union{Nothing,Integer}
     suppress_parity_warning::Bool
 end
 
-function MMI.clean!(model::SequentialCoveringLearner)
+function MMI.clean!(model::ExtendedSequentialCovering)
     warning = ""
     if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
         warning *= "Need max_rulebase_length ≥ 1. Resetting max_rulebase_length = nothing. "
@@ -47,7 +47,7 @@ function MMI.clean!(model::SequentialCoveringLearner)
 end
 
 # Keyword constructor
-function SequentialCoveringLearner(;
+function ExtendedSequentialCovering(;
     searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     min_rule_coverage::Integer = 1,
@@ -55,7 +55,7 @@ function SequentialCoveringLearner(;
     kwargs...
 )
     searchmethod = reconstruct(searchmethod,  kwargs)
-    model =  SequentialCoveringLearner(
+    model =  ExtendedSequentialCovering(
         searchmethod,
         max_rulebase_length,
         min_rule_coverage,
@@ -131,7 +131,7 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
     y_cl = Vector{CLabel}(y)
 
     model = begin
-        if m isa SequentialCoveringLearner
+        if m isa ExtendedSequentialCovering
             sequentialcovering(X_pl, y_cl;
                         searchmethod = m.searchmethod,
                         max_rulebase_length = m.max_rulebase_length,
@@ -171,7 +171,7 @@ end
 MMI.metadata_pkg.(
     (
         OrderedCN2Learner,
-        SequentialCoveringLearner,
+        ExtendedSequentialCovering,
     ),
     name = "$(MDL)",
     package_uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8",

@@ -30,7 +30,7 @@ using ModalDecisionLists: SatMask
 include("algorithms/base-cn2.jl")
 end
 
-export SequentialCoveringLearner
+export ExtendedSequentialCovering
 export OrderedCN2Learner
 export build_cn2
 

@@ -3,18 +3,18 @@ index b98e9fc..8a2a4de 100644
 --- a/src/ModalDecisionLists.jl
 +++ b/src/ModalDecisionLists.jl
 @@ -26,11 +26,12 @@ include("algorithms/sequentialcovering.jl")
- 
- 
+
+
  module BaseCN2
 -using ModalDecisionLists: RuleAntecedent, SatMask
 +using ModalDecisionLists: SatMask
  include("algorithms/base-cn2.jl")
  end
- 
- export SequentialCoveringLearner
+
+ export ExtendedSequentialCovering
 +export OrderedCN2Learner
  export build_cn2
- 
+
  # Interface
 diff --git a/src/algorithms/searchmethods/beamsearch.jl b/src/algorithms/searchmethods/beamsearch.jl
 index 629c115..1871894 100644
@@ -36,8 +36,8 @@ index 629c115..1871894 100644
 +    max_purity_const::Union{Real,Nothing}=0.0
 +    significance_alpha::Union{Real,Nothing}=0.0
  end
- 
- 
+
+
 @@ -47,7 +47,7 @@ end
      function filteralphabetoptimized(
          X::AbstractLogiset,
@@ -45,7 +45,7 @@ index 629c115..1871894 100644
 -        antecedent_info::Tuple{RuleAntecedent,SatMask}
 +        antecedent_info::Tuple{Formula,SatMask}
      )::Vector{Tuple{Atom,SatMask}}
- 
+
  Like filteralphabet but with an additional filtering step ensuring that each atom is not a
 @@ -89,7 +89,7 @@ end
  """
@@ -54,7 +54,7 @@ index 629c115..1871894 100644
 -        antecedent::Tuple{RuleAntecedent, SatMask}
 +        antecedent::Tuple{Formula, SatMask}
      )::Vector{Tuple{Atom, SatMask}}
- 
+
  Returns the list of all possible conditions (atoms) that can be derived from instances
 @@ -270,6 +270,7 @@ function findbestantecedent(
              best_lossfnctn = bestcandidate_lossfnctn
@@ -63,10 +63,10 @@ index 629c115..1871894 100644
 +
      return best
  end
- 
+
 @@ -278,56 +279,40 @@ end
  ############################################################################################
- 
+
  function find_singlerule(
 +    candidates::AbstractVector{<:Tuple{Formula, BitVector}},
      X::AbstractLogiset,
@@ -106,7 +106,7 @@ index 629c115..1871894 100644
 +                        n_labels=n_labels
 +    )
 +end
- 
+
 -    while true
 -        (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
 -        newcandidates = specializeantecedents(candidates,
@@ -137,20 +137,20 @@ index 629c115..1871894 100644
 +############################################################################################
 +############################################################################################
 +############################################################################################
- 
+
 -    end # end while
 -    return best
 -end
- 
+
  function find_rules(
      bs::BeamSearch,
 @@ -349,7 +334,7 @@ function find_rules(
      wuncovered = w
- 
+
      initial_classdistribution = counts(y, n_labels)
 -    newcandidates = Tuple{RuleAntecedent,SatMask}[]
 +    newcandidates = Tuple{Formula,SatMask}[]
- 
+
      bestrules = []
      while true
 diff --git a/src/algorithms/searchmethods/randsearch.jl b/src/algorithms/searchmethods/randsearch.jl
@@ -184,8 +184,8 @@ index 4a146b4..ca80306 100644
 +    atompicking_mode::Symbol=:uniform
 +    subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
  end
- 
- 
+
+
 -
 -#
 -# Potrei mettere in OR regole successive nella DL aventi stessa classe?
@@ -194,11 +194,11 @@ index 4a146b4..ca80306 100644
      a::AbstractAlphabet,
      X::AbstractLogiset
  )::Vector{Tuple{Formula,SatMask}}
- 
+
 -    @unpack cardinality, operators, syntaxheight, rng = rs
 +    @unpack cardinality, operators, syntaxheight, rng,
 +        atompicking_mode, subalphabets_weights = rs
- 
+
 -    # TODO devo generare 10 formule comprese quelle non buone ?
 +    if rng isa Integer
 +        rng = MersenneTwister(rng)
@@ -221,7 +221,7 @@ index 4a146b4..ca80306 100644
 +    min_rule_coverage::Integer=1,
      kwargs...
  )::Tuple{Formula,SatMask}
- 
+
      # TODO mappare laplace accuracy in intervallo 0,1
      bestant_satmask = ones(Bool, length(y))
      bestformula = begin
@@ -254,10 +254,10 @@ index 4a146b4..ca80306 100644
 +    end # bestantformula
      return bestformula
  end
- 
- 
- 
- 
+
+
+
+
 +# TODO add rng parameter.
 +
 +function searchantecedents(
@@ -285,10 +285,10 @@ index 334bbeb..99f10d6 100644
 @@ -175,7 +175,6 @@ function sequentialcovering(
      kwargs...
  )::DecisionList where {U<:Real}
- 
+
 -
      !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
- 
+
      @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
 diff --git a/src/core.jl b/src/core.jl
 index 8057184..a371498 100644
@@ -297,14 +297,14 @@ index 8057184..a371498 100644
 @@ -8,7 +8,6 @@ using ModalDecisionLists: Measures
  using ModalDecisionLists.Measures: laplace_accuracy
  using ModalDecisionLists.Measures: significance_test
- 
+
 -const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
  const SatMask = BitVector
- 
- 
+
+
 @@ -98,21 +97,25 @@ function maptointeger(y::AbstractVector{<:CLabel})
  end
- 
+
  """
 -    sortantecedents(
 -        antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
@@ -315,12 +315,12 @@ index 8057184..a371498 100644
          beam_width::Integer,
          loss_function::Function
      )
- 
+
 +Sort rule satmasks based on their quality, using a specified loss function.
- 
+
 -Sorts rule antecedents based on their lossfnctn using a specified evaluation function.
 +Sorts rule antecedents based on their lossfnctn using a specified loss function.
- 
+
  Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
 -Each antecedent is evaluated on his covered y using the provided *lossfnctn evaluator* function.
 +Each antecedent is evaluated on his covered y using the provided *loss_function* function.
@@ -365,48 +365,48 @@ index ce85327..256528c 100644
 +++ b/src/interfaces/MLJ.jl
 @@ -1,12 +1,14 @@
  module MLJInterface
- 
- export SequentialCoveringLearner
+
+ export ExtendedSequentialCovering
 +export OrderedCN2Learner
  # export BeamSearch, RandSearch
- 
+
  # using ModalDecisionTrees.MLJInterface: wrapdataset
  using ModalDecisionLists
 +using ModalDecisionLists.Measures: laplace_accuracy
  import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
 -import ModalDecisionLists:  sequentialcovering
 +import ModalDecisionLists: sequentialcovering
- 
+
  import SoleData: PropositionalLogiset
  import SoleBase: CLabel
 @@ -30,6 +32,7 @@ abstract type CoveringStrategy <: MLJModelInterface.Deterministic end
- mutable struct SequentialCoveringLearner <: CoveringStrategy
+ mutable struct ExtendedSequentialCovering <: CoveringStrategy
      searchmethod::SearchMethod
      max_rulebase_length::Union{Nothing,Integer}
 +    min_rule_coverage::Union{Nothing,Integer}
      suppress_parity_warning::Bool
  end
- 
+
 @@ -47,6 +50,7 @@ end
- function SequentialCoveringLearner(;
+ function ExtendedSequentialCovering(;
      searchmethod::SearchMethod=BeamSearch(),
      max_rulebase_length::Union{Nothing,Integer}=nothing,
 +    min_rule_coverage::Integer = 1,
      suppress_parity_warning::Bool=false,
      kwargs...
  )
-@@ -54,6 +58,7 @@ function SequentialCoveringLearner(;
-     model =  SequentialCoveringLearner(
+@@ -54,6 +58,7 @@ function ExtendedSequentialCovering(;
+     model =  ExtendedSequentialCovering(
          searchmethod,
          max_rulebase_length,
 +        min_rule_coverage,
          suppress_parity_warning
      )
      message = MMI.clean!(model)
-@@ -62,8 +67,63 @@ function SequentialCoveringLearner(;
+@@ -62,8 +67,63 @@ function ExtendedSequentialCovering(;
      return model
  end
- 
+
 -################ Fit #######################################################################
 +function MMI.predict(m::CoveringStrategy, fitresult, Xnew)
 +    yhat = apply(fitresult.model, PropositionalLogiset(Xnew))
@@ -439,7 +439,7 @@ index ce85327..256528c 100644
 +    end
 +    return warning
 +end
- 
+
 +# Keyword constructor
 +function OrderedCN2Learner(;
 +    beam_width::Integer = 3,
@@ -466,12 +466,12 @@ index ce85327..256528c 100644
 +################ Fit (General for all CoveringStrategy ) ###################################
 +############################################################################################
  function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
- 
+
      # TODO wrapdataset
 @@ -72,45 +132,45 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
- 
+
      model = begin
-         if m isa SequentialCoveringLearner
+         if m isa ExtendedSequentialCovering
 -            sequentialcovering(
 -                        X_pl, y_cl;
 -                        m.searchmethod,
@@ -517,13 +517,13 @@ index ce85327..256528c 100644
 +    report = nothing
      cache = nothing
 -    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- 
+
      return fitresult, cache, report
  end
- 
+
 -################ Predict ###################################################################
 -
--function MMI.predict(m::SequentialCoveringLearner, fitresult, Xnew)
+-function MMI.predict(m::ExtendedSequentialCovering, fitresult, Xnew)
 -    yhat = apply(fitresult.model, PropositionalLogiset(Xnew))
 -    return yhat
 -end
@@ -533,7 +533,7 @@ index ce85327..256528c 100644
  MMI.metadata_pkg.(
      (
 +        OrderedCN2Learner,
-         SequentialCoveringLearner,
+         ExtendedSequentialCovering,
      ),
      name = "$(MDL)",
 diff --git a/src/measures.jl b/src/measures.jl
@@ -550,7 +550,7 @@ index cbdc8d2..b56b1ce 100644
 +    kwargs...
  )
      dist = counts(y, n_labels)
- 
+
 @@ -26,7 +27,7 @@ function laplace_accuracy(
              (length(dist), maximum(dist))
          end
@@ -558,5 +558,5 @@ index cbdc8d2..b56b1ce 100644
 -    return -((target + 1) / (sum(dist) + k))
 +    return 1 - ((target + 1) / (sum(dist) + k))
  end
- 
+
  function entropy(

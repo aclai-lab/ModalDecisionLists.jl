@@ -21,10 +21,10 @@ const MLJI = MLJInterface
 @load DecisionTreeClassifier pkg=DecisionTree
 
 tree_model = MLJDecisionTreeInterface.DecisionTreeClassifier(max_depth=-1)
-list_model = MLJI.SequentialCoveringLearner(;beam_width=3)
+list_model = MLJI.ExtendedSequentialCovering(;beam_width=3)
 # TODO add to benchmark
-# list_model = MLJI.SequentialCoveringLearner(;beam_width=10)
-# list_model = MLJI.SequentialCoveringLearner(;beam_width=20)
+# list_model = MLJI.ExtendedSequentialCovering(;beam_width=10)
+# list_model = MLJI.ExtendedSequentialCovering(;beam_width=20)
 
 _rng = MersenneTwister(16)
 _partition = 0.7
@@ -52,7 +52,7 @@ _partition = 0.7
     ########################################################################################
     train, test = partition(eachindex(y), _partition; rng=_rng)
 
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=1,
     )
     mach = machine(list_model, X, y);
@@ -62,7 +62,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=5,
     )
     mach = machine(list_model, X, y);
@@ -72,7 +72,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=15,
     )
     mach = machine(list_model, X, y);
@@ -82,7 +82,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=25,
     )
     mach = machine(list_model, X, y);
@@ -93,7 +93,7 @@ _partition = 0.7
                     color=:blue,bold=true)
 
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=5,
                                                     truerfirst=true
     )
@@ -104,7 +104,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=15,
                                                     truerfirst=true
     )
@@ -115,7 +115,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=25,
                                                     truerfirst=true
     )
@@ -126,7 +126,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=5,
                                                     discretizedomain=true
     )
@@ -137,7 +137,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=15,
                                                     discretizedomain=true
     )
@@ -148,7 +148,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=25,
                                                     discretizedomain=true
     )
@@ -195,7 +195,7 @@ _partition = 0.7
     train, test = partition(eachindex(y), _partition; rng=_rng)
 
 
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=5,
     )
     mach = machine(list_model, X, y);
@@ -205,7 +205,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=15,
     )
     mach = machine(list_model, X, y);
@@ -215,7 +215,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=5,
                                                     truerfirst=true
     )
@@ -226,7 +226,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=15,
                                                     truerfirst=true
     )
@@ -238,7 +238,7 @@ _partition = 0.7
                     color=:blue,bold=true)
 
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=5,
                                                     discretizedomain=true
     )
@@ -249,7 +249,7 @@ _partition = 0.7
                     trunc(MLJ.accuracy(y[test], yhat), digits=3),"\n",
                     color=:blue,bold=true)
     ##
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
                                                     beam_width=15,
                                                     discretizedomain=true
     )
@@ -270,7 +270,7 @@ _partition = 0.7
                     color=:green,bold=true)
 
 ############################################################################################
-    list_model = MLJI.SequentialCoveringLearner(;
+    list_model = MLJI.ExtendedSequentialCovering(;
         beam_width=15,
         discretizedomain=true
     )

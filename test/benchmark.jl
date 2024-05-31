@@ -24,7 +24,7 @@ Dumb utility function to preprocess input data:
 """
 
 const MLJI = MLJInterface
-list_model = MLJI.SequentialCoveringLearner()
+list_model = MLJI.ExtendedSequentialCovering()
 
 table_ntuples = [
     (package = "datasets", tablename = "iris",
