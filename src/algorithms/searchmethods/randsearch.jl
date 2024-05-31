@@ -1,5 +1,5 @@
 using Parameters
-using SoleLogics
+using SoleLogics: randatom
 using FillArrays
 using Random
 using ModalDecisionLists.Measures: entropy, significance_test
@@ -18,29 +18,34 @@ Generate random formulas (`SoleLogics.randformula`)
     syntaxheight::Integer=2
     discretizedomain::Bool=false
     rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
-    alpha::Real=1.0
+    alpha::Real=1.0 # Unused
     max_purity_const::Union{Real,Nothing}=nothing
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    # randatom parameters
+    atompicking_mode::Symbol=:uniform
+    subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
 end
 
 
-
-#
-# Potrei mettere in OR regole successive nella DL aventi stessa classe?
 function unaryconditions(
     rs::RandSearch,
     a::AbstractAlphabet,
     X::AbstractLogiset
 )::Vector{Tuple{Formula,SatMask}}
 
-    @unpack cardinality, operators, syntaxheight, rng = rs
+    @unpack cardinality, operators, syntaxheight, rng,
+        atompicking_mode, subalphabets_weights = rs
 
     if rng isa Integer
         rng = MersenneTwister(rng)
     end
-    # TODO devo generare 10 formule comprese quelle non buone ?
     conditions = [ begin
-        formula = randformula(rng, syntaxheight, a, operators)
+        formula = randformula(rng, syntaxheight, a, operators;
+                    atompicker = ( (rng, a) -> randatom(rng, a;
+                                        atompicking_mode = atompicking_mode,
+                                        subalphabets_weights = subalphabets_weights
+                        ))
+            )
         satmask = check(formula, X)
         if any(satmask)
             (formula, satmask)
@@ -102,7 +107,7 @@ function extract_optimalantecedent(
     bestformula = begin
 
         if !isempty(formulas)
-            evaluations = map(((rfa, satmask),) -> begin
+            losses = map(((rfa, satmask),) -> begin
                 relative_loss = loss_function(y[satmask], w[satmask]; kwargs...) - max_purity
                     # TODO @edo review check on min_rule_coverage and min_purity
                     if (relative_loss >= 0) & (count(satmask) > min_rule_coverage)
@@ -110,11 +115,11 @@ function extract_optimalantecedent(
                     else Inf
                     end
             end, formulas)
-            bestindex = argmin(evaluations)
+            bestindex = argmin(losses)
 
             (bestant_formula, bestant_satmask) = formulas[bestindex]
         end
-        if all(bestant_satmask) | (evaluations[bestindex] > loss_function(y, w; kwargs...))
+        if all(bestant_satmask) | (losses[bestindex] > loss_function(y, w; kwargs...))
             bestant_formula = TOP
             bestant_satmask = ones(length(y))
         end

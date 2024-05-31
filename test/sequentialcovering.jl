@@ -113,14 +113,8 @@ dl = sequentialcovering(X, y_clabel; max_rulebase_length=5, suppress_parity_warn
 bs5_ent = BeamSearch(; beam_width=5, loss_function=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5_ent)
 
-<<<<<<< HEAD
-@test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5, evaluator=entropy)
-@test_nowarn sequentialcovering(X, y_clabel; searchmethod=BeamSearch(; beam_width=5), beam_width=10)
-@test_nowarn sequentialcovering(X, y_clabel; searchmethod=RandSearch(; cardinality=5), cardinality=10)
-=======
 bs_entropy = BeamSearch(; loss_function=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_entropy)
->>>>>>> edo-memo
 
 bs_laplace = BeamSearch(; loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_laplace)

@@ -295,18 +295,31 @@ function find_singlerule(
     max_purity_const::Union{Nothing,Real}=nothing
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
+while true
+    (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
     newcandidates = specializeantecedents(candidates,
                         X, y,
-                        max_rule_length, truerfirst, discretizedomain, alphabet
-    )
-
+                        max_rule_length, discretizedomain, alphabet
+                    )
+    # In case of DecisionSet learning all the antecedents that do not cover any instances
+    # labeled with the target_class are removed.
+    newcandidates = [sant for sant in newcandidates if (
+                        (_, satmask) = sant;
+                        any(y[satmask] .== target_class)
+                    )]
     (perm, bestcandidate_quality) = sortantecedents(newcandidates,
                         y, w,
                         beam_width, laplace_accuracy, max_purity_const;
-                        #
                         target_class=target_class,
                         n_labels=n_labels
-    )
+                    )
+
+    isempty(perm) && break
+    newcandidates = newcandidates[perm]
+    if bestcandidate_quality < best_quality
+           best = newcandidates[1]
+           best_quality = bestcandidate_quality
+       end
 end
 
 ############################################################################################

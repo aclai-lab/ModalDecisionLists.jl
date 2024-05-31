@@ -105,12 +105,12 @@ end
         loss_function::Function
     )
 
-Sort rule satmasks based on their quality, using a specified evaluation function.
+Sort rule satmasks based on their quality, using a specified loss function.
 
-Sorts rule antecedents based on their lossfnctn using a specified evaluation function.
+Sorts rule antecedents based on their lossfnctn using a specified loss function.
 
 Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
-Each antecedent is evaluated on his covered y using the provided *lossfnctn evaluator* function.
+Each antecedent is evaluated on his covered y using the provided *loss_function* function.
 Then the permutation of the bests *beam_search* sorted antecedent is returned with the lossfnctn
 value of the best one.
 
