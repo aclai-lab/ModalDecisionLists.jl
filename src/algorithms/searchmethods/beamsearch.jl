@@ -32,14 +32,14 @@ See also
 [`RandSearch`](@ref),
 [`specializeantecedents`](@ref).
 """
-@with_kw struct BeamSearch <: SearchMethod
+@with_kw mutable struct BeamSearch <: SearchMethod
     conjuncts_search_method::SearchMethod=AtomSearch()
     beam_width::Integer=3
     loss_function::Function=entropy
     discretizedomain::Bool=false
     alphabet::Union{Nothing,AbstractAlphabet}=nothing
-    max_purity_const::Union{Real,Nothing}=nothing
-    significance_alpha::Union{Real,Nothing}=nothing
+    max_purity_const::Union{Real,Nothing}=0.0
+    significance_alpha::Union{Real,Nothing}=0.0
 end
 
 

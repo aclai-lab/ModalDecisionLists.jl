@@ -11,7 +11,7 @@ using ModalDecisionLists.Measures: entropy, significance_test
 Generate random formulas (`SoleLogics.randformula`)
 ....
 """
-@with_kw struct RandSearch <: SearchMethod
+@with_kw mutable struct RandSearch <: SearchMethod
     cardinality::Integer=10
     loss_function::Function=ModalDecisionLists.Measures.entropy
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
@@ -35,6 +35,9 @@ function unaryconditions(
 
     @unpack cardinality, operators, syntaxheight, rng = rs
 
+    if rng isa Integer
+        rng = MersenneTwister(rng)
+    end
     # TODO devo generare 10 formule comprese quelle non buone ?
     conditions = [ begin
         formula = randformula(rng, syntaxheight, a, operators)
@@ -90,28 +93,33 @@ function extract_optimalantecedent(
     max_purity,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
+    min_rule_coverage::Integer=1,
     kwargs...
 )::Tuple{Formula,SatMask}
 
     # TODO mappare laplace accuracy in intervallo 0,1
     bestant_satmask = ones(Bool, length(y))
     bestformula = begin
+
         if !isempty(formulas)
-            (bestant_formula, bestant_satmask) = argmin(((rfa, satmask),) -> begin
-                relative_lossfnctn = loss_function(y[satmask], w[satmask]; kwargs...) - max_purity
-                    if relative_lossfnctn >= 0
-                        relative_lossfnctn
+            evaluations = map(((rfa, satmask),) -> begin
+                relative_loss = loss_function(y[satmask], w[satmask]; kwargs...) - max_purity
+                    # TODO @edo review check on min_rule_coverage and min_purity
+                    if (relative_loss >= 0) & (count(satmask) > min_rule_coverage)
+                        relative_loss
                     else Inf
                     end
             end, formulas)
+            bestindex = argmin(evaluations)
+
+            (bestant_formula, bestant_satmask) = formulas[bestindex]
         end
-        # Minore non minore o uguale
-        if all(bestant_satmask) | ((loss_function(y[bestant_satmask], w[bestant_satmask]; kwargs...) - max_purity) < 0)
+        if all(bestant_satmask) | (evaluations[bestindex] > loss_function(y, w; kwargs...))
             bestant_formula = TOP
             bestant_satmask = ones(length(y))
         end
         (bestant_formula, bestant_satmask)
-    end
+    end # bestantformula
     return bestformula
 end
 
@@ -157,7 +165,7 @@ function findbestantecedent(
             randformulas = unaryconditions(rs, selectedalphabet, X)
             bestantecedent = extract_optimalantecedent(randformulas,
                             loss_function, max_purity, y, w;
-                            kwargs...)
+                            min_rule_coverage, kwargs...)
         else
             (TOP, ones(Bool, length(y)))
         end

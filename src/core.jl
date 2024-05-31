@@ -169,26 +169,3 @@ end
 ############################################################################################
 ############ Utils #########################################################################
 ############################################################################################
-
-
-"""
-Dumb utility function to preprocess input data:
-    * remove duplicated rows
-    * remove rows with missing values
-"""
-function preprocess_inputdata(
-    X::AbstractDataFrame,
-    y;
-    remove_duplicate_rows = false
-)
-    if remove_duplicate_rows
-        allunique(X) && return (X, y)
-        nonunique_ind = nonunique(X)
-        Xy = hcat( X[findall((!).(nonunique_ind)), :],
-                   y[findall((!).(nonunique_ind))]
-        ) |> dropmissing
-    else
-        Xy = hcat(X[:, :], y[:]) |> dropmissing
-    end
-    return Xy[:, 1:(end-1)], Xy[:, end]
-end

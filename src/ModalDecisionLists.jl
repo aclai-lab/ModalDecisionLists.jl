@@ -31,6 +31,7 @@ include("algorithms/base-cn2.jl")
 end
 
 export SequentialCoveringLearner
+export OrderedCN2Learner
 export build_cn2
 
 # Interface

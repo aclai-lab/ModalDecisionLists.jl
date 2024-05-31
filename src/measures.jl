@@ -14,8 +14,9 @@ using Distributions
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
+    n_labels::Integer,
     target_class::Union{Integer,Nothing} = nothing,
-    n_labels::Integer
+    kwargs...
 )
     dist = counts(y, n_labels)
 
@@ -26,7 +27,7 @@ function laplace_accuracy(
             (length(dist), maximum(dist))
         end
     end
-    return -((target + 1) / (sum(dist) + k))
+    return 1 - ((target + 1) / (sum(dist) + k))
 end
 
 function entropy(
