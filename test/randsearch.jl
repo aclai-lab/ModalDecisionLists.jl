@@ -48,17 +48,17 @@ rs = RandSearch(cardinality = 2, rng = MersenneTwister(1))
 
 # === Cardinality - Laplace accurcy ========================================================
 
-rs = RandSearch(cardinality = 1, rng = MersenneTwister(78), quality_evaluator=laplace_accuracy)
+rs = RandSearch(cardinality = 1, rng = MersenneTwister(78), loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
-rs = RandSearch(cardinality = 5, rng = MersenneTwister(78), quality_evaluator=laplace_accuracy)
+rs = RandSearch(cardinality = 5, rng = MersenneTwister(78), loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
-rs = RandSearch(cardinality = 5, rng = MersenneTwister(79), quality_evaluator=laplace_accuracy)
+rs = RandSearch(cardinality = 5, rng = MersenneTwister(79), loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
-rs = RandSearch(cardinality = 100, rng = MersenneTwister(78), quality_evaluator=laplace_accuracy)
+rs = RandSearch(cardinality = 100, rng = MersenneTwister(78), loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
 
 # Parity case
-rs = RandSearch(cardinality = 50, rng = MersenneTwister(78), quality_evaluator=laplace_accuracy)
+rs = RandSearch(cardinality = 50, rng = MersenneTwister(78), loss_function=laplace_accuracy)
 @test_logs (:warn,"Parity encountered in bestguess! counts (8 elements):" *
             " Dict(2 => 4, 1 => 4), argmax: 2, max: 4 (sum = 8)"
     ) sequentialcovering(X, y, searchmethod=rs)

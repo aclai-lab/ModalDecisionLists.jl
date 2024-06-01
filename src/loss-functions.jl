@@ -7,29 +7,29 @@ using FillArrays
 using StatsBase
 using Distributions
 
-# TODO is it like a binary classification problem?
+
+############################################################################################
+############################# Loss Functions ###############################################
+
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
-    target_class::Union{Integer,Nothing} = nothing,
     n_labels::Integer,
+    target_class::Union{Integer,Nothing} = nothing,
     kwargs...
 )
-    N = length(y)
-    distribution = counts(y, n_labels)
-    target_class = isnothing(target_class) ?
-            SoleModels.bestguess(y, suppress_parity_warning=true) : target_class
+    dist = counts(y, n_labels)
+
     k, target = begin
-        if isnothing(target_class)
-            (length(distribution), maximum(distribution))
+        if !isnothing(target_class)
+            (2, dist[target_class])
         else
-            (2, distribution[target_class])
+            (length(dist), maximum(dist))
         end
     end
-    return 1 - (target + 1) / (N + k)
+    return 1 - ((target + 1) / (sum(dist) + k))
 end
 
-# TODO bounded or unbounded version?
 function entropy(
     y::AbstractVector{<:CLabel},
     w::AbstractVector=default_weights(length(y));
@@ -39,7 +39,7 @@ function entropy(
 
     distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
     distribution = distribution[distribution .!= 0]
-    # @show distribution
+
     length(distribution) == 1 && return 0.0
 
     prob = distribution ./ sum(distribution)
@@ -47,6 +47,8 @@ function entropy(
     return e
 end
 
+############################################################################################
+############################# Significance Test ############################################
 
 function significance_test(
     ycurr::AbstractVector{<:Integer},
@@ -69,6 +71,7 @@ function significance_test(
         x[x .== 0] .= 1e-5
         y[y .== 0] .= 1e-5
         y = y * (sum(x)/sum(y))
+
         # Likelihood Ratio Statistic
         sum(x .* log.(x ./ y)) * 2
     end
@@ -77,17 +80,5 @@ function significance_test(
     df = length(currdist) - 1
     return ( lrs > 0 ) & (ccdf(Chisq(df), lrs) <= alpha)
 end
-
-############################################################################################
-#
-# entropy_unbounded([0,1,2,3,4,5,6,7])
-# 3.0
-# julia> entropy_bounded([0,1,2,3,4,5,6,7])
-# 1.0
-# ==========================================
-
-# | entropy_unbounded = entropy_bounded * log_2(n_classes)
-# |        3.0        =       1.0       * log_2(8)
-#
 
 end # module

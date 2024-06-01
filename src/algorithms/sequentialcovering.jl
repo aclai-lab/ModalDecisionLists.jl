@@ -15,9 +15,70 @@ using FillArrays
 using ModalDecisionLists
 using Parameters
 
-################################################################################
-############## Sequential Covering #############################################
-################################################################################
+############################################################################################
+################### SequentialCovering - DecisionSet #######################################
+############################################################################################
+
+function sequentialcovering_unordered(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+    searchmethod::SearchMethod=BeamSearch(),
+    unorderedstrategy::Bool = false,
+    max_rulebase_length::Union{Nothing,Integer}=nothing,
+    min_rule_coverage::Integer=1,
+    suppress_parity_warning::Bool=true,
+    kwargs...
+)::DecisionList where {U<:Real}
+
+    !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
+    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+
+    w = if isnothing(w) || w == :default
+        default_weights(y)
+    elseif w == :rebalance
+        balanced_weights(y)
+    else
+        w
+    end
+
+    searchmethod = reconstruct(searchmethod,  kwargs)
+
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty trainig set")
+
+    y, labels = y |> maptointeger
+
+    n_labels = labels |> length
+
+    uncoveredX = X
+    uncoveredy = y
+    uncoveredw = w
+
+    rulebase = Rule[]
+    for target_class in 1:n_labels
+
+        newrules = find_rules(
+            searchmethod,
+            uncoveredX,
+            uncoveredy,
+            uncoveredw;
+            target_class,
+            n_labels
+        )
+        if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
+            break
+        end
+    end
+
+    defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
+    return DecisionList(rulebase, labels[defaultconsequent])
+end
+
+############################################################################################
+################### SequentialCovering - DecisionList ######################################
+############################################################################################
 
 """
     function sequentialcovering(
@@ -98,7 +159,6 @@ julia> sequentialcovering(X, y)
 │└ virginica
 └✘ versicolor
 ```
-
 See also
 [`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 """
@@ -107,13 +167,12 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
-    unorderedstrategy::Bool = false,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
+    max_rule_length::Union{Nothing,Integer}=nothing,
     min_rule_coverage::Integer=1,
-    suppress_parity_warning::Bool=true,
+    suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
-
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
@@ -137,9 +196,6 @@ function sequentialcovering(
 
     n_labels = labels |> length
 
-    # DEBUG
-    # uncoveredslice = collect(1:ninstances(X))
-
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
@@ -152,6 +208,7 @@ function sequentialcovering(
             uncoveredy,
             uncoveredw;
             min_rule_coverage = min_rule_coverage,
+            max_rule_length = max_rule_length,
             n_labels = n_labels
         )
         bestantecedent == ⊤ && break
@@ -170,16 +227,8 @@ function sequentialcovering(
             (Rule(bestantecedent, consequent_cm), consequent_i)
         end
         push!(rulebase, rule)
-        # TODO @Italian Attenzione, la DecisionList risultante non è applicabile con apply in quanto
-        # non vale il metodo di applicazione della prima regola vera !!!!!!!!!!!!!!!!!!!!!!
-        uncovered_slice = begin
-            if unorderedstrategy
-                correctclass_coverage = (uncoveredy .== consequent_i) .& bestantecedent_coverage
-                (!).(correctclass_coverage)
-            else
-                (!).(bestantecedent_coverage)
-            end
-        end
+
+        uncovered_slice = (!).(bestantecedent_coverage)
 
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
@@ -223,4 +272,3 @@ function build_randcn2(
 )
     return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
 end
-

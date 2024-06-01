@@ -4,15 +4,47 @@ using SoleModels: bestguess
 using Parameters
 using FillArrays
 using StatsBase
+<<<<<<< HEAD
 using ModalDecisionLists: LossFunctions
+=======
+using ModalDecisionLists: Measures
+using ModalDecisionLists.Measures: laplace_accuracy
+using ModalDecisionLists.Measures: significance_test
+>>>>>>> edo
 
-const RuleAntecedent = SoleLogics.LeftmostConjunctiveForm{SoleLogics.Atom{ScalarCondition}}
 const SatMask = BitVector
 
 
+<<<<<<< HEAD
 ################################################################################
 ############ Search methods ####################################################
 ################################################################################
+=======
+
+############################################################################################
+############ Helping function ##############################################################
+############################################################################################
+
+pp(str) = printstyled("$(str) \n", color = :red, bold = true)
+
+macro showlc(list, c)
+    return esc(quote
+        infolist = (length($list) == 0 ?
+                        "EMPTY" :
+                        "len: $(length($list))"
+                    )
+        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
+        for (ind, element) in enumerate($list)
+            printstyled(ind,") ",element, "\n", color=$c)
+        end
+    end)
+
+end
+
+############################################################################################
+############ SearchMethods #################################################################
+############################################################################################
+>>>>>>> edo
 
 """
 Abstract type for all search methods to be used in [`sequentialcovering`](@ref).
@@ -21,6 +53,8 @@ Any search method implements a [`findbestantecedent`](@ref) method.
     
 See also [`findbestantecedent`](@ref), [`BeamSearch`](@ref), [`RandSearch`](@ref).
 """
+############################################################################################
+
 abstract type SearchMethod end
 
 """
@@ -47,76 +81,133 @@ function findbestantecedent(
     " y::$(typeof(y)), w::$(typeof(w)); kwargs...).")
 end
 
+<<<<<<< HEAD
 include("searchmethods/beamsearch.jl")
 include("searchmethods/randsearch.jl")
+=======
+############################################################################################
+############ AtomSearch ####################################################################
+############################################################################################
+
+struct AtomSearch <: SearchMethod end
+
+function findbestantecedent(
+    as::AtomSearch,
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector;
+    kwargs...
+)
+    return findbestantecedent(BeamSearch(; conjuncts_search_method=as, max_rule_length=1), X, y, w; kwargs...)
+end
+
+############################################################################################
+
+
+include("algorithms/searchmethods/beamsearch.jl")
+include("algorithms/searchmethods/randsearch.jl")
+
+
+function maptointeger(y::AbstractVector{<:CLabel})
+
+    # ordered values
+    values = unique(y)
+    integer_y = zeros(Int64, length(y))
+
+    for (i, v) in enumerate(values)
+        integer_y[y.==v] .= i
+    end
+    return integer_y, values
+end
+>>>>>>> edo
 
 """
-    sortantecedents(
-        antecedents::Vector{Tuple{RuleAntecedent, SatMask}},
+    best_satmasks(
+        satmasks::Vector{Tuple{Formula, SatMask}},
         y::AbstractVector{CLabel},
         w::AbstractVector,
         beam_width::Integer,
-        quality_evaluator::Function
+        loss_function::Function
     )
 
+Sort rule satmasks based on their quality, using a specified loss function.
 
+<<<<<<< HEAD
 Sort rule antecedents by quality, using a specified evaluation function.
 
 The function takes a vector of formulas (i.e., the antecedents),
     each decorated by a SatMask indicating his coverage bitmask.
 Each antecedent is evaluated on his covered y using the provided *quality evaluator* function.
 Then the permutation of the bests *beam_search* sorted antecedent is returned with the quality
+=======
+Sorts rule antecedents based on their lossfnctn using a specified loss function.
+
+Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
+Each antecedent is evaluated on his covered y using the provided *loss_function* function.
+Then the permutation of the bests *beam_search* sorted antecedent is returned with the lossfnctn
+>>>>>>> edo
 value of the best one.
+
+See also
+[`entropy`](@ref).
 """
 function sortantecedents(
-    antecedents::AbstractVector{<:Tuple{RuleAntecedent, BitVector}},
+    antecedents::AbstractVector{<:Tuple{Formula, BitVector}},
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
-    quality_evaluator::Function,
+    loss_function::Function,
     min_rule_coverage::Integer,
-    maxpurity_gamma::Union{Real, Nothing}=nothing;
+    maxpurity_gamma::Union{Real, Nothing},
+    significance_alpha::Union{Real, Nothing};
     kwargs...
 )#= ::Tuple{Vector{Int},<:Real} =#
 
+
     # Exit point [1]
+    # printstyled(" TARGET[$(counts(y, kwargs[:n_labels])[kwargs[:target_class]])] \n", color=:red )
+
     isempty(antecedents) && return [], Inf
 
     if min_rule_coverage > 1
         validindexes = [(count(ant[2]) >= min_rule_coverage) for ant in antecedents
             ] |> findall
-        # Exit point [2]
         isempty(validindexes) && return [], Inf
-        #
         antecedents = antecedents[validindexes]
     end
     indexes = collect(1:length(antecedents))
 
-    antsquality = map(antd -> begin
+    antslossfnctn = map(antd -> begin
             _, satinds = antd
-            quality_evaluator(y[satinds], w[satinds]; kwargs...)
+            loss_function(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
-
     if !isnothing(maxpurity_gamma)
+<<<<<<< HEAD
         maxpurity_value = maxpurity_gamma * quality_evaluator(y, w; kwargs...)
+=======
+
+        @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
+
+        maxpurity_value = maxpurity_gamma * loss_function(y, w; kwargs...)
+
+>>>>>>> edo
         indexes = map(aq -> begin
-                        (index, quality) = aq
-                        quality >= maxpurity_value && index
-            end, enumerate(antsquality)
+                        (index, lossfnctn) = aq
+                        lossfnctn >= maxpurity_value && index
+            end, enumerate(antslossfnctn)
         ) |> filter(x -> x != false)
-        # Exit point [2]
         isempty(indexes) && return [], Inf
     end
-    valid_indexes = partialsortperm(antsquality[indexes], 1:min(beam_width, length(indexes)))
+    valid_indexes = partialsortperm(antslossfnctn[indexes], 1:min(beam_width, length(indexes)))
 
     newstar_perm = indexes[valid_indexes]
-
     newstar = antecedents[newstar_perm]
-    bestantecedent_quality = antsquality[newstar_perm[1]]
+    bestantecedent_lossfnctn = antslossfnctn[newstar_perm[1]]
 
-    return newstar, bestantecedent_quality
+    return newstar, bestantecedent_lossfnctn
 end
 
+<<<<<<< HEAD
 ################################################################################
 ############ Utils #############################################################
 ################################################################################
@@ -169,3 +260,8 @@ function maptointeger(y::AbstractVector{<:CLabel})
     end
     return integer_y, values
 end
+=======
+############################################################################################
+############ Utils #########################################################################
+############################################################################################
+>>>>>>> edo

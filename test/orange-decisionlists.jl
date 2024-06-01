@@ -8,7 +8,7 @@ using RDatasets
 using MLJ
 using CSV
 #
-# Decision list ottenuta con CN2-Orange dalle prime 1000 istamze del dataset Abalone
+# Decision list ottenuta con CN2-Orange dalle prime 1000 istamze del dataset Yeast
 #
 #    beam-width       : 3
 #    discretizedomain : true
@@ -1531,14 +1531,14 @@ println(bs)
 train_slice = 1:1000
 test_slice = 1001:1500
 
-table = CSV.read("datasets/abalone.csv", DataFrame)
+table = CSV.read("datasets/yeast.csv", DataFrame)
 
 ############################################################################################
 ########################## Test with categorical attributes ################################
 ############################################################################################
 
-y = table[:, :Rings] |> CategoricalArray
-X = select(table, Not([:Rings]));
+y = table[:, :localization_site] |> CategoricalArray
+X = select(table, Not([:localization_site, :Sequence_Name]));
 
 # Train
 X_train, y_train = preprocess_inputdata(X[train_slice, :],y[train_slice])
@@ -1566,8 +1566,8 @@ printstyled("Partial training (0.7) accuracy: ",
 ########################## Test with no categorical attributes #############################
 ############################################################################################
 
-y = table[:, :Rings] |> CategoricalArray
-X = select(table, Not([:Rings, :Sex]));
+y = table[:, :localization_site] |> CategoricalArray
+X = select(table, Not([:localization_site, :Sex]));
 
 # Train
 X_train, y_train = preprocess_inputdata(X[train_slice, :],y[train_slice])

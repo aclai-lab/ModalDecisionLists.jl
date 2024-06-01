@@ -107,22 +107,22 @@ dl = sequentialcovering(X, y_clabel; max_rulebase_length=5, suppress_parity_warn
 @test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0, searchmethod=BeamSearch(; beam_width=5))
 
 ############################################################################################
-############################## quality_evaluator ###########################################
+############################## loss_function ###########################################
 ############################################################################################
 
-bs5_ent = BeamSearch(; beam_width=5, quality_evaluator=entropy)
+bs5_ent = BeamSearch(; beam_width=5, loss_function=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5_ent)
 
-bs_entropy = BeamSearch(; quality_evaluator=entropy)
+bs_entropy = BeamSearch(; loss_function=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_entropy)
 
-bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
+bs_laplace = BeamSearch(; loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_laplace)
 @test_nowarn sequentialcovering(X, y_intger; searchmethod=bs_laplace)
 @test_nowarn sequentialcovering(X, y_catgcl; searchmethod=bs_laplace)
-@test_nowarn sequentialcovering(X, y_clabel; quality_evaluator=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel; loss_function=laplace_accuracy)
 
-@test_nowarn sequentialcovering(X, y_clabel; beam_width=1, quality_evaluator=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel; beam_width=1, loss_function=laplace_accuracy)
 
 ############################################################################################
 ############################## beam_width ##################################################
@@ -140,23 +140,23 @@ bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
 @test_throws AssertionError sequentialcovering(X, y_clabel; beam_width=0, searchmethod=BeamSearch(; beam_width=5))
 
 ############################################################################################
-############################## quality_evaluator ###########################################
+############################## loss_function ###########################################
 ############################################################################################
 
-bs5_ent = BeamSearch(; beam_width=5, quality_evaluator=entropy)
+bs5_ent = BeamSearch(; beam_width=5, loss_function=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs5_ent)
 
-bs_entropy = BeamSearch(; quality_evaluator=entropy)
+bs_entropy = BeamSearch(; loss_function=entropy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_entropy)
 
-bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
+bs_laplace = BeamSearch(; loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y_clabel; searchmethod=bs_laplace)
 @test_nowarn sequentialcovering(X, y_intger; searchmethod=bs_laplace)
 ############################################################################################
-############################## quality_evaluator + weights #################################
+############################## loss_function + weights #################################
 ############################################################################################
 
-bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
+bs_laplace = BeamSearch(; loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y_clabel, w; searchmethod=bs_laplace)
 
 
@@ -166,7 +166,7 @@ bs_laplace = BeamSearch(; quality_evaluator=laplace_accuracy)
 
 @test_nowarn sequentialcovering(X, y_clabel; truerfirst=true)
 @test_nowarn sequentialcovering(X, y_clabel; truerfirst=true, beam_width=1)
-@test_nowarn sequentialcovering(X, y_clabel; truerfirst=true, quality_evaluator=laplace_accuracy)
+@test_nowarn sequentialcovering(X, y_clabel; truerfirst=true, loss_function=laplace_accuracy)
 @test_nowarn sequentialcovering(X, y_clabel; truerfirst=true, max_rulebase_length=2, suppress_parity_warning = true)
 
 ############################################################################################
