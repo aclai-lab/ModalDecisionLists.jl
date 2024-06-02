@@ -1,7 +1,7 @@
 Main:
 
     Generic:
-        ☐ Eliminare implementazione superflua cn2
+        ☐ Delete unnecessary CN2 implementation
             ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)
                 ✔ build_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
                 ✔ build_base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
@@ -15,13 +15,13 @@ Main:
             ☐ Rule validation
             ☐ LRS
             ☐ Weighted relative accuracy
-        ☐ creare un altro metodo SyntaxSearch, che enumera tutte le formule con altezza sintattica h, e prende la migliore. 
+        ☐ SyntaxSearch
             # Formule di una certa grammatica e di un certo alfabeto si generan così
                 # a = ExplicitAlphabet(@atoms p q r s)
                 # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
                 # formulas(g; maxdepth = 2)
                 # formulas(g; maxdepth = 100, nformulas = 100)
-        ☐ Definire DecisionSet ed il relativo metodo apply
+        ☐ Define DecisionSet and relative apply method
 
     
     Utility:
@@ -33,35 +33,15 @@ Main:
         ✔ map from integer to original class names @done(24-04-10 16:31)
         ☐ semplificazione LmCF o LmDF 
             # scalarminimizer
-        ✔ BoundedScalarCond -> UnivariateScalarCondion @done(24-04-10 16:31)
-        ☐ Aggiungere operazioni di pulizia del dataset prima di usarlo come training-dataset.
-            ☐ # Rimuovere istanze duplicate
-                # Istanze duplicate con classe UGUALE. 
-                # istamze duplicate con classe DIVERSA
-            # gestione missing values  
-    
+        ✔ BoundedScalarCond -> UnivariateScalarCondion @done(24-04-10 16:31)    
     Testing:
-        ✔ Verificare 100% accuratezza sul dataset di trainig ? @done(24-03-01 03:02)
-        ☐ Test accuratezza
+        ✔ 100% accuracy when testing on training data ? @done(24-03-01 03:02)
             ☐ Only real attributes
-                ✔ Xy = RDatasets.dataset("datasets", "iris") @done(24-04-13 04:04)
-                ✔ Xy = RDatasets.dataset("Ecdat", "Bwages") @done(24-04-13 04:04)
-                ✔ Xy = RDatasets.dataset("psych", "sat.act") @done(24-04-13 04:04)
-                ✔ Xy = RDatasets.dataset("gamair", "wesdr") @done(24-04-13 04:04)
-                ✔ Xy = RDatasets.dataset("ISLR", "Smarket") @done(24-04-13 04:04)
-                ☐ Xy = RDatasets.dataset("ISLR", "Default")
-                    # only one categorical column addition to the target (exclude ?)
-                
-                Too large datasets for now
-                # Xy = RDatasets.dataset("ISLR", "Caravan")
-                # Xy = RDatasets.dataset("Ecdat", "BudgetFood")
-                # Xy = RDatasets.dataset("ISLR", "Weekly")         
-                # Xy = RDatasets.dataset("ISLR", "OJ")
-            ☐ With categorical real attributes
-                ☐ Xy = RDatasets.dataset("mlmRev", "Early")
-                ☐ Xy = RDatasets.dataset("mlmRev", "Contraception")
-                ☐ Xy = RDatasets.dataset("mlmRev", "guPrenat")
-                ☐ Xy = RDatasets.dataset("survival", "logan")
+                ☐ Biopsy
+                ☐ Ionosphere
+                ☐ Mobile
+                ☐ Yeast
+                ☐ Abalone
             
     Future: 
         ✔ Differenziare caso attributi discreti/categoriali
@@ -75,9 +55,34 @@ Main:
 
     MLJ-Interface:
         ✔ Constructor with keyword arguments @done(24-04-12 13:32)
-        ☐ fit
+        ✔ fit @done(24-06-01 13:59)
             # parlare con gio di CategoricalArrays
-        ☐ predict
-        ☐ clean!
+        ✔ predict @done(24-06-01 13:59)
+        ✔ clean! @done(24-06-01 13:59)
             # https://juliaai.github.io/MLJModelInterface.jl/dev/quick_start_guide/
-        ☐ MMI.metadata_pkg.MMI.metadata_pkg
+        ✔ MMI.metadata_pkg.MMI.metadata_pkg @done(24-06-01 13:59)
+
+
+
+    Last:
+
+        ☐ In RandSearch, when calling randformula, should you give it the right atompicking_mode and subalphabets_weights; right?
+            ✔ :uniform working ? @done(24-06-01 18:59)
+            ✔ :twostep working ? @done(24-06-01 18:59)
+            ☐ subalphabets_weights working ? 
+            # atompicker = ((rng,alph)->randatom(rng,alph; atompicking_mode = ..., subalphabets_weights = ...))
+            ☐ was :uniform or :weighted working better...? 
+            ✔ And which one are we using now? @done(24-06-02 11:56)
+                ☐ Uniform
+
+        ✔ only one expression between "evaluation function" and "quality evaluator" and "loss_function" @done(24-06-01 15:05)
+            or maybe "loss function". 
+        ☐ TODO Remove Italian writings (@Italian)
+        ✔ Rename SequentialCoveringLearner; "learner" is a bit old-fashioned in my opinion. Maybe something like "ExtendedSequentialCovering?" @done(24-06-01 15:05)
+        ☐ add documentation for SequentialCoveringLearner
+        ✔ Gather all the good code in "dev" branch, and delete unnecessary branches, edo, edo-memo, edo-dec-set, etc. @done(24-06-01 15:05)
+            # https://stackoverflow.com/questions/1307114/how-can-i-archive-git-branches/42232899#42232899
+            ☐ keep edo ? 
+            ✔ edo-memo @done(24-06-01 15:05)
+            ✔ edo-dec-set @done(24-06-01 15:05)
+Archive:

@@ -71,11 +71,9 @@ function significance_test(
         x[x .== 0] .= 1e-5
         y[y .== 0] .= 1e-5
         y = y * (sum(x)/sum(y))
-
         # Likelihood Ratio Statistic
         sum(x .* log.(x ./ y)) * 2
     end
-
     # Degrees of freedom
     df = length(currdist) - 1
     return ( lrs > 0 ) & (ccdf(Chisq(df), lrs) <= alpha)

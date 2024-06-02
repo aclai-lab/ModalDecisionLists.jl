@@ -6,7 +6,7 @@ export OrderedCN2Learner
 
 # using ModalDecisionTrees.MLJInterface: wrapdataset
 using ModalDecisionLists
-using ModalDecisionLists.Measures: laplace_accuracy
+using ModalDecisionLists.LossFunctions: laplace_accuracy
 import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
 import ModalDecisionLists: sequentialcovering
 
@@ -102,7 +102,7 @@ end
 # Keyword constructor
 function OrderedCN2Learner(;
     beam_width::Integer = 3,
-    loss_function::Function = ModalDecisionLists.Measures.entropy,
+    loss_function::Function = ModalDecisionLists.LossFunctions.entropy,
     discretizedomain::Bool = false,
     max_purity_const::Union{Real,Nothing} = nothing,
     significance_alpha::Union{Real,Nothing} = nothing,
@@ -124,6 +124,7 @@ end
 
 ################ Fit (General for all CoveringStrategy ) ###################################
 ############################################################################################
+
 function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
 
     # TODO use wrapdataset...?

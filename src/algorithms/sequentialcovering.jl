@@ -218,7 +218,6 @@ function sequentialcovering(
             justcoveredw = uncoveredw[bestantecedent_coverage]
             consequent_i = SoleModels.bestguess(justcoveredy, justcoveredw; suppress_parity_warning=suppress_parity_warning)
             info_cm = (;
-                # TODO @Italian anche qui c'è da cambiare qualcosa per il caso di DL non ordinata ( forse )
                 supporting_labels=collect(justcoveredy),
                 supporting_weights=collect(justcoveredw)
             )
@@ -238,9 +237,7 @@ function sequentialcovering(
             break
         end
     end
-
     # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
-
     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
     return DecisionList(rulebase, labels[defaultconsequent])
 end

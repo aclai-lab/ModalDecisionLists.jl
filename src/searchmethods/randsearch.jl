@@ -13,15 +13,16 @@ Generate random formulas (`SoleLogics.randformula`)
 """
 @with_kw mutable struct RandSearch <: SearchMethod
     cardinality::Integer=10
-    loss_function::Function=ModalDecisionLists.Measures.entropy
+    loss_function::Function=ModalDecisionLists.LossFunctions.entropy
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
     discretizedomain::Bool=false
-    rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
+    rng::AbstractRNG = Random.GLOBAL_RNG
     alpha::Real=1.0 # Unused
     max_purity_const::Union{Real,Nothing}=nothing
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
     # randatom parameters
+
     atompicking_mode::Symbol=:uniform
     subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
 end
@@ -36,9 +37,6 @@ function unaryconditions(
     @unpack cardinality, operators, syntaxheight, rng,
         atompicking_mode, subalphabets_weights = rs
 
-    if rng isa Integer
-        rng = MersenneTwister(rng)
-    end
     conditions = [ begin
         formula = randformula(rng, syntaxheight, a, operators;
                     atompicker = ( (rng, a) -> randatom(rng, a;
@@ -60,11 +58,11 @@ function newconditions(
     rs::RandSearch,
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    antecedent::Tuple{Formula,BitVector};
+    antecedent::Tuple{Formula,SatMask};
     discretizedomain=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing,
     kwargs...
-)::Vector{Tuple{Formula,BitVector}}
+)::Vector{Tuple{Formula,SatMask}}
 
     antecedent, satindexes = antecedent
     coveredX = slicedataset(X, satindexes; return_view=false)
@@ -91,7 +89,6 @@ function newconditions(
 
 end
 
-# TODO non mi piaceeee
 function extract_optimalantecedent(
     formulas::AbstractVector,
     loss_function,
@@ -102,7 +99,6 @@ function extract_optimalantecedent(
     kwargs...
 )::Tuple{Formula,SatMask}
 
-    # TODO mappare laplace accuracy in intervallo 0,1
     bestant_satmask = ones(Bool, length(y))
     bestformula = begin
 

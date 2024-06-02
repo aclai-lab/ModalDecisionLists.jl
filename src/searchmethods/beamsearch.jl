@@ -2,20 +2,11 @@ using SoleLogics: AbstractAlphabet, pushconjunct!
 using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
 using Parameters
-using ModalDecisionLists.Measures: entropy, laplace_accuracy
+using ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
 
 ############################################################################################
 ############## Beam search #################################################################
 ############################################################################################
-
-# TODO docu for min_rule_coverage
-
-# beam_width::Integer = 3,
-# quality_evaluator::Function = soleentropy,
-# max_rule_length::Union{Nothing,Integer} = nothing,
-# alphabet::Union{Nothing,AbstractAlphabet} = nothing
-
-# Performs a beam search to find the best antecedent for a given dataset and labels.
 
 """
 Search method to be used in
@@ -107,10 +98,10 @@ function newconditions(
     ::AtomSearch,
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    antecedent::Tuple{Formula,BitVector};
+    antecedent::Tuple{Formula,SatMask};
     discretizedomain=false,
     alph::Union{Nothing,AbstractAlphabet}=nothing
-)::Vector{Tuple{Atom{ScalarCondition},BitVector}}
+)::Vector{Tuple{Atom{ScalarCondition},SatMask}}
 
     antformula, satindexes = antecedent
     coveredX = slicedataset(X, satindexes; return_view=false)
@@ -126,7 +117,7 @@ function newconditions(
         end
     end
     metaconditions = begin
-        scalarconditions = value.(children(antformula))
+        scalarconditions = SoleData.value.(children(antformula))
         metacond.(scalarconditions)
     end
     # Exlude metaconditons tha are already in `antecedent`
@@ -259,13 +250,16 @@ function findbestantecedent(
     while true
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
-        # @showlc candidates :red
+
+        @showlc candidates :red
         newcandidates = specializeantecedents(conjuncts_search_method,
                                             candidates, X, y,
                                             max_rule_length,
                                             discretizedomain,
                                             alphabet)
-        # Sort the new candidates
+
+        @show newcandidates
+        # Sort new candidates
         (newcandidates, bestcandidate_lossfnctn) = sortantecedents(newcandidates,
                                             y, w,
                                             beam_width,
@@ -274,6 +268,10 @@ function findbestantecedent(
                                             max_purity_const,
                                             significance_alpha;
                                             n_labels=n_labels)
+        @showlc newcandidates :green
+        @show bestcandidate_lossfnctn
+
+        readline()
         isempty(newcandidates) && break
 
         new_bestcandidate, new_bestcandidate_satmask = newcandidates[begin]
@@ -292,7 +290,7 @@ end
 ############################################################################################
 
 function find_singlerule(
-    candidates::AbstractVector{<:Tuple{Formula, BitVector}},
+    candidates::AbstractVector{<:Tuple{Formula, SatMask}},
     X::AbstractLogiset,
     y::AbstractVector{<:Integer},
     w::AbstractVector,
@@ -308,31 +306,33 @@ function find_singlerule(
     max_purity_const::Union{Nothing,Real}=nothing
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
-while true
-    (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
-    newcandidates = specializeantecedents(candidates,
-                        X, y,
-                        max_rule_length, discretizedomain, alphabet
-                    )
-    # In case of DecisionSet learning all the antecedents that do not cover any instances
-    # labeled with the target_class are removed.
-    newcandidates = [sant for sant in newcandidates if (
-                        (_, satmask) = sant;
-                        any(y[satmask] .== target_class)
-                    )]
-    (perm, bestcandidate_quality) = sortantecedents(newcandidates,
-                        y, w,
-                        beam_width, laplace_accuracy, max_purity_const;
-                        target_class=target_class,
-                        n_labels=n_labels
-                    )
+    while true
+        (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
+        newcandidates = specializeantecedents(candidates,
+                            X, y,
+                            max_rule_length, discretizedomain, alphabet
+                        )
+        # In case of unordered learning, all the antecedents that do not cover any instances
+        # labeled with the target_class must be removed.
+        newcandidates = [sant for sant in newcandidates if (
+                            (_, satmask) = sant;
+                            any(y[satmask] .== target_class)
+                        )]
+        (perm, bestcandidate_loss) = sortantecedents(newcandidates,
+                            y, w,
+                            beam_width, laplace_accuracy, max_purity_const;
+                            target_class=target_class,
+                            n_labels=n_labels
+                        )
 
-    isempty(perm) && break
-    newcandidates = newcandidates[perm]
-    if bestcandidate_quality < best_quality
-           best = newcandidates[1]
-           best_quality = bestcandidate_quality
-       end
+        isempty(perm) && break
+        newcandidates = newcandidates[perm]
+        if bestcandidate_loss < best_loss
+            best = newcandidates[1]
+            best_loss = bestcandidate_loss
+        end
+    end
+    return best
 end
 
 ############################################################################################
@@ -373,9 +373,8 @@ function find_rules(
         )
         (bestant_formula, bestant_coverage) = bestantecedent
 
-        # TODO cambiare da target_class(Integer) a CLabel
+        # TODO change target_class::Integer to target_class::CLabel
         newrule = Rule(bestant_formula, ConstantModel(target_class))
-        @show newrule
         push!(bestrules, newrule)
 
         uncovered_slice = begin

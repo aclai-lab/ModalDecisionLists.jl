@@ -24,7 +24,7 @@ end
     Base.show(io::IO, s::Selector) = print(io, "($(s.att) $(s.test_operator) $(s.val))")
     test_operator(sel::Selector) = sel.test_operator
     varname(sel::Selector) = sel.att
-    treshold(sel::Selector) = sel.val # che poi non è una treshold :)
+    treshold(sel::Selector) = sel.val
 
 
     function selector2soleatom(sel::Selector)::Atom{ScalarCondition}
@@ -281,7 +281,7 @@ function build_base_cn2(
         current_y = @view y[slice_tocover]
     end
     if !allunique(current_y)
-        error("Default class can't be created") # cambiare questo errore
+        error("Default class can't be created")
     end
     defaultconsequent = current_y[begin]
     return DecisionList(rulelist, defaultconsequent)

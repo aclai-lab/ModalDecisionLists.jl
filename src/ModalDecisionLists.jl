@@ -1,6 +1,5 @@
 module ModalDecisionLists
 
-# Write your package code here.
 using Random
 
 export BeamSearch, RandSearch, AtomSearch, SearchMethod
