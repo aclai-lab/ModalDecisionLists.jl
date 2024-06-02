@@ -251,14 +251,12 @@ function findbestantecedent(
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
 
-        @showlc candidates :red
         newcandidates = specializeantecedents(conjuncts_search_method,
                                             candidates, X, y,
                                             max_rule_length,
                                             discretizedomain,
                                             alphabet)
 
-        @show newcandidates
         # Sort new candidates
         (newcandidates, bestcandidate_lossfnctn) = sortantecedents(newcandidates,
                                             y, w,
@@ -268,10 +266,7 @@ function findbestantecedent(
                                             max_purity_const,
                                             significance_alpha;
                                             n_labels=n_labels)
-        @showlc newcandidates :green
-        @show bestcandidate_lossfnctn
 
-        readline()
         isempty(newcandidates) && break
 
         new_bestcandidate, new_bestcandidate_satmask = newcandidates[begin]
