@@ -87,9 +87,6 @@ function newconditions(
         end
     end
 
-    # @show alphabets(selectedalphabet)
-    # @show (!).(isempty.(alphabets(selectedalphabet)))
-
     # Where new unary conditions are randomly generated (and checked on X) formulas.
     return unaryconditions(rs, selectedalphabet, X)
 
@@ -131,7 +128,7 @@ function extract_optimalantecedent(
 end
 
 
-# TODO add rng parameter.
+# TODO add rng parameter. [UNUSED]
 function searchantecedents(
     sm::RandSearch,
     X::PropositionalLogiset,
