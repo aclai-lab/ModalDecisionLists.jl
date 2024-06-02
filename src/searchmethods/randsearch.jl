@@ -1,5 +1,6 @@
 using Parameters
 using SoleLogics: randatom
+using SoleData: thresholds
 using FillArrays
 using Random
 using ModalDecisionLists.LossFunctions: entropy, significance_test
@@ -27,7 +28,6 @@ Generate random formulas (`SoleLogics.randformula`)
     subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
 end
 
-
 function unaryconditions(
     rs::RandSearch,
     a::AbstractAlphabet,
@@ -36,23 +36,27 @@ function unaryconditions(
 
     @unpack cardinality, operators, syntaxheight, rng,
         atompicking_mode, subalphabets_weights = rs
-
-    conditions = [ begin
-        formula = randformula(rng, syntaxheight, a, operators;
-                    atompicker = ( (rng, a) -> randatom(rng, a;
-                                        atompicking_mode = atompicking_mode,
-                                        subalphabets_weights = subalphabets_weights
-                        ))
-            )
-        satmask = check(formula, X)
-        if any(satmask)
-            (formula, satmask)
+    conditions = begin
+        if all(isempty, thresholds.(alphabets(a)))
+            []
+        else
+            [ begin
+                formula = randformula(rng, syntaxheight, a, operators;
+                            atompicker = ( (rng, a) -> randatom(rng, a;
+                                                atompicking_mode = atompicking_mode,
+                                                subalphabets_weights = subalphabets_weights
+                                ))
+                    )
+                satmask = check(formula, X)
+                if any(satmask)
+                    (formula, satmask)
+                end
+            end for _ in 1:cardinality] |> filter(rf -> rf != nothing)
         end
-    end for _ in 1:cardinality] |> filter(rf -> rf != nothing)
+    end
     #
     return conditions
 end
-
 
 function newconditions(
     rs::RandSearch,
@@ -76,13 +80,15 @@ function newconditions(
         if !isnothing(alph)
             alph
         else
-            alphabet(coveredX;
+            alph = alphabet(coveredX;
                 discretizedomain = discretizedomain,
-                y                = coveredy
+                y = coveredy
             )
         end
     end
-    selectedalphabet = UnionAlphabet([ a for a in alphabets(selectedalphabet)])
+
+    # @show alphabets(selectedalphabet)
+    # @show (!).(isempty.(alphabets(selectedalphabet)))
 
     # Where new unary conditions are randomly generated (and checked on X) formulas.
     return unaryconditions(rs, selectedalphabet, X)
@@ -125,16 +131,16 @@ function extract_optimalantecedent(
 end
 
 
-
-
 # TODO add rng parameter.
-
 function searchantecedents(
     sm::RandSearch,
     X::PropositionalLogiset,
 )::Tuple{Formula,SatMask}
+
     return (randformula(sm.syntaxheight, alphabet(X), sm.operators) for _ in 1:sm.cardinality)
 end
+
+# Called only in RandSearch, not in BeamSearch(;conjuncts_search_method = RandSearch())
 function findbestantecedent(
     rs::RandSearch,
     X::PropositionalLogiset,
