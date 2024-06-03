@@ -98,7 +98,7 @@ This involves iteratively learning a single rule, and removing the newly covered
 * `max_rulebase_length::Union{Nothing,Integer}` is the maximum length of the rulebase;
 * `suppress_parity_warning::Bool` if `true`, suppresses parity warnings.
 * `unorderedstrategy::Bool`: TODO @Edo explain
-* `min_rule_coverage::Integer`: TODO @Edo explain
+* `min_rule_coverage::Integer`:
 * Any additional keyword argument will be imputed to the `searchmethod`, replacing its original value.
 
 # Examples

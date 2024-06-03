@@ -17,13 +17,15 @@ The beam is dynamically updated to include the most promising solutions, allowin
 efficient exploration of the solution space without examining all possibilities.
 
 # Keyword Arguments
+* `conjuncts_search_method::SearchMethod=AtomSearch()`
 * `beam_width::Integer = 3` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
 * `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
+* `discretizedomain::Bool=false`:  discretizes continuous variables by identifying optimal cut points
 * `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
 * `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
-If not specified, the beam will be update until no more possible specializations exist.
-* `alphabet::Union{Nothing,AbstractAlphabet} = nothing` allow the specialization of the antecedent only on a constrained set of conditions.
-If not specified, , the entire alphabet originated from X is used.
+* `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
+* `max_info_gain::Real=1.0`: constrains the maximum information gain for anantecedent
+with respect to the uncovered training set. Its value is bounded between 0 and 1.
 
 See also
 [`sequentialcovering`](@ref),
@@ -36,8 +38,8 @@ See also
     beam_width::Integer=3
     loss_function::Function=entropy
     discretizedomain::Bool=false
-    alphabet::Union{Nothing,AbstractAlphabet}=nothing
-    max_purity_const::Union{Real,Nothing}=0.0
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    max_info_gain::Real=1.0
     significance_alpha::Union{Real,Nothing}=0.0
 end
 
@@ -233,9 +235,9 @@ function findbestantecedent(
 )::Tuple{Union{Truth,Formula},SatMask}
 
     @unpack conjuncts_search_method, beam_width, loss_function,
-            discretizedomain, alphabet, max_purity_const, significance_alpha = bs
+            discretizedomain, alphabet, max_info_gain, significance_alpha = bs
 
-    maxpurity_gamma = max_purity_const
+    maxpurity_gamma = max_info_gain
     if !isnothing(maxpurity_gamma)
         @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma must be in range [0,1], but $(maxpurity_gamma) encountered."
     end
@@ -263,7 +265,7 @@ function findbestantecedent(
                                             beam_width,
                                             loss_function,
                                             min_rule_coverage,
-                                            max_purity_const,
+                                            max_info_gain,
                                             significance_alpha;
                                             n_labels=n_labels)
 
@@ -298,7 +300,7 @@ function find_singlerule(
     truerfirst::Bool=false,
     max_rule_length::Union{Nothing,Integer}=nothing,
     alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-    max_purity_const::Union{Nothing,Real}=nothing
+    max_info_gain::Union{Nothing,Real}=nothing
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     while true
@@ -315,7 +317,7 @@ function find_singlerule(
                         )]
         (perm, bestcandidate_loss) = sortantecedents(newcandidates,
                             y, w,
-                            beam_width, laplace_accuracy, max_purity_const;
+                            beam_width, laplace_accuracy, max_info_gain;
                             target_class=target_class,
                             n_labels=n_labels
                         )
@@ -345,7 +347,7 @@ function find_rules(
 )::Vector{Rule}
 
     @unpack beam_width, loss_function, max_rule_length,
-        discretizedomain, alphabet, max_purity_const = bs
+        discretizedomain, alphabet, max_info_gain = bs
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *

@@ -36,14 +36,15 @@ end
 ############################################################################################
 
 """
+
+        SearchMethod
+
 Abstract type for all search methods to be used in [`sequentialcovering`](@ref).
 
 Any search method implements a [`findbestantecedent`](@ref) method.
 
 See also [`findbestantecedent`](@ref), [`BeamSearch`](@ref), [`RandSearch`](@ref).
 """
-############################################################################################
-
 abstract type SearchMethod end
 
 """
@@ -133,7 +134,7 @@ function sortantecedents(
     beam_width::Integer,
     loss_function::Function,
     min_rule_coverage::Integer,
-    maxpurity_gamma::Union{Real, Nothing},
+    max_info_gain::Union{Real, Nothing},
     significance_alpha::Union{Real, Nothing};
     kwargs...
 )::Tuple{AbstractVector, <:Real}
@@ -152,15 +153,13 @@ function sortantecedents(
             _, satinds = antd
             loss_function(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
-    if !isnothing(maxpurity_gamma)
+    if !isnothing(max_info_gain)
+        @assert (0 <= max_info_gain <= 1) "max_info_gain not in range [0,1]"
 
-        @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma not in range [0,1]"
-
-        maxpurity_value = maxpurity_gamma * loss_function(y, w; kwargs...)
-
+        minloss = (1 - max_info_gain) * loss_function(y, w; kwargs...)
         indexes = map(aq -> begin
-                        (index, lossfnctn) = aq
-                        lossfnctn >= maxpurity_value && index
+                    (index, lossfnctn) = aq
+                    (lossfnctn >= minloss) && index
             end, enumerate(antslossfnctn)
         ) |> filter(x -> x != false)
         isempty(indexes) && return [], Inf

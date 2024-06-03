@@ -124,7 +124,7 @@ mutable struct OrderedCN2Learner <: CoveringStrategy
     beam_width::Integer
     loss_function::Function
     discretizedomain::Bool
-    max_purity_const::Union{Real,Nothing}
+    max_info_gain::Union{Real,Nothing}
     significance_alpha::Union{Real,Nothing}
     # SequentialCovering
     min_rule_coverage::Integer
@@ -147,7 +147,7 @@ function OrderedCN2Learner(;
     beam_width::Integer = 3,
     loss_function::Function = ModalDecisionLists.LossFunctions.entropy,
     discretizedomain::Bool = false,
-    max_purity_const::Union{Real,Nothing} = nothing,
+    max_info_gain::Union{Real,Nothing} = nothing,
     significance_alpha::Union{Real,Nothing} = nothing,
     # SequentialCovering
     min_rule_coverage::Integer = 1,
@@ -156,7 +156,7 @@ function OrderedCN2Learner(;
 )
     model = OrderedCN2Learner(beam_width,
         loss_function, discretizedomain,
-        max_purity_const, significance_alpha,
+        max_info_gain, significance_alpha,
         min_rule_coverage, max_rule_length, max_rulebase_length,
     )
     message = MMI.clean!(model)
@@ -187,7 +187,7 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
                 beam_width          = m.beam_width,
                 loss_function       = m.loss_function,
                 discretizedomain    = m.discretizedomain,
-                max_purity_const    = m.max_purity_const,
+                max_info_gain    = m.max_info_gain,
                 significance_alpha  = m.significance_alpha,
             )
             sequentialcovering(X_pl, y_cl;

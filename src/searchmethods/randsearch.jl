@@ -8,10 +8,36 @@ using ModalDecisionLists.LossFunctions: entropy, significance_test
 ############## Random search ###############################################################
 ############################################################################################
 
+
+
+
+# TODO @ Gio atompicking_mode ?
+# TODO syntaxheight ?
 """
-Generate random formulas (`SoleLogics.randformula`)
-....
+    RandSearch (`SoleLogics.randformula`)
+
+Search method to be used in [`sequentialcovering`](@ref) that explores the solutions space
+employing stochastic sampling strategies.
+
+# Keyword Arguments
+
+* `cardinality::Integer = 3`: is the number of formula generated fo the search of a single rule.
+the higher the cardinality, the higher the probability of finding a good antecedent.
+* `loss_function::Function = entropy`: is the function that assigns a score to each partial solution.
+* `operators::Union{Nothing,Integer} = nothing`: specifies the maximum length allowed for a rule in the search algorithm.
+* `syntaxheight::Integer=2`: ?
+* `discretizedomain::Bool=false`: if true discretizes continuous variables by identifying optimal cut points
+* `rng::AbstractRNG=Random.GLOBAL_RNG`
+* `alpha::Real=1.0` Actually not implemented
+* `max_info_gain::Real=1.0`: maximum information gain for an antecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
+* `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing`: if set, forces the use of a specific alphabet for generating every antecedents. Otherwise
+the alphabet is dinamically generated on uncovered instances
+* `atompicking_mode::Symbol=:uniform`: allows to bias the probability distribution of MetaConditions in the generation of formulas ...continue"
+* `subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing}=nothing`:
 """
+
+
+
 @with_kw mutable struct RandSearch <: SearchMethod
     cardinality::Integer=10
     loss_function::Function=ModalDecisionLists.LossFunctions.entropy
@@ -20,10 +46,9 @@ Generate random formulas (`SoleLogics.randformula`)
     discretizedomain::Bool=false
     rng::AbstractRNG = Random.GLOBAL_RNG
     alpha::Real=1.0 # Unused
-    max_purity_const::Union{Real,Nothing}=nothing
+    max_info_gain::Real=1.0
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
     # randatom parameters
-
     atompicking_mode::Symbol=:uniform
     subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
 end
@@ -148,7 +173,7 @@ function findbestantecedent(
 )::Tuple{Formula,SatMask}
 
     @unpack cardinality, loss_function, discretizedomain, default_alphabet,
-            operators, syntaxheight, rng, alpha, max_purity_const = rs
+            operators, syntaxheight, rng, alpha, max_info_gain = rs
     @assert cardinality > 0 "parameter `cardinality` must be greater than zero," * "
                             $(cardinality) is not an acceptable value."
     @assert syntaxheight >= 0 "parameter `syntaxheight` must be greater than zero," * "
@@ -156,9 +181,9 @@ function findbestantecedent(
     @assert all(o->o isa NamedConnective, operators) "all elements in `operators`" *
                             " must  beNamedConnective"
     max_purity = 0.0
-    if !isnothing(max_purity_const)
-        @assert (max_purity_const >= 0) & (max_purity_const <= 1) "maxpurity_gamma not in range [0,1]"
-        max_purity = loss_function(y, w; kwargs...) * max_purity_const
+    if !isnothing(max_info_gain)
+        @assert (max_info_gain >= 0) & (max_info_gain <= 1) "maxpurity_gamma not in range [0,1]"
+        max_purity = loss_function(y, w; kwargs...) * max_info_gain
     end
     # isempty(operators) && syntaxheight = 0
     @assert !isempty(operators) "No `operator` for formula construction was provided."

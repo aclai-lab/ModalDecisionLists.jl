@@ -102,28 +102,28 @@ rs = RandSearch(syntaxheight = 5, rng = MersenneTwister(78))
 
 # === Max purity =========================================================================
 
-rs = RandSearch(max_purity_const = -0.5, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = -0.5, rng = MersenneTwister(78))
 @test_throws AssertionError sequentialcovering(X, y, searchmethod=rs)
 
-rs = RandSearch(max_purity_const = 2.0, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = 2.0, rng = MersenneTwister(78))
 @test_throws AssertionError sequentialcovering(X, y, searchmethod=rs)
 
-rs = RandSearch(max_purity_const = 0.001, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = 0.001, rng = MersenneTwister(78))
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
 
-rs = RandSearch(max_purity_const = 0.05, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = 0.05, rng = MersenneTwister(78))
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
 
-rs = RandSearch(max_purity_const = 0.1, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = 0.1, rng = MersenneTwister(78))
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
 
-rs = RandSearch(max_purity_const = 0.5, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = 0.5, rng = MersenneTwister(78))
 @test_nowarn sequentialcovering(X, y, searchmethod=rs)
 
-rs = RandSearch(max_purity_const = 0.8, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = 0.8, rng = MersenneTwister(78))
 @test_logs (:warn,"Parity encountered in bestguess! counts (116 elements):" *
             " Dict(2 => 50, 3 => 16, 1 => 50), argmax: 2, max: 50 (sum = 116)")
-rs = RandSearch(max_purity_const = 1.0, rng = MersenneTwister(78))
+rs = RandSearch(max_info_gain = 1.0, rng = MersenneTwister(78))
 @test_logs (:warn,"Parity encountered in bestguess! counts (150 elements):" *
             " Dict(2 => 50, 3 => 50, 1 => 50), argmax: 2, max: 50 (sum = 150)"
     ) sequentialcovering(X, y, searchmethod=rs)
