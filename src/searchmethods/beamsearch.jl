@@ -76,11 +76,11 @@ Return the list of all possible antecedents containing a single condition from t
 """
 function unaryconditions(
     ::AtomSearch,
-    a::AbstractAlphabet,
+    a::UnionAlphabet,
     X::AbstractLogiset
 )::Vector{Tuple{Atom,SatMask}}
     conditions = Tuple{Atom{ScalarCondition},SatMask}[]
-    for univalph in alphabets(a)
+    for univalph in subalphabets(a)
         newconds = [(a, check(a, X)) for a in atoms(univalph)]
         append!(conditions, newconds)
     end
@@ -123,7 +123,7 @@ function newconditions(
         metacond.(scalarconditions)
     end
     # Exlude metaconditons tha are already in `antecedent`
-    selectedalphabet = UnionAlphabet([ a for a in alphabets(selectedalphabet)
+    selectedalphabet = UnionAlphabet([ a for a in subalphabets(selectedalphabet)
             if metacond(a) ∉ metaconditions
         ])
     return filteralphabet(X, selectedalphabet, antecedent)

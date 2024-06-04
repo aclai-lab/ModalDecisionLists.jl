@@ -2,7 +2,7 @@
 
 julia_version = "1.9.4"
 manifest_format = "2.0"
-project_hash = "cc4750d9a4cab4b63be5e68c51520402e8dd2164"
+project_hash = "d2051e5a714c6076af37a4dad7f2ec914f04646e"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -115,18 +115,6 @@ version = "0.10.8"
     SentinelArrays = "91c51154-3ec4-41a3-a24f-3f23e20d615c"
     StructTypes = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
 
-[[deps.CategoricalDistributions]]
-deps = ["CategoricalArrays", "Distributions", "Missings", "OrderedCollections", "Random", "ScientificTypes"]
-git-tree-sha1 = "926862f549a82d6c3a7145bc7f1adff2a91a39f0"
-uuid = "af321ab8-2d2e-40a6-b165-3d674595d28e"
-version = "0.1.15"
-
-    [deps.CategoricalDistributions.extensions]
-    UnivariateFiniteDisplayExt = "UnicodePlots"
-
-    [deps.CategoricalDistributions.weakdeps]
-    UnicodePlots = "b8865327-cd53-5732-bb35-84acbb429228"
-
 [[deps.CodeTracking]]
 deps = ["InteractiveUtils", "UUIDs"]
 git-tree-sha1 = "c0216e792f518b39b22212127d4a84dc31e4e386"
@@ -159,11 +147,6 @@ weakdeps = ["Dates", "LinearAlgebra"]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 version = "1.0.5+0"
-
-[[deps.ComputationalResources]]
-git-tree-sha1 = "52cb3ec90e8a8bea0e62e275ba577ad0f74821f7"
-uuid = "ed09eef8-17a6-5b46-8889-db040fac31e3"
-version = "0.3.2"
 
 [[deps.ConcurrentUtilities]]
 deps = ["Serialization", "Sockets"]
@@ -528,27 +511,11 @@ git-tree-sha1 = "c1dd6d7978c12545b4179fb6153b9250c96b0075"
 uuid = "e6f89c97-d47a-5376-807f-9c37f3926c36"
 version = "1.0.3"
 
-[[deps.LossFunctions]]
-deps = ["Markdown", "Requires", "Statistics"]
-git-tree-sha1 = "df9da07efb9b05ca7ef701acec891ee8f73c99e2"
-uuid = "30fc2ffe-d236-52d8-8643-a9d8f7c094a7"
-version = "0.11.1"
-weakdeps = ["CategoricalArrays"]
-
-    [deps.LossFunctions.extensions]
-    LossFunctionsCategoricalArraysExt = "CategoricalArrays"
-
 [[deps.LoweredCodeUtils]]
 deps = ["JuliaInterpreter"]
 git-tree-sha1 = "c6a36b22d2cca0e1a903f00f600991f97bf5f426"
 uuid = "6f1432cf-f94c-5a45-995e-cdbf5db27b0b"
 version = "2.4.6"
-
-[[deps.MLJBase]]
-deps = ["CategoricalArrays", "CategoricalDistributions", "ComputationalResources", "Dates", "DelimitedFiles", "Distributed", "Distributions", "InteractiveUtils", "InvertedIndices", "LinearAlgebra", "LossFunctions", "MLJModelInterface", "Missings", "OrderedCollections", "Parameters", "PrettyTables", "ProgressMeter", "Random", "ScientificTypes", "Serialization", "StatisticalTraits", "Statistics", "StatsBase", "Tables"]
-git-tree-sha1 = "0b7307d1a7214ec3c0ba305571e713f9492ea984"
-uuid = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
-version = "0.21.14"
 
 [[deps.MLJDecisionTreeInterface]]
 deps = ["CategoricalArrays", "DecisionTree", "MLJModelInterface", "Random", "Tables"]
@@ -861,6 +828,12 @@ version = "0.9.4"
 [[deps.Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
 
+[[deps.Sole]]
+deps = ["Random", "Reexport", "SoleBase", "SoleData", "SoleLogics", "SoleModels"]
+path = "/home/gio/.julia/dev/Sole"
+uuid = "7b3b3b3f-8b15-4a80-a798-b383498bc2cf"
+version = "0.4.0"
+
 [[deps.SoleBase]]
 deps = ["CategoricalArrays", "FillArrays", "IterTools", "Logging", "Random", "StatsBase"]
 git-tree-sha1 = "878891f576af95083687f1039f33beb40d990fcf"
@@ -868,20 +841,20 @@ uuid = "4475fa32-7023-44a0-aa70-4813b230e492"
 version = "0.12.1"
 
 [[deps.SoleData]]
-deps = ["BenchmarkTools", "CSV", "Catch22", "CategoricalArrays", "DataFrames", "DataStructures", "Graphs", "HTTP", "Logging", "MLJModelInterface", "MultiData", "ProgressMeter", "Random", "Reexport", "Revise", "ScientificTypes", "SoleBase", "SoleLogics", "Statistics", "StatsBase", "Tables", "ThreadSafeDicts", "UniqueVectors", "ZipFile"]
-git-tree-sha1 = "a81486dd78714f4fcdcb566dc93ec950fa953643"
+deps = ["BenchmarkTools", "CSV", "Catch22", "CategoricalArrays", "DataFrames", "DataStructures", "Graphs", "HTTP", "Lazy", "LinearAlgebra", "Logging", "MLJModelInterface", "MultiData", "ProgressMeter", "Random", "Reexport", "Revise", "ScientificTypes", "SoleBase", "SoleLogics", "Statistics", "StatsBase", "Tables", "ThreadSafeDicts", "UniqueVectors", "ZipFile"]
+path = "/home/gio/.julia/dev/SoleData"
 uuid = "123f1ae1-6307-4526-ab5b-aab3a92a2b8c"
 version = "0.13.1"
 
 [[deps.SoleLogics]]
-deps = ["AbstractTrees", "DataStructures", "Dictionaries", "Graphs", "IterTools", "Lazy", "PrettyTables", "Random", "Reexport", "Revise", "SoleBase", "StatsBase", "ThreadSafeDicts"]
-git-tree-sha1 = "0ae255c1f522be5f8ee54e2714d036b13f57d983"
+deps = ["AbstractTrees", "DataStructures", "Dictionaries", "FunctionWrappers", "Graphs", "IterTools", "Lazy", "PrettyTables", "Random", "Reexport", "Revise", "SoleBase", "StatsBase", "ThreadSafeDicts"]
+path = "/home/gio/.julia/dev/SoleLogics"
 uuid = "b002da8f-3cb3-4d91-bbe3-2953433912b5"
-version = "0.7.0"
+version = "0.9.0"
 
 [[deps.SoleModels]]
-deps = ["AbstractTrees", "BenchmarkTools", "CSV", "CategoricalArrays", "DataFrames", "DataStructures", "FillArrays", "FunctionWrappers", "Graphs", "HTTP", "Lazy", "LinearAlgebra", "Logging", "MLJBase", "MLJModelInterface", "ProgressMeter", "Random", "Reexport", "Revise", "SoleBase", "SoleData", "SoleLogics", "StatsBase", "Suppressor", "Tables", "ThreadSafeDicts", "ZipFile"]
-git-tree-sha1 = "7ed5007f92eca81f039574bc0344f38cfa32912c"
+deps = ["AbstractTrees", "BenchmarkTools", "CSV", "CategoricalArrays", "DataFrames", "DataStructures", "FillArrays", "FunctionWrappers", "Graphs", "HTTP", "Lazy", "LinearAlgebra", "Logging", "MLJModelInterface", "ProgressMeter", "Random", "Reexport", "Revise", "SoleBase", "SoleData", "SoleLogics", "StatsBase", "Suppressor", "Tables", "ThreadSafeDicts", "ZipFile"]
+path = "/home/gio/.julia/dev/SoleModels"
 uuid = "4249d9c7-3290-4ddd-961c-e1d3ec2467f8"
 version = "0.6.0"
 
