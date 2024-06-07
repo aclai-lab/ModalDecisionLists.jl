@@ -287,7 +287,7 @@ end
 ############################################################################################
 
 function find_singlerule(
-    candidates::AbstractVector{<:Tuple{Formula, SatMask}},
+    candidates::AbstractVector{<:Tuple{Formula,SatMask}},
     X::AbstractLogiset,
     y::AbstractVector{<:Integer},
     w::AbstractVector,
@@ -297,7 +297,6 @@ function find_singlerule(
     n_labels,
     # optional positional
     discretizedomain::Bool=false,
-    truerfirst::Bool=false,
     max_rule_length::Union{Nothing,Integer}=nothing,
     alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     max_info_gain::Union{Nothing,Real}=nothing
