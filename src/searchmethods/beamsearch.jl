@@ -25,7 +25,7 @@ efficient exploration of the solution space without examining all possibilities.
 * `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
 * `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
 * `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
-* `max_info_gain::Real=1.0`: constrains the maximum information gain for anantecedent
+* `max_infogain_ratio::Real=1.0`: constrains the maximum information gain for anantecedent
 with respect to the uncovered training set. Its value is bounded between 0 and 1.
 
 See also
@@ -41,7 +41,7 @@ See also
     # loss_function::Function=entropy
     # discretizedomain::Bool=false
     # default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
-    # max_info_gain::Real=1.0
+    # max_infogain_ratio::Real=1.0
     # significance_alpha::Union{Real,Nothing}=0.0
 end
 
@@ -300,7 +300,7 @@ function find_singlerule(
     truerfirst::Bool=false,
     max_rule_length::Union{Nothing,Integer}=nothing,
     alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-    max_info_gain::Union{Nothing,Real}=nothing
+    max_infogain_ratio::Union{Nothing,Real}=nothing
 )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
 
     while true
@@ -317,7 +317,7 @@ function find_singlerule(
                         )]
         (perm, bestcandidate_loss) = sortantecedents(newcandidates,
                             y, w,
-                            beam_width, laplace_accuracy, max_info_gain;
+                            beam_width, laplace_accuracy, max_infogain_ratio;
                             target_class=target_class,
                             nlabels=nlabels
                         )
@@ -347,7 +347,7 @@ function find_rules(
 )::Vector{Rule}
 
     @unpack beam_width, loss_function, max_rule_length,
-        discretizedomain, alphabet, max_info_gain = bs
+        discretizedomain, alphabet, max_infogain_ratio = bs
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *

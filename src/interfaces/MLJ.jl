@@ -6,11 +6,12 @@ export OrderedCN2Learner
 
 # using ModalDecisionTrees.MLJInterface: wrapdataset
 using ModalDecisionLists
-using ModalDecisionLists.LossFunctions: laplace_accuracy
-import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
-import ModalDecisionLists: sequentialcovering
+using ModalDecisionLists.LossFunctions: laplace_accuracy, entropy
 
-import SoleData: PropositionalLogiset
+# import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
+# import ModalDecisionLists: sequentialcovering
+
+using SoleData
 import SoleBase: CLabel
 import SoleModels: apply
 
@@ -74,8 +75,13 @@ See also
 """
 mutable struct ExtendedSequentialCovering <: CoveringStrategy
     searchmethod::SearchMethod
-    max_rulebase_length::Union{Nothing,Integer}
+    # shared parameters
+    loss_function::Function
+    discretizedomain::Bool
+    max_infogain_ratio::Real
+    significance_alpha::Union{Real,Nothing}
     min_rule_coverage::Union{Nothing,Integer}
+    max_rulebase_length::Union{Nothing,Integer}
     suppress_parity_warning::Bool
 end
 
@@ -93,16 +99,20 @@ end
 function ExtendedSequentialCovering(;
     searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-    min_rule_coverage::Integer = 1,
+    # shared parameters
+    loss_function::Function=entropy,
+    discretizedomain::Bool=false,
+    max_infogain_ratio::Real=1.0,
+    significance_alpha::Union{Real,Nothing}=0.0,
+    min_rule_coverage::Integer=1,
+
     suppress_parity_warning::Bool=false,
     kwargs...
 )
     searchmethod = reconstruct(searchmethod,  kwargs)
-    model =  ExtendedSequentialCovering(
-        searchmethod,
-        max_rulebase_length,
-        min_rule_coverage,
-        suppress_parity_warning
+    model =  ExtendedSequentialCovering(searchmethod,
+        loss_function, discretizedomain, max_infogain_ratio, significance_alpha, min_rule_coverage,
+        max_rulebase_length, suppress_parity_warning
     )
     message = MMI.clean!(model)
     isempty(message) || @warn message
@@ -124,7 +134,7 @@ mutable struct OrderedCN2Learner <: CoveringStrategy
     beam_width::Integer
     loss_function::Function
     discretizedomain::Bool
-    max_info_gain::Union{Real,Nothing}
+    max_infogain_ratio::Union{Real,Nothing}
     significance_alpha::Union{Real,Nothing}
     # SequentialCovering
     min_rule_coverage::Integer
@@ -147,7 +157,7 @@ function OrderedCN2Learner(;
     beam_width::Integer = 3,
     loss_function::Function = ModalDecisionLists.LossFunctions.entropy,
     discretizedomain::Bool = false,
-    max_info_gain::Union{Real,Nothing} = nothing,
+    max_infogain_ratio::Union{Real,Nothing} = nothing,
     significance_alpha::Union{Real,Nothing} = nothing,
     # SequentialCovering
     min_rule_coverage::Integer = 1,
@@ -156,7 +166,7 @@ function OrderedCN2Learner(;
 )
     model = OrderedCN2Learner(beam_width,
         loss_function, discretizedomain,
-        max_info_gain, significance_alpha,
+        max_infogain_ratio, significance_alpha,
         min_rule_coverage, max_rule_length, max_rulebase_length,
     )
     message = MMI.clean!(model)
@@ -177,25 +187,29 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
     model = begin
         if m isa ExtendedSequentialCovering
             sequentialcovering(X_pl, y_cl;
-                        searchmethod = m.searchmethod,
-                        max_rulebase_length = m.max_rulebase_length,
-                        min_rule_coverage = m.min_rule_coverage,
-                        suppress_parity_warning = m.suppress_parity_warning
+                        searchmethod              = m.searchmethod,
+                        loss_function             = m.loss_function,
+                        discretizedomain          = m.discretizedomain,
+                        max_infogain_ratio             = m.max_infogain_ratio,
+                        significance_alpha        = m.significance_alpha,
+                        min_rule_coverage         = m.min_rule_coverage,
+                        max_rulebase_length       = m.max_rulebase_length,
+                        suppress_parity_warning   = m.suppress_parity_warning
         )
         elseif m isa OrderedCN2Learner
-            searchmethod = BeamSearch( conjuncts_search_method = AtomSearch(),
-                beam_width          = m.beam_width,
-                loss_function       = m.loss_function,
-                discretizedomain    = m.discretizedomain,
-                max_info_gain    = m.max_info_gain,
-                significance_alpha  = m.significance_alpha,
-            )
-            sequentialcovering(X_pl, y_cl;
-                        searchmethod,
-                        m.min_rule_coverage,
-                        m.max_rule_length,
-                        m.max_rulebase_length
-            )
+            # searchmethod = BeamSearch( conjuncts_search_method = AtomSearch(),
+            #     beam_width          = m.beam_width,
+            #     loss_function       = m.loss_function,
+            #     discretizedomain    = m.discretizedomain,
+            #     max_infogain_ratio    = m.max_infogain_ratio,
+            #     significance_alpha  = m.significance_alpha,
+            # )
+            # sequentialcovering(X_pl, y_cl;
+            #             searchmethod,
+            #             m.min_rule_coverage,
+            #             m.max_rule_length,
+            #             m.max_rulebase_length
+            # )
         else
             error("unexpected model type $(typeof(model))")
         end

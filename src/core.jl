@@ -134,7 +134,7 @@ function sortantecedents(
     beam_width::Integer,
     loss_function::Function,
     min_rule_coverage::Integer,
-    max_info_gain::Union{Real, Nothing},
+    max_infogain_ratio::Union{Real, Nothing},
     significance_alpha::Union{Real, Nothing};
     kwargs...
 )::Tuple{AbstractVector, <:Real}
@@ -153,10 +153,10 @@ function sortantecedents(
             _, satinds = antd
             loss_function(y[satinds], w[satinds]; kwargs...)
         end, antecedents)
-    if !isnothing(max_info_gain)
-        @assert (0 <= max_info_gain <= 1) "max_info_gain not in range [0,1]"
+    if !isnothing(max_infogain_ratio)
+        @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio not in range [0,1]"
 
-        minloss = (1 - max_info_gain) * loss_function(y, w; kwargs...)
+        minloss = (1 - max_infogain_ratio) * loss_function(y, w; kwargs...)
 
         indexes = map(aq -> begin
                     (index, lossfnctn) = aq
