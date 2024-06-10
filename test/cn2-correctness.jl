@@ -1,7 +1,7 @@
 using Test
 using SoleBase: CLabel
 using DataFrames
-using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list
+using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
 using SoleData
 using MLJ
 using StatsBase
@@ -101,7 +101,7 @@ orange_decisionlist = """
 [0, 1, 0]  IF sepal length<=5.9 THEN iris=Iris-versicolor -0.0
 [50, 50, 50]  IF TRUE THEN iris=Iris-virginica -1.584962500721156
 """
-imported_decisionlist = SoleModels.orange_decision_list(orange_decisionlist, true)
+imported_decisionlist = SoleModels.parse_orange_decision_list(orange_decisionlist, true)
 
 @test length(listrules(sole_decisionlist)) == length(listrules(base_decisionlist))
 @test length(listrules(sole_decisionlist)) == length(listrules(imported_decisionlist))

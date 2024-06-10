@@ -24,8 +24,6 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 julia = "1"
-Sole = "0.5"
-SoleBase = "0.12"
 SoleData = "0.14"
 SoleLogics = "0.9"
 SoleModels = "0.7"
