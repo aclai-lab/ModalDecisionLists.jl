@@ -29,45 +29,43 @@ the higher the cardinality, the higher the probability of finding a good anteced
 * `discretizedomain::Bool=false`: if true discretizes continuous variables by identifying optimal cut points
 * `rng::AbstractRNG=Random.GLOBAL_RNG`
 * `alpha::Real=1.0` Actually not implemented
-* `max_info_gain::Real=1.0`: maximum information gain for an antecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
+* `max_infogain_ratio::Real=1.0`: maximum information gain for an antecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
 * `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing`: if set, forces the use of a specific alphabet for generating every antecedents. Otherwise
 the alphabet is dinamically generated on uncovered instances
 * `atompicking_mode::Symbol=:uniform`: allows to bias the probability distribution of MetaConditions in the generation of formulas ...continue"
 * `subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing}=nothing`:
 """
 
-
-
 @with_kw mutable struct RandSearch <: SearchMethod
     cardinality::Integer=10
-    loss_function::Function=ModalDecisionLists.LossFunctions.entropy
+    # loss_function::Function=ModalDecisionLists.LossFunctions.entropy
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
-    discretizedomain::Bool=false
-    rng::AbstractRNG = Random.GLOBAL_RNG
-    alpha::Real=1.0 # Unused
-    max_info_gain::Real=1.0
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
-    # randatom parameters
+    # discretizedomain::Bool=false
+    rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
+    # significance_alpha::Real=1.0 # Unused
+    # max_infogain_ratio::Real=1.0
+    # default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
     atompicking_mode::Symbol=:uniform
     subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
 end
 
 function unaryconditions(
     rs::RandSearch,
-    a::AbstractAlphabet,
+    a::UnionAlphabet,
     X::AbstractLogiset
 )::Vector{Tuple{Formula,SatMask}}
 
     @unpack cardinality, operators, syntaxheight, rng,
         atompicking_mode, subalphabets_weights = rs
+
     conditions = begin
-        if all(isempty, thresholds.(alphabets(a)))
+        if natoms(a) == 0
             []
         else
             [ begin
                 formula = randformula(rng, syntaxheight, a, operators;
-                            atompicker = ( (rng, a) -> randatom(rng, a;
+                            atompicker = ( (rng, a) -> SoleLogics.randatom(rng, a;
                                                 atompicking_mode = atompicking_mode,
                                                 subalphabets_weights = subalphabets_weights
                                 ))
@@ -75,6 +73,7 @@ function unaryconditions(
                 satmask = check(formula, X)
                 if any(satmask)
                     (formula, satmask)
+                else nothing
                 end
             end for _ in 1:cardinality] |> filter(rf -> rf != nothing)
         end
@@ -111,7 +110,6 @@ function newconditions(
             )
         end
     end
-
     # Where new unary conditions are randomly generated (and checked on X) formulas.
     return unaryconditions(rs, selectedalphabet, X)
 
@@ -120,7 +118,7 @@ end
 function extract_optimalantecedent(
     formulas::AbstractVector,
     loss_function,
-    max_purity,
+    minloss,
     y::AbstractVector{<:CLabel},
     w::AbstractVector;
     min_rule_coverage::Integer=1,
@@ -132,12 +130,14 @@ function extract_optimalantecedent(
 
         if !isempty(formulas)
             losses = map(((rfa, satmask),) -> begin
-                relative_loss = loss_function(y[satmask], w[satmask]; kwargs...) - max_purity
+
+                lossfnctn = loss_function(y[satmask], w[satmask]; kwargs...)
                     # TODO @edo review check on min_rule_coverage and min_purity
-                    if (relative_loss >= 0) & (count(satmask) > min_rule_coverage)
-                        relative_loss
+                    if (lossfnctn >= minloss) && (count(satmask) > min_rule_coverage)
+                        lossfnctn
                     else Inf
                     end
+
             end, formulas)
             bestindex = argmin(losses)
 
@@ -167,23 +167,29 @@ function findbestantecedent(
     rs::RandSearch,
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
-    w::AbstractVector;
-    min_rule_coverage::Integer,
+    w::AbstractVector,
+    loss_function::Function,
+    max_infogain_ratio::Real,
+    default_alphabet::Union{Nothing,AbstractAlphabet},
+    discretizedomain::Bool,
+    significance_alpha::Real,
+    min_rule_coverage::Integer;
+    #
     kwargs...
 )::Tuple{Formula,SatMask}
 
-    @unpack cardinality, loss_function, discretizedomain, default_alphabet,
-            operators, syntaxheight, rng, alpha, max_info_gain = rs
+    @unpack cardinality, operators, syntaxheight, rng = rs
+
     @assert cardinality > 0 "parameter `cardinality` must be greater than zero," * "
                             $(cardinality) is not an acceptable value."
     @assert syntaxheight >= 0 "parameter `syntaxheight` must be greater than zero," * "
                             $(syntaxheight) is not an acceptable value."
     @assert all(o->o isa NamedConnective, operators) "all elements in `operators`" *
                             " must  beNamedConnective"
-    max_purity = 0.0
-    if !isnothing(max_info_gain)
-        @assert (max_info_gain >= 0) & (max_info_gain <= 1) "maxpurity_gamma not in range [0,1]"
-        max_purity = loss_function(y, w; kwargs...) * max_info_gain
+    minloss = Inf
+    if !isnothing(max_infogain_ratio)
+        @assert (max_infogain_ratio >= 0) && (max_infogain_ratio <= 1) "maxpurity_gamma not in range [0,1]"
+        minloss = (1-max_infogain_ratio)*loss_function(y, w; kwargs...)
     end
     # isempty(operators) && syntaxheight = 0
     @assert !isempty(operators) "No `operator` for formula construction was provided."
@@ -192,16 +198,24 @@ function findbestantecedent(
             # select the alphabet parametrization
             selectedalphabet = begin
                 if isnothing(default_alphabet)
-                    alphabet(X;
+                    alph = alphabet(X;
                         discretizedomain = discretizedomain,
                         y = y
                     )
-                else default_alphabet
+                    # If discretizedomain == one it is possible for alph to be empty
+                    if discretizedomain && (natoms(alph) == 0)
+                        alphabet(X)
+                    else alph
+                    end
+                else
+                    default_alphabet
                 end
             end
             randformulas = unaryconditions(rs, selectedalphabet, X)
             bestantecedent = extract_optimalantecedent(randformulas,
-                            loss_function, max_purity, y, w;
+                            loss_function,
+                            minloss,
+                            y, w;
                             min_rule_coverage, kwargs...)
         else
             (TOP, ones(Bool, length(y)))
@@ -209,3 +223,8 @@ function findbestantecedent(
     end
     return bestantecedent
 end
+
+# discretizeDomain natoms > 0
+#
+#
+#

@@ -50,14 +50,14 @@ function sequentialcovering_unordered(
 
     y, labels = y |> maptointeger
 
-    n_labels = labels |> length
+    nlabels = labels |> length
 
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
 
     rulebase = Rule[]
-    for target_class in 1:n_labels
+    for target_class in 1:nlabels
 
         newrules = find_rules(
             searchmethod,
@@ -65,7 +65,7 @@ function sequentialcovering_unordered(
             uncoveredy,
             uncoveredw;
             target_class,
-            n_labels
+            nlabels
         )
         if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
             break
@@ -167,6 +167,13 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
+    # before SerachMethod parameters #####
+    loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
+    max_infogain_ratio::Real=1.0,
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    discretizedomain::Bool=false,
+    significance_alpha::Union{Real,Nothing}=0.0,
+    ######
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     max_rule_length::Union{Nothing,Integer}=nothing,
     min_rule_coverage::Integer=1,
@@ -177,6 +184,10 @@ function sequentialcovering(
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+    @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
+
+    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
+                                                "than one. Please provide a valid value."
 
     w = if isnothing(w) || w == :default
         default_weights(y)
@@ -194,7 +205,7 @@ function sequentialcovering(
 
     y, labels = y |> maptointeger
 
-    n_labels = labels |> length
+    nlabels = labels |> length
 
     uncoveredX = X
     uncoveredy = y
@@ -202,14 +213,19 @@ function sequentialcovering(
 
     rulebase = Rule[]
     while true
-        bestantecedent, bestantecedent_coverage = findbestantecedent(
-            searchmethod,
-            uncoveredX,
-            uncoveredy,
-            uncoveredw;
-            min_rule_coverage = min_rule_coverage,
-            max_rule_length = max_rule_length,
-            n_labels = n_labels
+
+        bestantecedent, bestantecedent_coverage = findbestantecedent(searchmethod,
+            uncoveredX, uncoveredy, uncoveredw,
+            #
+            loss_function,
+            max_infogain_ratio,
+            default_alphabet,
+            discretizedomain,
+            significance_alpha,
+            min_rule_coverage;
+
+            max_rule_length   = max_rule_length,
+            nlabels           = nlabels
         )
         bestantecedent == ⊤ && break
 

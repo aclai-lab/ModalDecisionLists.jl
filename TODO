@@ -85,4 +85,15 @@ Main:
             ☐ keep edo ? 
             ✔ edo-memo @done(24-06-01 15:05)
             ✔ edo-dec-set @done(24-06-01 15:05)
-Archive:
+    
+
+    Post Experiments Patches:
+        ☐ Unify names for maxinfogain
+        ☐ In RandSearch default alpha and max_infogain_ratio to Nothing (after tuning phase)
+
+        ☐ Caso strano, con cardinalità 100 non riesce a dividere 5 istanze 
+            # dl = sequentialcovering(X,y, searchmethod=RandSearch(;
+            #     rng=MersenneTwister(1),
+            #     cardinality=100
+            #     )
+            # )

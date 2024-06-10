@@ -1,6 +1,7 @@
 using SoleLogics: AbstractAlphabet, pushconjunct!
 using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
+using SoleLogics: subalphabets
 using Parameters
 using ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
 
@@ -33,14 +34,15 @@ See also
 [`RandSearch`](@ref),
 [`specializeantecedents`](@ref).
 """
+
 @with_kw mutable struct BeamSearch <: SearchMethod
     conjuncts_search_method::SearchMethod=AtomSearch()
     beam_width::Integer=3
-    loss_function::Function=entropy
-    discretizedomain::Bool=false
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
-    max_info_gain::Real=1.0
-    significance_alpha::Union{Real,Nothing}=0.0
+    # loss_function::Function=entropy
+    # discretizedomain::Bool=false
+    # default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    # max_info_gain::Real=1.0
+    # significance_alpha::Union{Real,Nothing}=0.0
 end
 
 
@@ -70,7 +72,6 @@ function filteralphabet(
             if ((ant_mask .& atom_mask) != ant_mask) & (a ∉ antecedent_atoms)]
 end
 
-
 """
 Return the list of all possible antecedents containing a single condition from the alphabet.
 """
@@ -80,7 +81,7 @@ function unaryconditions(
     X::AbstractLogiset
 )::Vector{Tuple{Atom,SatMask}}
     conditions = Tuple{Atom{ScalarCondition},SatMask}[]
-    for univalph in alphabets(a)
+    for univalph in subalphabets(a)
         newconds = [(a, check(a, X)) for a in atoms(univalph)]
         append!(conditions, newconds)
     end
@@ -123,7 +124,7 @@ function newconditions(
         metacond.(scalarconditions)
     end
     # Exlude metaconditons tha are already in `antecedent`
-    selectedalphabet = UnionAlphabet([ a for a in alphabets(selectedalphabet)
+    selectedalphabet = UnionAlphabet([ a for a in subalphabets(selectedalphabet)
             if metacond(a) ∉ metaconditions
         ])
     return filteralphabet(X, selectedalphabet, antecedent)
@@ -228,26 +229,25 @@ function findbestantecedent(
     bs::BeamSearch,
     X::AbstractLogiset,
     y::AbstractVector{<:Integer},
-    w::AbstractVector;
-    min_rule_coverage::Integer,
-    n_labels::Integer,
+    w::AbstractVector,
+    loss_function::Function,
+    max_infogain_ratio::Real,
+    default_alphabet::Union{Nothing,AbstractAlphabet},
+    discretizedomain::Bool,
+    significance_alpha::Real,
+    min_rule_coverage::Integer;
+
+    nlabels::Integer,
     max_rule_length::Union{Integer,Nothing},
 )::Tuple{Union{Truth,Formula},SatMask}
 
-    @unpack conjuncts_search_method, beam_width, loss_function,
-            discretizedomain, alphabet, max_info_gain, significance_alpha = bs
-
-    maxpurity_gamma = max_info_gain
-    if !isnothing(maxpurity_gamma)
-        @assert (maxpurity_gamma >= 0) & (maxpurity_gamma <= 1) "maxpurity_gamma must be in range [0,1], but $(maxpurity_gamma) encountered."
-    end
+    @unpack conjuncts_search_method, beam_width = bs
 
     best = (⊤, ones(Bool, nrow(X)))
-    best_lossfnctn = loss_function(y, w; n_labels = n_labels)
+    best_lossfnctn = loss_function(y, w; nlabels=nlabels)
 
     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
-    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
-                                                               "than one. Please provide a valid value."
+
     newcandidates = Tuple{Formula,SatMask}[]
     while true
         # Generate new specialized candidates
@@ -257,18 +257,18 @@ function findbestantecedent(
                                             candidates, X, y,
                                             max_rule_length,
                                             discretizedomain,
-                                            alphabet)
+                                            default_alphabet)
 
         # Sort new candidates
-        (newcandidates, bestcandidate_lossfnctn) = sortantecedents(newcandidates,
-                                            y, w,
-                                            beam_width,
-                                            loss_function,
-                                            min_rule_coverage,
-                                            max_info_gain,
-                                            significance_alpha;
-                                            n_labels=n_labels)
-
+        (newcandidates,
+            bestcandidate_lossfnctn) = sortantecedents(newcandidates,
+                                                    y, w, beam_width,
+                                                    loss_function,
+                                                    min_rule_coverage,
+                                                    max_infogain_ratio,
+                                                    significance_alpha;
+                                                        #
+                                                    nlabels=nlabels)
         isempty(newcandidates) && break
 
         new_bestcandidate, new_bestcandidate_satmask = newcandidates[begin]
@@ -294,7 +294,7 @@ function find_singlerule(
     beam_width::Integer,
     # laplace
     target_class,
-    n_labels,
+    nlabels,
     # optional positional
     discretizedomain::Bool=false,
     truerfirst::Bool=false,
@@ -319,7 +319,7 @@ function find_singlerule(
                             y, w,
                             beam_width, laplace_accuracy, max_info_gain;
                             target_class=target_class,
-                            n_labels=n_labels
+                            nlabels=nlabels
                         )
 
         isempty(perm) && break
@@ -343,7 +343,7 @@ function find_rules(
     y::AbstractVector{<:Integer},
     w::AbstractVector;
     target_class::Integer,
-    n_labels::Integer
+    nlabels::Integer
 )::Vector{Rule}
 
     @unpack beam_width, loss_function, max_rule_length,
@@ -356,7 +356,7 @@ function find_rules(
     yuncovered = y
     wuncovered = w
 
-    initial_classdistribution = counts(y, n_labels)
+    initial_classdistribution = counts(y, nlabels)
     newcandidates = Tuple{Formula,SatMask}[]
 
     bestrules = []
@@ -364,7 +364,7 @@ function find_rules(
         bestantecedent = find_singlerule(
                 Xuncovered, yuncovered, wuncovered, beam_width,
                 # laplace
-                target_class, n_labels,
+                target_class, nlabels,
                 # general parameters
                 discretizedomain, max_rule_length, alphabet
         )

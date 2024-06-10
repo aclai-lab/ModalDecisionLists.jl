@@ -157,6 +157,7 @@ function sortantecedents(
         @assert (0 <= max_info_gain <= 1) "max_info_gain not in range [0,1]"
 
         minloss = (1 - max_info_gain) * loss_function(y, w; kwargs...)
+
         indexes = map(aq -> begin
                     (index, lossfnctn) = aq
                     (lossfnctn >= minloss) && index

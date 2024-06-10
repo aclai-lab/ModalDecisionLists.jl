@@ -14,11 +14,11 @@ using Distributions
 function laplace_accuracy(
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
-    n_labels::Integer,
+    nlabels::Integer,
     target_class::Union{Integer,Nothing} = nothing,
     kwargs...
 )
-    dist = counts(y, n_labels)
+    dist = counts(y, nlabels)
 
     k, target = begin
         if !isnothing(target_class)
@@ -55,11 +55,11 @@ function significance_test(
     yprev::AbstractVector{<:Integer},
     alpha::Real;
     target_class::Union{Integer,Nothing} = nothing,
-    n_labels::Integer,
+    nlabels::Integer,
     kwargs...
 )
-    currdist = counts(ycurr, n_labels)
-    prevdist = counts(yprev, n_labels)
+    currdist = counts(ycurr, nlabels)
+    prevdist = counts(yprev, nlabels)
     if !isnothing(target_class)
         x = Vector{Real}([currdist[tc], sum(currdist) - currdist[tc]])
         y = Vector{Real}([prevdist[tc], sum(prevdist) - prevdist[tc]])
