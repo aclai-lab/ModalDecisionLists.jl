@@ -77,7 +77,7 @@ Return the list of all possible antecedents containing a single condition from t
 """
 function unaryconditions(
     ::AtomSearch,
-    a::AbstractAlphabet,
+    a::UnionAlphabet,
     X::AbstractLogiset
 )::Vector{Tuple{Atom,SatMask}}
     conditions = Tuple{Atom{ScalarCondition},SatMask}[]
@@ -287,7 +287,7 @@ end
 ############################################################################################
 
 function find_singlerule(
-    candidates::AbstractVector{<:Tuple{Formula, SatMask}},
+    candidates::AbstractVector{<:Tuple{Formula,SatMask}},
     X::AbstractLogiset,
     y::AbstractVector{<:Integer},
     w::AbstractVector,
@@ -297,7 +297,6 @@ function find_singlerule(
     nlabels,
     # optional positional
     discretizedomain::Bool=false,
-    truerfirst::Bool=false,
     max_rule_length::Union{Nothing,Integer}=nothing,
     alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     max_infogain_ratio::Union{Nothing,Real}=nothing

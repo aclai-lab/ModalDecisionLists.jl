@@ -1,6 +1,6 @@
 using SoleData
 using ModalDecisionLists
-using SoleModels: ClassificationRule, apply, DecisionList, bestguess, orange_decision_list
+using SoleModels: ClassificationRule, apply, DecisionList, bestguess, parse_orange_decision_list
 using ModalDecisionLists: preprocess_inputdata
 using ModalDecisionLists.LossFunctions: laplace_accuracy
 using CategoricalArrays: CategoricalValue, CategoricalArray
@@ -808,7 +808,7 @@ abalone1000_dl_orange = """
     [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]  IF Length>=0.645 THEN Rings=18 -0.0
     [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  IF Sex==F THEN Rings=6 -0.0
     [1, 1, 7, 18, 31, 60, 97, 84, 109, 117, 91, 79, 71, 49, 52, 29, 28, 18, 17, 16, 9, 6, 5, 1, 1]  IF TRUE THEN Rings=10 -3.984037499126841
-""" |> orange_decision_list
+""" |> parse_orange_decision_list
 
 abalone1000_no_categorical_dl_orange = """
     [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  IF Viscera_weight<=0.0105 AND Shell_weight>=0.0155 AND Diameter>=0.175 THEN Rings=5 -0.0
@@ -1523,7 +1523,7 @@ abalone1000_no_categorical_dl_orange = """
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  IF Length<=0.075 THEN Rings=1 -0.0
     [1, 1, 7, 18, 31, 60, 97, 84, 109, 117, 91, 79, 71, 49, 52, 29, 28, 18, 17, 16, 9, 6, 5, 1, 1]  IF TRUE THEN Rings=10 -3.984037499126841
 
-""" |> orange_decision_list
+""" |> parse_orange_decision_list
 
 bs = BeamSearch( beam_width = 5, discretizedomain=true)
 println(bs)

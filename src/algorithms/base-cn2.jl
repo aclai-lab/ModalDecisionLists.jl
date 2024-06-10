@@ -10,7 +10,7 @@ using StatsBase: countmap
 import SoleLogics: LogicalInstance, Formula, LeftmostLinearForm
 import SoleModels: Rule, AbstractModel, ConstantModel
 import SoleBase: CLabel
-import SoleData: UnivariateSymbolValue
+import SoleData: VariableValue
 import SoleData: features
 
 struct Selector
@@ -28,7 +28,7 @@ end
 
 
     function selector2soleatom(sel::Selector)::Atom{ScalarCondition}
-        feature = UnivariateSymbolValue(varname(sel))
+        feature = VariableValue(varname(sel))
         tresh = treshold(sel)
         test_op = test_operator(sel)
         return Atom(ScalarCondition(feature, test_op, tresh))

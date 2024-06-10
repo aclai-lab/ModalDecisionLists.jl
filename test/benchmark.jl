@@ -2,7 +2,7 @@ using Test
 using Printf
 using SoleBase: CLabel
 using DataFrames
-using SoleModels: ClassificationRule, apply, DecisionList, orange_decision_list
+using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
 using SoleData
 using MLJ
 using StatsBase
