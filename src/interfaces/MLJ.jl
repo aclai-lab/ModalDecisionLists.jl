@@ -6,7 +6,7 @@ export OrderedCN2Learner
 
 # using ModalDecisionTrees.MLJInterface: wrapdataset
 using ModalDecisionLists
-using ModalDecisionLists.LossFunctions: laplace_accuracy, entropy
+using ModalDecisionLists: LossFunctions
 
 # import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
 # import ModalDecisionLists: sequentialcovering
@@ -100,7 +100,7 @@ function ExtendedSequentialCovering(;
     searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     # shared parameters
-    loss_function::Function=entropy,
+    loss_function::Function=LossFunctions.entropy,
     discretizedomain::Bool=false,
     max_infogain_ratio::Real=1.0,
     significance_alpha::Union{Real,Nothing}=0.0,

@@ -127,7 +127,6 @@ function extract_optimalantecedent(
 
     bestant_satmask = ones(Bool, length(y))
     bestformula = begin
-
         if !isempty(formulas)
             losses = map(((rfa, satmask),) -> begin
 
@@ -140,15 +139,18 @@ function extract_optimalantecedent(
 
             end, formulas)
             bestindex = argmin(losses)
-
             (bestant_formula, bestant_satmask) = formulas[bestindex]
-        end
-        if all(bestant_satmask) | (losses[bestindex] > loss_function(y, w; kwargs...))
+            if all(bestant_satmask) | (losses[bestindex] > loss_function(y, w; kwargs...))
+                bestant_formula = TOP
+                bestant_satmask = ones(length(y))
+            end
+        else
             bestant_formula = TOP
             bestant_satmask = ones(length(y))
         end
         (bestant_formula, bestant_satmask)
     end # bestantformula
+
     return bestformula
 end
 
