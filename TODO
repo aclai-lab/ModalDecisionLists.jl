@@ -21,7 +21,7 @@ Main:
                 # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
                 # formulas(g; maxdepth = 2)
                 # formulas(g; maxdepth = 100, nformulas = 100)
-        ☐ Define DecisionSet and relative apply method
+        ☐ Define DecisionSet and corresponding apply method
 
     
     Utility:
@@ -45,12 +45,6 @@ Main:
             
     Future: 
         ✔ Differenziare caso attributi discreti/categoriali
-        ✔ Aggiungere campo supporting_labels (vettore) @done(24-04-13 04:06)
-        # Vettore delle labels delle istanze su cui la regola è costruita (ovvero, quelle che non sono coperte dalle regole precedenti), e nel 
-        # info del constant model ci metti un campo supp_labels con le labels delle istanze che, tra queste, sono coperte dalla regola. 
-        ☐ Aggiungere campo predicted_labels (forse)
-        # labels predette dal modello, ma in principio le support_labels sono sufficienti 
-        # per calcolare diverse metriche 
     
 
     MLJ-Interface:
@@ -91,9 +85,5 @@ Main:
         ☐ Unify names for maxinfogain
         ☐ In RandSearch default alpha and max_infogain_ratio to Nothing (after tuning phase)
 
-        ☐ Caso strano, con cardinalità 100 non riesce a dividere 5 istanze 
-            # dl = sequentialcovering(X,y, searchmethod=RandSearch(;
-            #     rng=MersenneTwister(1),
-            #     cardinality=100
-            #     )
-            # )
+
+        
