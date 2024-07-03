@@ -20,6 +20,7 @@ include("core.jl")
 export sequentialcovering
 
 include("algorithms/sequentialcovering.jl")
+# include("algorithms/sequentialcovering-unordered.jl")
 
 
 module BaseCN2
