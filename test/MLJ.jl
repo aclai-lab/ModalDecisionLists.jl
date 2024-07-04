@@ -1,3 +1,5 @@
+using Test
+
 # Import packages
 using MLJ
 using ModalDecisionLists

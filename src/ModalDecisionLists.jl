@@ -7,7 +7,6 @@ export BeamSearch, RandSearch, AtomSearch, SearchMethod
 using Reexport
 @reexport using SoleBase
 @reexport using SoleLogics
-@reexport using MultiData
 @reexport using SoleData
 @reexport using SoleModels
 

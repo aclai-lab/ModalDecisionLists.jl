@@ -1,3 +1,4 @@
+using DataFrames
 using SoleBase: CLabel
 using SoleData: AbstractLogiset, PropositionalLogiset
 using SoleModels: bestguess
