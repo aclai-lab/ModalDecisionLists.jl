@@ -32,7 +32,7 @@ dlist = @test_nowarn fitted_params(mach).fitresult.model
 # Make instances flow into the model
 test_dlist = deepcopy(dlist)
 @test_nowarn apply!(test_dlist, slicedataset(PropositionalLogiset(X), test_idxs), y[test_idxs])
-printmodel(test_dlist; show_metrics = true, show_subtree_metrics=true)
+@test_nowarn printmodel(test_dlist; show_metrics = true, show_subtree_metrics=true)
 
 @test_nowarn apply!(test_dlist, slicedataset(PropositionalLogiset(X), test_idxs), y[test_idxs]; mode=:append, show_progress=true)
 
@@ -44,7 +44,7 @@ readmetrics.(listrules(test_dlist))
 
 printmodel.(listrules(test_dlist, normalize = true); show_metrics = (; round_digits = nothing));
 
-@test listrules(test_dlist; min_lift = 1.0, min_coverage = 0.05, normalize = true)
+@test_nowarn listrules(test_dlist; min_lift = 1.0, min_coverage = 0.05, normalize = true)
 
 @test_nowarn listrules(test_dlist; min_lift = 1.0, min_coverage = 0.05)
 
