@@ -1,0 +1,89 @@
+Main:
+
+    Generic:
+        ☐ Delete unnecessary CN2 implementation
+            ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)
+                ✔ build_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
+                ✔ build_base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
+
+        ☐ new section in docu
+        ✔ MLJ interface for cn2 @done(24-04-29 18:23)
+        ☐ Metrics  
+            ✔ Entropy @done(24-04-29 18:23)
+            ✔ Laplace @done(24-04-29 18:23)
+            ✔ entropyMDL @done(24-04-29 18:23)
+            ☐ Rule validation
+            ☐ LRS
+            ☐ Weighted relative accuracy
+        ☐ SyntaxSearch
+            # Formule di una certa grammatica e di un certo alfabeto si generan così
+                # a = ExplicitAlphabet(@atoms p q r s)
+                # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
+                # formulas(g; maxdepth = 2)
+                # formulas(g; maxdepth = 100, nformulas = 100)
+        ☐ Define DecisionSet and corresponding apply method
+
+    
+    Utility:
+        ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
+            ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-04-13 04:08)
+            # già scritta soluzione temporanea
+        ✔ add alphabet parameter @done(24-04-03 11:06)
+        ✔ check empty row table in ProposiionlLogiset costruction @done(24-04-03 17:35)
+        ✔ map from integer to original class names @done(24-04-10 16:31)
+        ☐ semplificazione LmCF o LmDF 
+            # scalarminimizer
+        ✔ BoundedScalarCond -> UnivariateScalarCondion @done(24-04-10 16:31)    
+    Testing:
+        ✔ 100% accuracy when testing on training data ? @done(24-03-01 03:02)
+            ☐ Only real attributes
+                ☐ Biopsy
+                ☐ Ionosphere
+                ☐ Mobile
+                ☐ Yeast
+                ☐ Abalone
+            
+    Future: 
+        ✔ Differenziare caso attributi discreti/categoriali
+    
+
+    MLJ-Interface:
+        ✔ Constructor with keyword arguments @done(24-04-12 13:32)
+        ✔ fit @done(24-06-01 13:59)
+            # parlare con gio di CategoricalArrays
+        ✔ predict @done(24-06-01 13:59)
+        ✔ clean! @done(24-06-01 13:59)
+            # https://juliaai.github.io/MLJModelInterface.jl/dev/quick_start_guide/
+        ✔ MMI.metadata_pkg.MMI.metadata_pkg @done(24-06-01 13:59)
+
+
+
+    Last:
+
+        ☐ In RandSearch, when calling randformula, should you give it the right atompicking_mode and subalphabets_weights; right?
+            ✔ :uniform working ? @done(24-06-01 18:59)
+            ✔ :twostep working ? @done(24-06-01 18:59)
+            ☐ subalphabets_weights working ? 
+            # atompicker = ((rng,alph)->randatom(rng,alph; atompicking_mode = ..., subalphabets_weights = ...))
+            ☐ was :uniform or :weighted working better...? 
+            ✔ And which one are we using now? @done(24-06-02 11:56)
+                ☐ Uniform
+
+        ✔ only one expression between "evaluation function" and "quality evaluator" and "loss_function" @done(24-06-01 15:05)
+            or maybe "loss function". 
+        ☐ TODO Remove Italian writings (@Italian)
+        ✔ Rename SequentialCoveringLearner; "learner" is a bit old-fashioned in my opinion. Maybe something like "ExtendedSequentialCovering?" @done(24-06-01 15:05)
+        ☐ add documentation for SequentialCoveringLearner
+        ✔ Gather all the good code in "dev" branch, and delete unnecessary branches, edo, edo-memo, edo-dec-set, etc. @done(24-06-01 15:05)
+            # https://stackoverflow.com/questions/1307114/how-can-i-archive-git-branches/42232899#42232899
+            ☐ keep edo ? 
+            ✔ edo-memo @done(24-06-01 15:05)
+            ✔ edo-dec-set @done(24-06-01 15:05)
+    
+
+    Post Experiments Patches:
+        ☐ Unify names for maxinfogain
+        ☐ In RandSearch default alpha and max_infogain_ratio to Nothing (after tuning phase)
+
+
+        
