@@ -19,7 +19,7 @@ SoleModels = "4249d9c7-3290-4ddd-961c-e1d3ec2467f8"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-SoleData = "0.14"
+SoleData = "0.15"
 SoleLogics = "0.9"
 SoleModels = "0.8"
 CategoricalArrays = "0.10"
