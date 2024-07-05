@@ -1,6 +1,11 @@
 # ModalDecisionLists.jl – it's synctactic sequential covering
 
-[![Build Status](https://github.com/acla-lab/ModalDecisionLists.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/acla-lab/ModalDecisionLists.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://giopaglia.github.io/SoleDecisionTreeInterface.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://giopaglia.github.io/SoleDecisionTreeInterface.jl/dev/)
+[![Build Status](https://github.com/aclai-lab/ModalDecisionLists.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/aclai-lab/ModalDecisionLists.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/giopaglia/SoleDecisionTreeInterface.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/giopaglia/SoleDecisionTreeInterface.jl)
+
+<!-- [![Build Status](https://api.cirrus-ci.com/github/giopaglia/SoleDecisionTreeInterface.jl.svg)](https://cirrus-ci.com/github/giopaglia/SoleDecisionTreeInterface.jl)  -->
 
 
 ## Installation & Usage
