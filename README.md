@@ -1,11 +1,11 @@
 # ModalDecisionLists.jl – it's synctactic sequential covering
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://aclai-lab.github.io/SoleDecisionTreeInterface.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://aclai-lab.github.io/SoleDecisionTreeInterface.jl/dev/)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://aclai-lab.github.io/ModalDecisionLists.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://aclai-lab.github.io/ModalDecisionLists.jl/dev/)
 [![Build Status](https://github.com/aclai-lab/ModalDecisionLists.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/aclai-lab/ModalDecisionLists.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/giopaglia/SoleDecisionTreeInterface.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/giopaglia/SoleDecisionTreeInterface.jl)
+[![Coverage](https://codecov.io/gh/giopaglia/ModalDecisionLists.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/giopaglia/ModalDecisionLists.jl)
 
-<!-- [![Build Status](https://api.cirrus-ci.com/github/giopaglia/SoleDecisionTreeInterface.jl.svg)](https://cirrus-ci.com/github/giopaglia/SoleDecisionTreeInterface.jl)  -->
+<!-- [![Build Status](https://api.cirrus-ci.com/github/giopaglia/ModalDecisionLists.jl.svg)](https://cirrus-ci.com/github/giopaglia/ModalDecisionLists.jl)  -->
 
 This package provides algorithms for learning decision lists based on different logics. At the moment,
 it provides a starter for a [CN2](https://en.m.wikipedia.org/wiki/CN2_algorithm)-like,
