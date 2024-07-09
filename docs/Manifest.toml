@@ -550,7 +550,7 @@ uuid = "a63ad114-7e13-5084-954f-fe012c677804"
 
 [[deps.ModalDecisionLists]]
 deps = ["CategoricalArrays", "DataFrames", "Distributions", "FillArrays", "MLJModelInterface", "Parameters", "Random", "Reexport", "SoleBase", "SoleData", "SoleLogics", "SoleModels", "StatsBase"]
-path = ".."
+git-tree-sha1 = "4791fb444c554c20af6c59d9452dc8cf6134bb41"
 uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8"
 version = "0.1.0"
 
@@ -560,7 +560,6 @@ version = "2022.10.11"
 
 [[deps.MultiData]]
 deps = ["CSV", "Catch22", "DataFrames", "DataStructures", "Logging", "MLJModelInterface", "Random", "Reexport", "Revise", "ScientificTypes", "SoleBase", "Statistics", "StatsBase", "Tables"]
-path = "../../MultiData"
 uuid = "8cc5100c-b3d1-4f82-90cb-0ea93d317aba"
 version = "0.1.1"
 
