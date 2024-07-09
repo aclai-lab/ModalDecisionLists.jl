@@ -7,6 +7,9 @@
 
 <!-- [![Build Status](https://api.cirrus-ci.com/github/giopaglia/SoleDecisionTreeInterface.jl.svg)](https://cirrus-ci.com/github/giopaglia/SoleDecisionTreeInterface.jl)  -->
 
+This package provides algorithms for learning decision lists based on different logics. At the moment,
+it provides a starter for a [CN2](https://en.m.wikipedia.org/wiki/CN2_algorithm)-like,
+sequential covering algorithm. The algorithm deploys a beam search to learn conjunctions of arbitrary formulae (including propositional atoms).
 
 ## Installation & Usage
 
