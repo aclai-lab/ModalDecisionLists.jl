@@ -48,7 +48,7 @@ printmodel.(listrules(test_dlist, normalize = true); show_metrics = (; round_dig
 
 @test_nowarn listrules(test_dlist; min_lift = 1.0, min_coverage = 0.05)
 
-interesting_rules = @test_nowarn SoleModels.listrules(test_dlist; use_shortforms=true, min_confidence=0.2, min_lift=1.0,
+interesting_rules = @test_nowarn SoleModels.listrules(test_dlist; normalize = true, min_confidence=0.2, min_lift=1.0,
        min_ninstances = 2, custom_filter_callback = (ms)->ms.coverage*ms.ninstances > 1)
 
 @test_nowarn printmodel.(sort(interesting_rules, by = x->readmetrics(x).confidence, rev = true); show_metrics = (; round_digits = nothing));
