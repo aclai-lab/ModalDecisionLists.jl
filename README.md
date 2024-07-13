@@ -1,10 +1,11 @@
 # ModalDecisionLists.jl – it's synctactic sequential covering
 
-[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://aclai-lab.github.io/ModalDecisionLists.jl/stable/)
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://aclai-lab.github.io/ModalDecisionLists.jl/dev/)
 [![Build Status](https://github.com/aclai-lab/ModalDecisionLists.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/aclai-lab/ModalDecisionLists.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/giopaglia/ModalDecisionLists.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/giopaglia/ModalDecisionLists.jl)
 
+<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://aclai-lab.github.io/ModalDecisionLists.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://aclai-lab.github.io/ModalDecisionLists.jl/dev/)
+ -->
 <!-- [![Build Status](https://api.cirrus-ci.com/github/giopaglia/ModalDecisionLists.jl.svg)](https://cirrus-ci.com/github/giopaglia/ModalDecisionLists.jl)  -->
 
 This package provides algorithms for learning decision lists based on different logics. At the moment,
@@ -55,7 +56,6 @@ apply!(test_dlist, slicedataset(PropositionalLogiset(X), test_idxs), y[test_idxs
 interestingrules = listrules(test_dlist; min_lift = 1.0, min_coverage = 0.05, normalize = true)
 printmodel.(interestingrules; show_metrics = (; round_digits = 2));
 ```
-
 
 ## Credits
 
