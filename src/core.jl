@@ -74,7 +74,13 @@ end
 ############################################################################################
 ############ AtomSearch ####################################################################
 ############################################################################################
+"""
 
+        AtomSearch
+
+Method for conjunctions search to be used with [`BeamSearch`](@ref), where the conjunctions are restricted to
+atomic conditions. This approach precisely implements the CN2 algorithm.
+"""
 struct AtomSearch <: SearchMethod end
 
 function findbestantecedent(

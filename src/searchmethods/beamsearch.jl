@@ -18,31 +18,19 @@ The beam is dynamically updated to include the most promising solutions, allowin
 efficient exploration of the solution space without examining all possibilities.
 
 # Keyword Arguments
-* `conjuncts_search_method::SearchMethod=AtomSearch()`
-* `beam_width::Integer = 3` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
-* `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
-* `discretizedomain::Bool=false`:  discretizes continuous variables by identifying optimal cut points
-* `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
-* `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
-* `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
-* `max_infogain_ratio::Real=1.0`: constrains the maximum information gain for anantecedent
-with respect to the uncovered training set. Its value is bounded between 0 and 1.
+* `conjuncts_search_method::SearchMethod=AtomSearch()`: Defines the heuristic method by which possible conjuncts are generated during the beam search.
+* `beam_width::Integer=3` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
 
 See also
 [`sequentialcovering`](@ref),
 [`SearchMethod`](@ref),
+[`AtomSearch`](@ref),
 [`RandSearch`](@ref),
 [`specializeantecedents`](@ref).
 """
-
 @with_kw mutable struct BeamSearch <: SearchMethod
     conjuncts_search_method::SearchMethod=AtomSearch()
     beam_width::Integer=3
-    # loss_function::Function=entropy
-    # discretizedomain::Bool=false
-    # default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
-    # max_infogain_ratio::Real=1.0
-    # significance_alpha::Union{Real,Nothing}=0.0
 end
 
 

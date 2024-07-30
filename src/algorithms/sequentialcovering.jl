@@ -18,7 +18,7 @@ using Parameters
 ############################################################################################
 ################### SequentialCovering - DecisionList ######################################
 ############################################################################################
-
+# * `unorderedstrategy::Bool`: TODO @Edo explain
 """
     function sequentialcovering(
         X::AbstractLogiset,
@@ -34,10 +34,15 @@ This involves iteratively learning a single rule, and removing the newly covered
 # Keyword Arguments
 
 * `searchmethod::SearchMethod`: The search method for finding single rules (see [`SearchMethod`](@ref));
+* `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
+* `max_infogain_ratio::Real=1.0`: constrains the maximum information gain for anantecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
+* `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
+* `discretizedomain::Bool=false`:  discretizes continuous variables by identifying optimal cut points
+* `significance_alpha::Union{Real,Nothing}=0.0` is the significant alpha
+* `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
+* `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
 * `max_rulebase_length::Union{Nothing,Integer}` is the maximum length of the rulebase;
 * `suppress_parity_warning::Bool` if `true`, suppresses parity warnings.
-* `unorderedstrategy::Bool`: TODO @Edo explain
-* `min_rule_coverage::Integer`:
 * Any additional keyword argument will be imputed to the `searchmethod`, replacing its original value.
 
 # Examples
@@ -104,18 +109,18 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
-    # before SerachMethod parameters #####
+
     loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
     max_infogain_ratio::Real=1.0,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
-    ######
-    max_rulebase_length::Union{Nothing,Integer}=nothing,
-    max_rule_length::Union{Nothing,Integer}=nothing,
     min_rule_coverage::Integer=1,
+    max_rule_length::Union{Nothing,Integer}=nothing,
+    max_rulebase_length::Union{Nothing,Integer}=nothing,
     suppress_parity_warning::Bool=false,
     kwargs...
+
 )::DecisionList where {U<:Real}
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
@@ -177,7 +182,7 @@ function sequentialcovering(
                 supporting_predictions=Fill(prediction, length(justcoveredy)),
             )
             consequent_cm = ConstantModel(prediction, info_cm)
-            # 
+            #
             info_r = (;
                 supporting_labels=collect(uncoveredy),
                 supporting_weights=collect(uncoveredw),

@@ -8,9 +8,6 @@ using ModalDecisionLists.LossFunctions: entropy, significance_test
 ############## Random search ###############################################################
 ############################################################################################
 
-
-
-
 # TODO @ Gio atompicking_mode ?
 # TODO syntaxheight ?
 """
@@ -21,31 +18,24 @@ employing stochastic sampling strategies.
 
 # Keyword Arguments
 
-* `cardinality::Integer = 3`: is the number of formula generated fo the search of a single rule.
-the higher the cardinality, the higher the probability of finding a good antecedent.
-* `loss_function::Function = entropy`: is the function that assigns a score to each partial solution.
-* `operators::Union{Nothing,Integer} = nothing`: specifies the maximum length allowed for a rule in the search algorithm.
-* `syntaxheight::Integer=2`: ?
-* `discretizedomain::Bool=false`: if true discretizes continuous variables by identifying optimal cut points
-* `rng::AbstractRNG=Random.GLOBAL_RNG`
-* `alpha::Real=1.0` Actually not implemented
-* `max_infogain_ratio::Real=1.0`: maximum information gain for an antecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
-* `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing`: if set, forces the use of a specific alphabet for generating every antecedents. Otherwise
-the alphabet is dinamically generated on uncovered instances
-* `atompicking_mode::Symbol=:uniform`: allows to bias the probability distribution of MetaConditions in the generation of formulas ...continue"
-* `subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing}=nothing`:
-"""
+* `cardinality::Integer=25`: Defines the number of formulas generated during the search for a single rule. A higher cardinality increases the probability of finding an antecedent that better fits the data.
+* `operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]`: Represents the set of logical operators used in the generation of formulas.
+* `syntaxheight::Integer=2`: Defines the maximum height of the syntactic tree representing a generated formula.
+* `rng::AbstractRNG=Random.GLOBAL_RNG`: Specifies the random number generator to be used in the generation of formulas. By default, it uses the global random number generator.
+* `atompicking_mode::Symbol=:uniform`: Determines the probability distribution of MetaConditions when generating formulas. It can impose a :uniform distribution over the MetaConditions or a :weighted distribution based on the length of the thresholding values of each MetaCondition.
+* `subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing}=nothing`: Allows biasing the probability distribution of each MetaCondition through a vector of real weights between 0 and 1.
 
+See also
+[`sequentialcovering`](@ref),
+[`SearchMethod`](@ref),
+[`BeamSearch`](@ref),
+[`specializeantecedents`](@ref).
+"""
 @with_kw mutable struct RandSearch <: SearchMethod
     cardinality::Integer=10
-    # loss_function::Function=ModalDecisionLists.LossFunctions.entropy
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2
-    # discretizedomain::Bool=false
     rng::Union{Integer,AbstractRNG} = Random.GLOBAL_RNG
-    # significance_alpha::Real=1.0 # Unused
-    # max_infogain_ratio::Real=1.0
-    # default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
     atompicking_mode::Symbol=:uniform
     subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
 end
