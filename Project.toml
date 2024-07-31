@@ -24,9 +24,9 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
 julia = "1"
-SoleData = "0.14"
+SoleData = "0.13"
 SoleLogics = "0.9"
-SoleModels = "0.7"
+SoleModels = "0.6"
 
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
