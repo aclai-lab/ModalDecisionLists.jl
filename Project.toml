@@ -19,9 +19,6 @@ SoleModels = "4249d9c7-3290-4ddd-961c-e1d3ec2467f8"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 
 [compat]
-SoleData = "0.15"
-SoleLogics = "0.9"
-SoleModels = "0.8"
 CategoricalArrays = "0.10"
 DataFrames = "1.6"
 Distributions = "0.25"
@@ -30,11 +27,13 @@ MLJModelInterface = "1.11"
 Parameters = "0.12"
 Reexport = "1"
 SoleBase = "0.12"
+SoleData = "0.15"
+SoleLogics = "0.9, 0.11"
+SoleModels = "0.8"
 StatsBase = "0.30 - 0.34"
 julia = "1"
 
 [extras]
-Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DecisionTree = "7806a523-6efd-50cb-b5f6-3fa6f1930dbb"
@@ -44,6 +43,7 @@ MLJDecisionTreeInterface = "c6f25543-311c-4c74-83dc-3ea6d1015661"
 MLJModels = "d491faf4-2d78-11e9-2867-c94bc002c0b7"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 RDatasets = "ce6b1742-4840-55fa-b093-852dadbb1d8b"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
