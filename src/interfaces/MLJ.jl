@@ -4,7 +4,6 @@ export ExtendedSequentialCovering
 export OrderedCN2Learner
 # export BeamSearch, RandSearch
 
-# using ModalDecisionTrees.MLJInterface: wrapdataset
 using ModalDecisionLists
 using ModalDecisionLists: LossFunctions
 

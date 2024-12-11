@@ -21,7 +21,7 @@ function checkconditionsequivalence(
     φ1::LeftmostConjunctiveForm{<:Atom},
     φ2::LeftmostConjunctiveForm{<:Atom},
 )::Bool
-    return  length(φ1) == length(φ2) &&
+    return  SoleLogics.ngrandchildren(φ1) == SoleLogics.ngrandchildren(φ2) &&
             !any(iszero, map( x-> x ∈ atoms(φ1), atoms(φ2)))
 end
 ############################################################################################

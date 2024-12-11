@@ -197,7 +197,8 @@ function findbestantecedent(
                     # If discretizedomain == one it is possible for alph to be empty
                     if discretizedomain && (natoms(alph) == 0)
                         alphabet(X)
-                    else alph
+                    else
+                        alph
                     end
                 else
                     default_alphabet
