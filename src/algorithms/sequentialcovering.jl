@@ -19,6 +19,7 @@ using Parameters
 ################### SequentialCovering - DecisionList ######################################
 ############################################################################################
 # * `unorderedstrategy::Bool`: TODO @Edo explain
+# * `unorderedstrategy::Bool`: TODO @Edo explain
 """
     function sequentialcovering(
         X::AbstractLogiset,
@@ -34,6 +35,13 @@ This involves iteratively learning a single rule, and removing the newly covered
 # Keyword Arguments
 
 * `searchmethod::SearchMethod`: The search method for finding single rules (see [`SearchMethod`](@ref));
+* `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
+* `max_infogain_ratio::Real=1.0`: constrains the maximum information gain for anantecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
+* `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
+* `discretizedomain::Bool=false`:  discretizes continuous variables by identifying optimal cut points
+* `significance_alpha::Union{Real,Nothing}=0.0` is the significant alpha
+* `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
+* `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
 * `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
 * `max_infogain_ratio::Real=1.0`: constrains the maximum information gain for anantecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
 * `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
@@ -102,6 +110,7 @@ julia> sequentialcovering(X, y)
 └✘ versicolor
 ```
 
+
 See also
 [`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 """
@@ -111,6 +120,7 @@ function sequentialcovering(
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
 
+
     loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
     max_infogain_ratio::Real=1.0,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
@@ -118,9 +128,12 @@ function sequentialcovering(
     significance_alpha::Union{Real,Nothing}=0.0,
     min_rule_coverage::Integer=1,
     max_rule_length::Union{Nothing,Integer}=nothing,
+    min_rule_coverage::Integer=1,
+    max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     suppress_parity_warning::Bool=false,
     kwargs...
+
 
 )::DecisionList where {U<:Real}
 
@@ -145,6 +158,12 @@ function sequentialcovering(
     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
     (ninstances(X) == 0) && error("Empty trainig set")
+
+    info_dl = (;
+        supporting_labels=y,
+        # supporting_weights=w, # TODO
+        # supporting_predictions=[],
+    )
 
     y, labels = y |> maptointeger
 
@@ -177,18 +196,28 @@ function sequentialcovering(
             justcoveredw = uncoveredw[bestantecedent_coverage]
             consequent_i = SoleModels.bestguess(justcoveredy, justcoveredw; suppress_parity_warning=suppress_parity_warning)
             prediction = labels[consequent_i]
+
             info_cm = (;
-                supporting_labels=collect(justcoveredy),
-                supporting_weights=collect(justcoveredw),
-                supporting_predictions=Fill(prediction, length(justcoveredy)),
+                supporting_labels=[labels[x] for x in collect(justcoveredy)],
+                # supporting_weights=collect(justcoveredw), # TODO
+                supporting_predictions=fill(prediction, length(justcoveredy)),
             )
+            # push!(info_dl.supporting_predictions, Fill(prediction, length(justcoveredy)))
             consequent_cm = ConstantModel(prediction, info_cm)
             #
             info_r = (;
-                supporting_labels=collect(uncoveredy),
-                supporting_weights=collect(uncoveredw),
-                supporting_predictions=Fill(prediction, length(uncoveredy)),
+                supporting_labels=[labels[x] for x in collect(uncoveredy)],
+                # supporting_weights=collect(uncoveredw), # TODO
+                # supporting_predictions=fill(prediction, length(uncoveredy)),
             )
+            #
+            info_cm = (;
+                supporting_labels=[labels[x] for x in collect(justcoveredy)],
+                # supporting_weights=collect(justcoveredw), # TODO
+                supporting_predictions=fill(prediction, length(justcoveredy)),
+            )
+            # push!(info_dl.supporting_predictions, Fill(prediction, length(justcoveredy)))
+            consequent_cm = ConstantModel(prediction, info_cm)
             #
             (Rule(bestantecedent, consequent_cm, info_r), consequent_i)
         end
@@ -205,8 +234,15 @@ function sequentialcovering(
         end
     end
     # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
-    defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
-    return DecisionList(rulebase, labels[defaultconsequent])
+    prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
+    prediction = labels[prediction]
+    info_cm = (;
+        supporting_labels=[labels[x] for x in collect(uncoveredy)],
+        # supporting_weights=collect(justcoveredw), # TODO
+        supporting_predictions=fill(prediction, length(uncoveredy)),
+    )
+    defaultconsequent = ConstantModel(prediction, info_cm)
+    return DecisionList(rulebase, defaultconsequent, info_dl)
 end
 
 function build_cn2(

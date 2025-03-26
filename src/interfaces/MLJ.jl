@@ -195,7 +195,7 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
                         max_rulebase_length       = m.max_rulebase_length,
                         suppress_parity_warning   = m.suppress_parity_warning
         )
-        elseif m isa OrderedCN2Learner
+        # elseif m isa OrderedCN2Learner
             # searchmethod = BeamSearch( conjuncts_search_method = AtomSearch(),
             #     beam_width          = m.beam_width,
             #     loss_function       = m.loss_function,
@@ -219,7 +219,9 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
     fitresult = (
         model = model,
     )
-    report = nothing
+    report = (
+        model = model,
+    )
     cache = nothing
 
     return fitresult, cache, report
