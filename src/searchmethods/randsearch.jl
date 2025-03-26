@@ -31,7 +31,7 @@ See also
 [`BeamSearch`](@ref),
 [`specializeantecedents`](@ref).
 """
-@with_kw mutable struct RandSearch <: SearchMethod
+@kwdef mutable struct RandSearch <: SearchMethod
     cardinality::Integer=10
     operators::AbstractVector=[NEGATION, CONJUNCTION, DISJUNCTION]
     syntaxheight::Integer=2

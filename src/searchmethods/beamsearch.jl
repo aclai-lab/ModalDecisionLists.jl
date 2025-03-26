@@ -28,7 +28,7 @@ See also
 [`RandSearch`](@ref),
 [`specializeantecedents`](@ref).
 """
-@with_kw mutable struct BeamSearch <: SearchMethod
+@kwdef mutable struct BeamSearch <: SearchMethod
     conjuncts_search_method::SearchMethod=AtomSearch()
     beam_width::Integer=3
 end

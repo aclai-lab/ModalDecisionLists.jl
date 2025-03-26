@@ -101,6 +101,7 @@ julia> sequentialcovering(X, y)
 │└ virginica
 └✘ versicolor
 ```
+
 See also
 [`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 """
