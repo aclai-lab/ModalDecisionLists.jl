@@ -47,8 +47,6 @@ This involves iteratively learning a single rule, and removing the newly covered
 * `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
 * `discretizedomain::Bool=false`:  discretizes continuous variables by identifying optimal cut points
 * `significance_alpha::Union{Real,Nothing}=0.0` is the significant alpha
-* `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
-* `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
 * `max_rulebase_length::Union{Nothing,Integer}` is the maximum length of the rulebase;
 * `suppress_parity_warning::Bool` if `true`, suppresses parity warnings.
 * Any additional keyword argument will be imputed to the `searchmethod`, replacing its original value.
@@ -126,8 +124,6 @@ function sequentialcovering(
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Integer=1,
-    max_rule_length::Union{Nothing,Integer}=nothing,
     min_rule_coverage::Integer=1,
     max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
