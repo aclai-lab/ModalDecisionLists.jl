@@ -163,10 +163,6 @@ function sequentialcovering(
 
     y, labels = y |> maptointeger
 
-    nlabels = labels |> length
-    
-    @show(labels)
-
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
@@ -184,41 +180,32 @@ function sequentialcovering(
             significance_alpha,
             min_rule_coverage;
 
-            max_rule_length   = max_rule_length,
-            nlabels           = nlabels
+            max_rule_length = max_rule_length,
+            nlabels = length(labels)
         )
         bestantecedent == ⊤ && break
 
-        rule, consequent_i = begin
+        rule = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]
             justcoveredw = uncoveredw[bestantecedent_coverage]
-            consequent_i = SoleModels.bestguess(justcoveredy, justcoveredw; suppress_parity_warning=suppress_parity_warning)
-            prediction = labels[consequent_i]
+            predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
+            # prediction = labels[consequent_i]
 
             info_cm = (;
                 supporting_labels=[labels[x] for x in collect(justcoveredy)],
                 # supporting_weights=collect(justcoveredw), # TODO
-                supporting_predictions=fill(prediction, length(justcoveredy)),
+                supporting_predictions=fill(predlabel, length(justcoveredy)),
             )
-            # push!(info_dl.supporting_predictions, Fill(prediction, length(justcoveredy)))
-            consequent_cm = ConstantModel(prediction, info_cm)
+            consequent = ConstantModel(predlabel, info_cm)
             #
             info_r = (;
                 supporting_labels=[labels[x] for x in collect(uncoveredy)],
                 # supporting_weights=collect(uncoveredw), # TODO
                 # supporting_predictions=fill(prediction, length(uncoveredy)),
             )
-            #
-            info_cm = (;
-                supporting_labels=[labels[x] for x in collect(justcoveredy)],
-                # supporting_weights=collect(justcoveredw), # TODO
-                supporting_predictions=fill(prediction, length(justcoveredy)),
-            )
-            # push!(info_dl.supporting_predictions, Fill(prediction, length(justcoveredy)))
-            consequent_cm = ConstantModel(prediction, info_cm)
-            #
-            (Rule(bestantecedent, consequent_cm, info_r), consequent_i)
+            Rule(bestantecedent, consequent, info_r)
         end
+
         push!(rulebase, rule)
 
         uncovered_slice = (!).(bestantecedent_coverage)
