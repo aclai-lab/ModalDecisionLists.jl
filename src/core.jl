@@ -10,8 +10,6 @@ using ModalDecisionLists.LossFunctions: significance_test
 
 const SatMask = BitVector
 
-
-
 ############################################################################################
 ############ Helping function ##############################################################
 ############################################################################################
@@ -105,7 +103,7 @@ function maptointeger(y::AbstractVector{<:CLabel})
 
     # ordered values
     values = unique(y)
-    integer_y = zeros(Int64, length(y))
+    integer_y = zeros(UInt32, length(y))
 
     for (i, v) in enumerate(values)
         integer_y[y.==v] .= i

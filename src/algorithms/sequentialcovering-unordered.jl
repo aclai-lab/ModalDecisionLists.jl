@@ -57,5 +57,6 @@ function sequentialcovering_unordered(
     end
 
     defaultconsequent = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
+
     return DecisionList(rulebase, labels[defaultconsequent])
 end

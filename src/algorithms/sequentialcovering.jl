@@ -164,6 +164,8 @@ function sequentialcovering(
     y, labels = y |> maptointeger
 
     nlabels = labels |> length
+    
+    @show(labels)
 
     uncoveredX = X
     uncoveredy = y

@@ -31,7 +31,7 @@ function laplace_accuracy(
 end
 
 function entropy(
-    y::AbstractVector{<:CLabel},
+    y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
     kwargs...
 )
