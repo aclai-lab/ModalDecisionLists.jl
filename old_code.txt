@@ -282,8 +282,6 @@ end
 function IREP_Star(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    poslabel::CLabel,
-    tdl_threshold::Int = 64,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
     split_ratio::Real=0.66,
@@ -299,22 +297,15 @@ function IREP_Star(
     suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
-    # y è un vettore di interi {1,2,...} corrispondenti ai label, labels è un vettore di clabel come {"setosa", "virginica", "versicolor"}
-    y, labels = y |> maptointeger   
-    poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
-
-    original_y = y
-
-    y = convert.(UInt32, (y .== poslabel_idx))  # ora y è un array di {0,1}^n, dove 1 corrisponde alla classe positiva e 0 ad un'altra
+    y, labels = y |> maptointeger   # equivalente a maptointeger(y)
 
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
-    uncovered_original_y = original_y
 
     rulebase = Rule[]       # Il rulebase effettivo
-    #data_curr_ruleset_desc_length = rs_dataset_bits(X, y, [])
-    data_curr_ruleset_desc_length = Inf
+    data_curr_ruleset_desc_length = rs_dataset_bits(X, y, [])
+    #data_curr_ruleset_desc_length = Inf
     println("Entering main IREP* loop...")
     
     i = 1
@@ -337,23 +328,22 @@ function IREP_Star(
             min_rule_coverage;
 
             max_rule_length = max_rule_length,
-            nlabels = 2
+            nlabels = length(labels)
         )
 
-        println("best antecedent: $bestantecedent")
         bestantecedent == ⊤ && break
 
-        #justcoveredy = growy[coverage]
-        #justcoveredw = grow_w[coverage]
-        #predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
-        #predlabel_code = findfirst(x -> x == predlabel, labels)
+        justcoveredy = growy[coverage]
+        justcoveredw = grow_w[coverage]
+        predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
+        predlabel_code = findfirst(x -> x == predlabel, labels)
 
-        bestantecedent = PruneRule(pruneX, pruney, bestantecedent)
+        bestantecedent = PruneRule(pruneX, pruney, bestantecedent, predlabel_code)
 
         coverage_indices = compute_coverage(bestantecedent, growX, grow_inds, pruneX, prune_inds)
 
         # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
-        rule = build_rule(bestantecedent, poslabel)
+        rule = build_rule(bestantecedent, labels, uncoveredy, uncoveredw, coverage_indices, suppress_parity_warning)
         
 
         # TODO: check TDL
@@ -361,24 +351,14 @@ function IREP_Star(
 
         push!(rulebase, rule)
 
-        data_new_ruleset_desc_length = rs_dataset_bits(X, y, rulebase)
+        println("Type of rulebase: $(typeof(rulebase))")
+        data_new_rulebase_desc_length = rs_dataset_bits(X, y, rulebase)
 
-        println("New Rule description length: $rule_desc_length")
-        println("New dataset description length: $data_new_ruleset_desc_length")
-
-        # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset | Ruleset), dove ΔTDL(Ruleset) = TDL(Ruleset + Rule_i) - TDL(Ruleset) = TDL(Rule_i), 
-        # # a ogni iterazione si aggiunge una regola e quindi anche la tdl del ruleset aumenta della lunghezza di descrizione della regola
-        ΔTDL_data_given_ruleset = data_new_ruleset_desc_length - data_curr_ruleset_desc_length
-        ΔTDL_ruleset = rule_desc_length                         
-        ΔTDL = ΔTDL_ruleset + ΔTDL_data_given_ruleset
-        println("Total tdl difference: $ΔTDL")
-
-        if ΔTDL > tdl_threshold
-            # TODO: vedere se devo togliere l'ultima regola, aggiunta in push!(rulebase, rule) (dato che aumenta la tdl oltre la soglia)
-            break
-        end
-
-        data_curr_ruleset_desc_length = data_new_ruleset_desc_length
+        # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset | Ruleset), dove ΔTDL(Ruleset) = TDL(Ruleset + Rule_i) - TDL(Ruleset) = TDL(Rule_i)
+        data_dl_diff = data_new_rulebase_desc_length - data_curr_ruleset_desc_length
+        ruleset_dl_diff = rule_desc_length
+        total_tdl_diff = ruleset_dl_diff + data_dl_diff
+        println("Total tdl difference: $total_tdl_diff")
 
 
         # Rimozione
@@ -386,7 +366,6 @@ function IREP_Star(
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
         uncoveredw = @view uncoveredw[uncovered_slice]
-        uncovered_original_y = @view uncovered_original_y[uncovered_slice]
         println("uncovered_slice length: $(length(uncovered_slice))")
 
         i += 1
@@ -394,19 +373,17 @@ function IREP_Star(
     end
 
     info_dl = (;
-        supporting_labels=original_y,
+        supporting_labels=y,
         # supporting_weights=w, # TODO
         # supporting_predictions=[],
     )
 
     prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
-    prediction = (prediction == 1) ? poslabel : "other";
-    
-
+    prediction = labels[prediction]
     info_cm = (;
-        #supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        supporting_labels=[labels[x] for x in collect(uncoveredy)],
         # supporting_weights=collect(justcoveredw), # TODO
-        #supporting_predictions=fill(prediction, length(uncovered_original_y)),
+        supporting_predictions=fill(prediction, length(uncoveredy)),
     )
     defaultconsequent = ConstantModel(prediction, info_cm)
     return DecisionList(rulebase, defaultconsequent, info_dl)
@@ -463,18 +440,19 @@ end
     uncoveredw --> vettore di reali con i pesi dei vari samples
     coverage_indices --> indici dei valori che la regola ha coperto
 """
-function build_rule(antecedent, poslabel)
-    #justcoveredy = uncoveredy[coverage_indices]
-    predlabel = poslabel
+function build_rule(antecedent, labels, uncoveredy, uncoveredw, coverage_indices, suppress_parity_warning)
+    justcoveredy = uncoveredy[coverage_indices]
+    justcoveredw = uncoveredw[coverage_indices]
+    predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
 
     info_cm = (;
-        #supporting_labels=[labels[x] for x in collect(justcoveredy)],
-        #supporting_predictions=fill(predlabel, length(justcoveredy)),
+        supporting_labels=[labels[x] for x in collect(justcoveredy)],
+        supporting_predictions=fill(predlabel, length(justcoveredy)),
     )
     consequent = ConstantModel(predlabel, info_cm)
 
     info_r = (;
-        #supporting_labels=[labels[x] for x in collect(uncoveredy)],
+        supporting_labels=[labels[x] for x in collect(uncoveredy)],
     )
 
     return Rule(antecedent, consequent, info_r)
@@ -485,23 +463,23 @@ end
 function PruneRule(
     pruneX::AbstractLogiset,
     pruneY::Vector{UInt32},
-    rule::LeftmostConjunctiveForm
+    rule::LeftmostConjunctiveForm,
+    pos_label::Int
 )
-    n_conditions = length(rule.grandchildren)  # cercare funzione default di sole (tipo natoms?)
+    n_conditions = length(rule.grandchildren)
 
-    pos_samples_indxs = findall(label -> label == 1, pruneY)
-    neg_samples_indxs = findall(label -> label != 1, pruneY)
+    pos_samples_indxs = findall(label -> label == pos_label, pruneY)
+    neg_samples_indxs = findall(label -> label != pos_label, pruneY)
 
     best_rule = rule
     best_rule_score = -Inf
-    # TODO: ritornare la sat mask della regola migliore (best_rule)? Si potrebbe non ricalcolarla dopo in compute coverage
 
     # per ogni sottoinsieme finale non nullo delle condizioni
     for cond_idx = n_conditions:-1:1
         new_grandchildren = rule.grandchildren[1:cond_idx]
         new_rule = LeftmostConjunctiveForm(new_grandchildren)
 
-        rule_sat_mask = check(new_rule, pruneX)  
+        rule_sat_mask = check(new_rule, pruneX)
         rule_covered_idxs = findall(rule_sat_mask)
 
         p = length(intersect(rule_covered_idxs, pos_samples_indxs)) # num. di samples positivi coperti dalla regola
@@ -521,8 +499,8 @@ end
 
 
 """
-    Ritorna la lista di tutti gli antecedenti possibili con una sola condizione dall'alfabeto a, escludendo
-    condizioni equivalenti (ovvero quelle che coprono le stesse istanze di X)
+Return the list of all possible antecedents containing a single condition from the alphabet,
+excluding equivalent conditions (i.e., those that cover the same instances).
 """
 function unaryconditions_noneq(
     a::UnionAlphabet,
@@ -599,57 +577,30 @@ function _rs_theory_bits(X::AbstractLogiset, y, ruleset::Vector{Rule}, discretiz
 end
 
 
-# ritorna un'approssimazione di ln(n!) usando Stirling
-function log2_factorial(n::Int)::Real
-    if n == 0
-        return 0
-    end
-    
-    println("[log2_factorial] n = $n")
-    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ))
-end
-
-# ritorna un'approssimazione di ln( n choose k ) usando log2_factorial
-function log2binomial(n::Int, k::Int)::Real
-    if k == 0
-        return 0
-    end
-
-    # Per n piccoli, approssimazione Stirling è imprecisa (es. per n=5, log2(120)≈6.9, Stirling≈7.1). Per precisione, usa log2(factorial(big(n))) per n<20, Stirling per grandi.
-
-    println("[log2_binomial] n = $n | k = $k")
-    return log2_factorial(n) - log2_factorial(k) - log2_factorial(n-k)
-end
-
-
 function rs_dataset_bits(X::AbstractLogiset, y, ruleset)
     n_samples = ninstances(X)
 
-    # BASTA CHE UNA DELLE REGOLE SIA SODDISFATTA PER DEDURRE LA CLASSIFICAZIONE DI poslabel
     #ruleset_sat_mask = check(ruleset, X)            # TODO: forse lavorando direttamente con le DecisionList si può fare qualcosa di più efficiente di questo
-    ruleset_sat_mask = falses(n_samples)          # array di 0 e di 1
+    ruleset_sat_mask = ones(n_samples)          # array di 0 e di 1
     for rule ∈ ruleset
-        rule_sat_mask = check(rule.antecedent, X)
-        ruleset_sat_mask = ruleset_sat_mask .| rule_sat_mask
+        rule_sat_mask = check(rule, X)
+        ruleset_sat_mask = rule_sat_mask .& rule_sat_mask
     end
 
-    #ruleset_sat_mask = convert.(Bool, ruleset_sat_mask)
+    ruleset_sat_mask = convert.(bool, ruleset_sat_mask)
     
     ruleset_covered_idxs = findall(ruleset_sat_mask)
 
-    pos_samples_indxs = findall(label -> label == 1, y)
-    neg_samples_indxs = findall(label -> label != 1, y)
+    pos_samples_indxs = findall(label -> label == pos_label, y)
+    neg_samples_indxs = findall(label -> label != pos_label, y)
     num_pos = length(pos_samples_indxs)
 
-    p = length(ruleset_covered_idxs)
-    tp = length(intersect(ruleset_covered_idxs, pos_samples_indxs)) # num. di samples positivi coperti dalla regola 
+    p = length(intersect(ruleset_covered_idxs, pos_samples_indxs)) # num. di samples positivi coperti dalla regola 
     fp = length(intersect(ruleset_covered_idxs, neg_samples_indxs)) # false positives
     
-    fn = num_pos - tp  # false negatives
+    fn = num_pos - pos  # false negatives
     
-    println("[rs dataset bits] n_samples: $n_samples | num_pos: $num_pos | valori coperti: $p | false positives: $fp | false negatives: $fn")
 
-    #desc_length = log2( binomial(p, fp) ) + log2( binomial( n_samples - p, fn ) )   # va in overflow
-    desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
+    desc_length = log2( binomial(p, fp) ) + log2( binomial( n_samples - p, fn ) )
     return desc_length
 end
