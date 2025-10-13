@@ -26,9 +26,8 @@ function checkconditionsequivalence(
 end
 ############################################################################################
 
-
 # Test
-
+#
 # base
 base_decisionlist = BaseCN2.build_base_cn2(X_df, y)
 @test base_decisionlist isa DecisionList
