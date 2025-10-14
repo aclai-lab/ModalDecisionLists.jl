@@ -382,11 +382,13 @@ function IREP_Star(
 
 
         # Rimozione
+        # Incapsulare
         uncovered_slice = setdiff(1:ninstances(uncoveredX), coverage_indices)
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
         uncoveredw = @view uncoveredw[uncovered_slice]
         uncovered_original_y = @view uncovered_original_y[uncovered_slice]
+
         println("uncovered_slice length: $(length(uncovered_slice))")
 
         i += 1
@@ -420,6 +422,7 @@ end
 function split_instances(X, y, w, split_ratio)
     n = ninstances(X)
     n_grow = convert(Int, ceil(n * split_ratio))
+    # @Edo: Quando questo test è verificato
     if n_grow == 0 || n - n_grow == 0
         return nothing
     end
@@ -622,6 +625,7 @@ function log2binomial(n::Int, k::Int)::Real
 end
 
 
+# @Edo TODO: Qui lavoriamo su Bitmask, più efficente
 function rs_dataset_bits(X::AbstractLogiset, y, ruleset)
     n_samples = ninstances(X)
 
