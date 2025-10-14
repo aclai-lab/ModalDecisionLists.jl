@@ -2,7 +2,7 @@ using SoleBase: CLabel
 using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
 using SoleData
-using MLJ
+# # using MLJ
 using StatsBase
 using Random
 using ModalDecisionLists

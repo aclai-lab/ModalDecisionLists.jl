@@ -114,11 +114,12 @@ See also
 [`SearchMethod`](@ref), [`BeamSearch`](@ref), [`PropositionalLogiset`](@ref), [`DecisionList`](@ref).
 """
 function sequentialcovering(
+    # Da incapsulaper dentro InstanceSet
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-    searchmethod::SearchMethod=BeamSearch(),
 
+    searchmethod::SearchMethod=BeamSearch(),
 
     loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
     max_infogain_ratio::Real=1.0,

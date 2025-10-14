@@ -17,6 +17,7 @@ const SatMask = BitVector
 pp(str) = printstyled("$(str) \n", color = :red, bold = true)
 
 macro showlc(list, c)
+
     return esc(quote
         infolist = (length($list) == 0 ?
                         "EMPTY" :
@@ -28,6 +29,20 @@ macro showlc(list, c)
         end
     end)
 
+end
+
+############################################################################################
+############ Utilities #####################################################################
+############################################################################################
+
+struct Antecedet 
+
+end
+
+struct InstanceSet
+    X::AbstractLogiset
+    y::AbstractVector{<:CLabel}
+    w::Union{Nothing,AbstractVector{Real},Symbol}
 end
 
 ############################################################################################

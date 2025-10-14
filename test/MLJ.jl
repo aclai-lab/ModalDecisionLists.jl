@@ -1,7 +1,7 @@
 using Test
 
 # Import packages
-using MLJ
+# using MLJ
 using ModalDecisionLists
 using Random
 

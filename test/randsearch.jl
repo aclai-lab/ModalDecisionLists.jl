@@ -1,4 +1,4 @@
-using MLJ: load_iris
+# using MLJ: load_iris
 using Test
 using Random
 using Test
@@ -11,7 +11,7 @@ using SoleBase: CLabel
 using ModalDecisionLists
 using ModalDecisionLists: maptointeger
 using ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
-using MLJ
+# using MLJ
 
 X...,y = MLJ.load_iris()
 X = PropositionalLogiset(DataFrame(X))

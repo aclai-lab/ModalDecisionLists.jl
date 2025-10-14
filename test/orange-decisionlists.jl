@@ -5,7 +5,7 @@ using ModalDecisionLists: preprocess_inputdata
 using ModalDecisionLists.LossFunctions: laplace_accuracy
 using CategoricalArrays: CategoricalValue, CategoricalArray
 using RDatasets
-using MLJ
+# using MLJ
 using CSV
 #
 # Decision list ottenuta con CN2-Orange dalle prime 1000 istamze del dataset Yeast

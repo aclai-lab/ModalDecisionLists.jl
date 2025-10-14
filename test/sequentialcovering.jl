@@ -1,4 +1,4 @@
-using MLJ: load_iris
+# using MLJ: load_iris
 using DataFrames
 using Random
 using Test
