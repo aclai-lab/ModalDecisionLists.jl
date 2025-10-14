@@ -1,4 +1,5 @@
 using DataFrames
+
 using SoleBase: CLabel
 using SoleData: AbstractLogiset, PropositionalLogiset
 using SoleModels: bestguess
@@ -14,36 +15,100 @@ const SatMask = BitVector
 ############ Helping function ##############################################################
 ############################################################################################
 
-pp(str) = printstyled("$(str) \n", color = :red, bold = true)
-
-macro showlc(list, c)
-
-    return esc(quote
-        infolist = (length($list) == 0 ?
-                        "EMPTY" :
-                        "len: $(length($list))"
-                    )
-        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
-        for (ind, element) in enumerate($list)
-            printstyled(ind,") ",element, "\n", color=$c)
-        end
-    end)
-
-end
+# pp(str) = printstyled("$(str) \n", color=:red, bold=true)
+#
+# macro showlc(list, c)
+#
+#     return esc(quote
+#         infolist = (length($list) == 0 ?
+#                     "EMPTY" :
+#                     "len: $(length($list))"
+#         )
+#         printstyled($(string(list)), " | $infolist \n", bold=true, color=$c)
+#         for (ind, element) in enumerate($list)
+#             printstyled(ind, ") ", element, "\n", color=$c)
+#         end
+#     end)
+#
+# end
 
 ############################################################################################
 ############ Utilities #####################################################################
 ############################################################################################
 
-struct Antecedet 
 
+#=
+using Revise
+using RDatasets
+using SoleBase: CLabel
+using ModalDecisionLists
+
+iris = dataset("datasets", "iris")
+X = PropositionalLogiset(iris[:, 1:4])
+y = Vector{CLabel}(iris[:, 5])
+sequentialcovering(X,y)
+=#
+struct Antecedent
+    formula::Formula
+    covmask::SatMask
 end
 
 struct InstanceSet
     X::AbstractLogiset
     y::AbstractVector{<:CLabel}
-    w::Union{Nothing,AbstractVector{Real},Symbol}
+    w::Union{Nothing,AbstractVector{<:Real},Symbol}
+
+    indices::BitVector  # TODO: da cambiare in Satmask
 end
+
+# Contruttore
+function InstanceSet(
+    X::AbstractLogiset, 
+    y::AbstractVector{<:CLabel}, 
+    w::Union{Nothing,AbstractVector{<:Real},Symbol}=nothing
+)
+    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+
+    w = if isnothing(w) || w == :default
+        default_weights(y) # ones
+    elseif w == :rebalance
+        balanced_weights(y)
+    else
+        w
+    end
+
+    # in Parameters.jl
+
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty trainig set")
+
+    return InstanceSet(X, y, w, zeros(Bool, length(y)))
+end
+
+function sliceinstances(inset::InstanceSet, mask::SatMask)
+
+    uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+    uncoveredy = @view uncoveredy[uncovered_slice]
+    uncoveredw = @view uncoveredw[uncovered_slice]
+end
+
+
+
+
+
+Base.show(io::IO, inst::InstanceSet) = begin
+    println(io, "InstanceSet with $(ninstances(inst.X)) instances")
+    println(io, inst.X[1, :])
+    # Tipo del vettore y
+    println(io, "\n  y: ", typeof(inst.y))
+end
+
+
+
+
+
+
 
 ############################################################################################
 ############ SearchMethods #################################################################
@@ -54,9 +119,7 @@ end
         SearchMethod
 
 Abstract type for all search methods to be used in [`sequentialcovering`](@ref).
-
 Any search method implements a [`findbestantecedent`](@ref) method.
-
 See also [`findbestantecedent`](@ref), [`BeamSearch`](@ref), [`RandSearch`](@ref).
 """
 abstract type SearchMethod end
@@ -71,7 +134,6 @@ abstract type SearchMethod end
     )
 
 Find the best antecedent formula using `sm` on dataset `X` labelled by `y` and weighted by `w`.
-
 See also [`findbestantecedent`](@ref), [`SearchMethod`](@ref).
 """
 function findbestantecedent(
@@ -82,7 +144,7 @@ function findbestantecedent(
     kwargs...
 )
     return error("Please, provide method findbestantecedent(sm::$(typeof(sm)), X::$(typeof(X))," *
-    " y::$(typeof(y)), w::$(typeof(w)); kwargs...).")
+                 " y::$(typeof(y)), w::$(typeof(w)); kwargs...).")
 end
 
 ############################################################################################
@@ -148,22 +210,22 @@ See also
 [`entropy`](@ref).
 """
 function sortantecedents(
-    antecedents::AbstractVector{<:Tuple{Formula, SatMask}},
+    antecedents::AbstractVector{<:Tuple{Formula,SatMask}},
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
     loss_function::Function,
     min_rule_coverage::Integer,
-    max_infogain_ratio::Union{Real, Nothing},
-    significance_alpha::Union{Real, Nothing};
+    max_infogain_ratio::Union{Real,Nothing},
+    significance_alpha::Union{Real,Nothing};
     kwargs...
-)::Tuple{AbstractVector, <:Real}
+)::Tuple{AbstractVector,<:Real}
 
     isempty(antecedents) && return [], Inf
 
     if min_rule_coverage > 1
         validindexes = [(count(ant[2]) >= min_rule_coverage) for ant in antecedents
-            ] |> findall
+        ] |> findall
         isempty(validindexes) && return [], Inf
         antecedents = antecedents[validindexes]
     end
@@ -179,8 +241,8 @@ function sortantecedents(
         minloss = (1 - max_infogain_ratio) * loss_function(y, w; kwargs...)
 
         indexes = map(aq -> begin
-                    (index, lossfnctn) = aq
-                    (lossfnctn >= minloss) && index
+                (index, lossfnctn) = aq
+                (lossfnctn >= minloss) && index
             end, enumerate(antslossfnctn)
         ) |> filter(x -> x != false)
         isempty(indexes) && return [], Inf
@@ -201,13 +263,13 @@ end
 function preprocess_inputdata(
     X::AbstractDataFrame,
     y;
-    remove_duplicate_rows = false
+    remove_duplicate_rows=false
 )
     if remove_duplicate_rows
         allunique(X) && return (X, y)
         nonunique_ind = nonunique(X)
-        Xy = hcat( X[findall((!).(nonunique_ind)), :],
-                   y[findall((!).(nonunique_ind))]
+        Xy = hcat(X[findall((!).(nonunique_ind)), :],
+            y[findall((!).(nonunique_ind))]
         ) |> dropmissing
     else
         Xy = hcat(X[:, :], y[:]) |> dropmissing

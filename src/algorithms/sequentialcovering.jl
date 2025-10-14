@@ -87,7 +87,7 @@ julia> sequentialcovering(X, y)
 ├[12/22]┐(:sepal_width ≤ 2.2)
 │└ virginica
 ├[13/22]┐(:sepal_width ≥ 3.3)
-│└ virginica
+│└ virginicaw::Union{Nothing,AbstractVector{Real},Symbol}
 ├[14/22]┐(:petal_length ≥ 5.2)
 │└ virginica
 ├[15/22]┐(:petal_width ≤ 1.4)
@@ -137,44 +137,39 @@ function sequentialcovering(
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
-    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                 "than one. Please provide a valid value."
 
-    w = if isnothing(w) || w == :default
-        default_weights(y) # ones
-    elseif w == :rebalance
-        balanced_weights(y)
-    else
-        w
-    end
-
-    # in Parameters.jl
     searchmethod = reconstruct(searchmethod, kwargs)
 
-    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
-    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
-    (ninstances(X) == 0) && error("Empty trainig set")
-
+    
     info_dl = (;
         supporting_labels=y,
         # supporting_weights=w, # TODO
         # supporting_predictions=[],
     )
 
-    y, labels = y |> maptointeger   # equivalente a maptointeger(y)
+    instanceset = InstanceSet(X,y,w)
+    @show instanceset
+    
 
+
+    y, labels = y |> maptointeger
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
+
+    # TODO
+    # instanceset = InstanceSet(X, y, w=nothing)
 
     rulebase = Rule[]       # Il rulebase effettivo
     while true
 
         # bestantecedent_coverage è un array di 0 e 1 con 1 negli indici i dove la regola trovata copre il sample xi (in unconveredX)
         bestantecedent, bestantecedent_coverage = findbestantecedent(searchmethod,
+
             uncoveredX, uncoveredy, uncoveredw,
             #
             loss_function,
@@ -187,7 +182,9 @@ function sequentialcovering(
             max_rule_length = max_rule_length,
             nlabels = length(labels)
         )
-        bestantecedent == ⊤ && break    # if bestantecedent == ⊤ break end
+        @show length((bestantecedent_coverage))
+
+        bestantecedent == ⊤ && break    # if bestantecedent == ⊤ break end)
 
         rule = begin
             justcoveredy = uncoveredy[bestantecedent_coverage]
