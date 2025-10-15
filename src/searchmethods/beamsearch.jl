@@ -34,6 +34,15 @@ See also
     beam_width::Integer=3
 end
 
+
+function BeamSearch(; conjuncts_search_method::SearchMethod=AtomSearch(), beam_width::Integer=3)
+    if beam_width < 1
+        throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
+    end
+    return BeamSearch(conjuncts_search_method, beam_width)
+end
+
+
 # checkedatoms(X, alph) = map(a -> (a, check(a, X)), atoms(alph))
 checkedatoms(X, alph) = [(a, check(a, X)) for a ∈ atoms(alph)]
 
@@ -52,15 +61,16 @@ A trivial specialization correspond to an antecedent covering exactly the same i
 #TODO:  @Edo questo va prevenuto appena si generano gli atomi dall'alfabeto (forse)
 function filteralphabet(
     X::AbstractLogiset, 
-    alph::UnionAlphabet, 
-    antecedent::Antecedent
+    alph::UnionAlphabet,
+    ant::Antecedent
 )::Vector{Tuple{Atom,SatMask}}
+    # An atom is considered active for a given antecedent iff its addition 
+    # changes the set of covered instances in the dataset.
+    is_active((atom, mask)) = 
+        ((ant.covmask .& mask) != ant.covmask) && 
+             (atom ∉ atoms(ant.formula))
 
-    isvalid((atom, mask)) = 
-        ((antecedent.covmask .& mask) != antecedent.covmask) && 
-        (atom ∉ atoms(ant.formula))
-
-    return filter(isvalid, checkedatoms(X, alph))
+    return filter(is_active, checkedatoms(X, alph))
 end
 
 # # Old
@@ -77,9 +87,9 @@ end
 #     return [(a, atom_mask) for (a, atom_mask) ∈ filtered_conditions
 #             if ((ant_mask .& atom_mask) != ant_mask) & (a ∉ _atoms)]
 # end
-#
-#
-#
+
+
+
 """
 Return the list of all possible antecedents containing a single condition from the alphabet.
 """
@@ -93,14 +103,14 @@ function alphabet2conditions(
     _conditions = Tuple{Atom{ScalarCondition},SatMask}[]
 
     for univalph in subalphabets(a)
-        newconds = [(a, check(a, X)) for a in atoms(univalph)]
+        newconds = checkedatoms(X, univalph)
         append!(_conditions, newconds)
     end
     return _conditions
 end
 
 
-
+metaconds(a::Antecedent) = metacond.(SoleData.value.(children(a.formula)))
 
 """
     newconditions(
@@ -118,7 +128,7 @@ function newconditions(
     ant::Antecedent;
 
     discretizedomain=false,
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    _alphabet::Union{Nothing,AbstractAlphabet}=nothing
 
 )::Vector{Tuple{Atom{ScalarCondition},SatMask}}
 
@@ -127,18 +137,16 @@ function newconditions(
     coveredy = y[ant.covmask]
 
     selectedalphabet = begin
+        a = something(_alphabet, alphabet(coveredX; discretizedomain, y = coveredy))
+
         # Exclude metaconditons tha are already in `antecedent`
-        metaconditions = metacond.(SoleData.value.(children(antformula)))
-
-        alphabet = something(default_alphabet, 
-                alphabet(coveredX; discretizedomain, y = coveredy))
-
-        UnionAlphabet([ a for a in subalphabets(selectedalphabet)
-            if metacond(a) ∉ metaconditions
-        ])
+        alphabets = [ a for a in subalphabets(a)
+            if metacond(a) ∉ metaconds(ant) 
+        ]
+        UnionAlphabet(alphabets)
     end
 
-    return filteralphabet(X, selectedalphabet, antecedent)
+    return filteralphabet(X, selectedalphabet, ant)
 end
 
 # TODO: @Edo in inglese
@@ -160,50 +168,13 @@ function init_ants(
         alphabet(X; discretizedomain=discretizedomain, y=y)
     )
     conditions = alphabet2conditions(sm, _alphabet, X)
+
+    # TODO @Edo2Nicola
+    @showlc conditions :blue
+
+    # return [Antecedent(LeftmostConjunctiveForm([f]), mask) for (f, mask) in conditions]
     return [Antecedent([f], mask) for (f, mask) in conditions]
 end
-
-
-# TODO @Edo documentazione
-function grow_ants(
-    sm::SearchMethod,
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel};
-    antecedents::AbstractVector{Antecedent},
-    #
-    discretizedomain::Bool=false,
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-)::Vector{Antecedent}
-    specialized = Antecedent[]
-
-    for antecedent in antecedents
-        # Find a set of conjunctible conditions
-        conjconds = newconditions(sm, X, y, antecedent;
-                                     alph             = default_alphabet,
-                                     discretizedomain = discretizedomain,
-                                     )
-
-        isempty(conjconds) && continue
-
-        new_ants = [
-            let
-                new_formula = deepcopy(antecedent.formula)
-                pushconjunct!(new_formula, atom)
-                Antecedent(new_formula, antecedent.covmask .& mask)
-            end
-            for (atom, mask) in conjconds
-        ]
-
-        append!(specialized, new_ants)
-    end
-
-    return specialized
-end
-
-
-
-
-
 
 ###
 prune_noncovering(antecedents::AbstractVector{Antecedent}) = [a for a in antecedents if any(a.covmask)]
@@ -216,6 +187,8 @@ prune_noncovering(antecedents::AbstractVector{Antecedent}) = [a for a in anteced
 
 Specialize rule *antecedents*.
 """
+
+
 # function specializeantecedents(
 #     sm::SearchMethod,
 #     antecedents::AbstractVector{Antecedent},
@@ -263,6 +236,8 @@ Specialize rule *antecedents*.
 #     return prune_noncovering(specializedants)
 # end
 #
+#
+#
 function specializeantecedents(
     sm::SearchMethod,
     antecedents::AbstractVector{Antecedent},
@@ -278,46 +253,26 @@ function specializeantecedents(
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
 
     if isempty(antecedents)
-
-        # Seleziona alfabeto (genera uno | default)
-        _alphabet = isnothing(default_alphabet) ?
-                alphabet(X; discretizedomain=discretizedomain, y=y) : 
-                default_alphabet
-
-        _conditions = alphabet2conditions(sm, _alphabet, X)
-
-        # TODO: @Edo capire perchè il codice commentato equivalente al ciclo fon non funziona
-        specializedants = Antecedent[]
-        for (c, satmask) in _conditions
-            push!(specializedants, Antecedent(LeftmostConjunctiveForm([c]), satmask))
-        end
-        # specializedants =  map((f, satmask) ->  Antecedent(LeftmostConjunctiveForm([f]), satmask), _conditions)
-        #   Tentativo non testato: 
-        #   
-        # specializedants = map(t -> begin
-        #     f, satmask = t
-        #     Antecedent(LeftmostConjunctiveForm([f]), satmask)
-        # end, _conditions)
-        #
-        #
+        return init_ants(sm,X,y; discretizedomain, default_alphabet)
     else
         specializedants = Antecedent[]
-        for antecedent ∈ antecedents
+        for antecedent in antecedents
 
-            # antformula, antcoverage = antecedent
-            conjunctibleconditions = newconditions(sm, X, y, antecedent;
-                        alph             = default_alphabet,
-                        discretizedomain = discretizedomain)
+            # Find a set of conjunctible conditions
+            conjconds = newconditions(sm, X, y, antecedent; discretizedomain, default_alphabet)
 
-            isempty(conjunctibleconditions) && continue
+            isempty(conjconds) && continue
 
-            currentant_specialization = [ begin
-                newantformula = deepcopy(antformula)
-                pushconjunct!(newantformula, newatom)
+            new_ants = [
+                let
+                    new_formula = deepcopy(antecedent.formula)
+                    pushconjunct!(new_formula, atom)
+                    Antecedent(new_formula, antecedent.covmask .& mask)
+                end
+                for (atom, mask) in conjconds
+            ]
+            append!(specializedants, new_ants)
 
-                (newantformula, antcoverage .& newatom_satmsk)
-            end for (newatom, newatom_satmsk) ∈ conjunctibleconditions ]
-            append!(specializedants, currentant_specialization)
         end
     end
     return prune_noncovering(specializedants)
@@ -344,6 +299,29 @@ function exitcondition(
     return e
 end
 
+
+
+"""
+    init_best_antecedent(y, w, loss_function; nlabels)
+
+Crea un Antecedent iniziale "bot" e ne calcola la loss sul dataset.
+
+# Argomenti
+- `y`: vettore di etichette
+- `w`: vettore di pesi
+- `loss_function`: funzione di loss, deve accettare `(y, w; nlabels)`
+- `nlabels`: numero di label (keyword per loss_function)
+
+# Ritorna
+Una tupla `(best_antecedent, best_loss)`
+"""
+function init_best_antecedent(y, w, loss_function; nlabels)
+    return bot_antecedent(length(y)), loss_function(y, w; nlabels=nlabels)
+end
+
+
+
+
 """
     function findbestantecedent(
         ::BeamSearch,
@@ -367,25 +345,22 @@ function findbestantecedent(
     y::AbstractVector{<:Integer},
     w::AbstractVector,
 
-
     loss_function::Function,
     max_infogain_ratio::Real,
     default_alphabet::Union{Nothing,AbstractAlphabet},
     discretizedomain::Bool,
     significance_alpha::Real,
     min_rule_coverage::Integer;
-
     nlabels::Integer,
     max_rule_length::Union{Integer,Nothing},
+
 )::Tuple{Union{Truth,Formula},SatMask}
 
     @unpack conjuncts_search_method, beam_width = bs
 
-    best = (⊤, ones(Bool, nrow(X)))
-
-    best_lossfnctn = loss_function(y, w; nlabels=nlabels)
-
-    @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
+    # Inizializza il migliore antecedente come formula ⊤ 
+    # (sempre vera, copre tutte le istanze)
+    best, best_loss = init_best_antecedent(y, w, loss_function; nlabels)
 
     newcandidates = Antecedent[]
     while true
@@ -400,7 +375,7 @@ function findbestantecedent(
                                             default_alphabet)
 
         # Sort new candidates
-        (newcandidates, bestcandidate_lossfnctn) = sortantecedents(newcandidates,
+        (newcandidates, bestcandidate_loss) = sortantecedents(newcandidates,
                                                     y, w, beam_width,
                                                     loss_function,
                                                     min_rule_coverage,
@@ -408,14 +383,15 @@ function findbestantecedent(
                                                     significance_alpha;
                                                         #
                                                     nlabels=nlabels)
+
         isempty(newcandidates) && break
 
-        new_bestcandidate, new_bestcandidate_satmask = newcandidates[begin]
+        newcandidate = newcandidates[begin]
 
         # Update the best candidate and its lossfnctn
-        if (bestcandidate_lossfnctn < best_lossfnctn)
-            best = (new_bestcandidate, new_bestcandidate_satmask)
-            best_lossfnctn = bestcandidate_lossfnctn
+        if (bestcandidate_loss < best_loss)
+            best_loss = bestcandidate_loss
+            best = newcandidate
         end
     end
 

@@ -15,22 +15,22 @@ const SatMask = BitVector
 ############ Helping function ##############################################################
 ############################################################################################
 
-# pp(str) = printstyled("$(str) \n", color=:red, bold=true)
-#
-# macro showlc(list, c)
-#
-#     return esc(quote
-#         infolist = (length($list) == 0 ?
-#                     "EMPTY" :
-#                     "len: $(length($list))"
-#         )
-#         printstyled($(string(list)), " | $infolist \n", bold=true, color=$c)
-#         for (ind, element) in enumerate($list)
-#             printstyled(ind, ") ", element, "\n", color=$c)
-#         end
-#     end)
-#
-# end
+pp(str) = printstyled("$(str) \n", color=:red, bold=true)
+
+macro showlc(list, c)
+
+    return esc(quote
+        infolist = (length($list) == 0 ?
+                    "EMPTY" :
+                    "len: $(length($list))"
+        )
+        printstyled($(string(list)), " | $infolist \n", bold=true, color=$c)
+        for (ind, element) in enumerate($list)
+            printstyled(ind, ") ", element, "\n", color=$c)
+        end
+    end)
+
+end
 
 ############################################################################################
 ############ Utilities #####################################################################
@@ -38,20 +38,40 @@ const SatMask = BitVector
 
 
 #=
+
 using Revise
 using RDatasets
 using SoleBase: CLabel
 using ModalDecisionLists
-
 iris = dataset("datasets", "iris")
 X = PropositionalLogiset(iris[:, 1:4])
 y = Vector{CLabel}(iris[:, 5])
 sequentialcovering(X,y)
+
+LeftmostConjunctiveForm([
+Atom( ScalarCondition(ScalarMetaCondition(Feature(:w), <), 3))
+Atom( ScalarCondition(ScalarMetaCondition(Feature(:m), <), 3))
+Atom( ScalarCondition(ScalarMetaCondition(Feature(:w), <), 3))
+Atom( ScalarCondition(ScalarMetaCondition(Feature(:w), <), 3))
+])
+
 =#
+
 struct Antecedent
-    formula::Formula
+    formula::LeftmostConjunctiveForm
     covmask::SatMask
 end
+
+function Antecedent(fs::AbstractVector{<:Formula}, cm::SatMask)
+    return Antecedent(LeftmostConjunctiveForm(fs), cm)
+end
+
+# Funzione per creare un Antecedent "top"
+function bot_antecedent(n::Integer)
+    Antecedent(LeftmostConjunctiveForm([⊤]), ones(Bool, n))   # ⊤ rappresenta la formula top 
+end
+
+
 
 struct InstanceSet
     X::AbstractLogiset
@@ -189,13 +209,7 @@ function maptointeger(y::AbstractVector{<:CLabel})
 end
 
 """
-    best_satmasks(
-        satmasks::Vector{Tuple{Formula, SatMask}},
-        y::AbstractVector{CLabel},
-        w::AbstractVector,
-        beam_width::Integer,
-        loss_function::Function
-    )
+    TODO sortantecedents....
 
 Sort rule satmasks based on their loss, using a specified loss function.
 
@@ -206,11 +220,11 @@ Each antecedent is evaluated on his covered y using the provided *loss_function*
 Then the permutation of the bests *beam_search* sorted antecedent is returned with the lossfnctn
 value of the best one.
 
-See also
+See alsoì com’è, non funziona: c’è ancora un problema di tipo nella prima riga del costruttore.
 [`entropy`](@ref).
 """
 function sortantecedents(
-    antecedents::AbstractVector{<:Tuple{Formula,SatMask}},
+    antecedents::AbstractVector{Antecedent},
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
@@ -223,28 +237,33 @@ function sortantecedents(
 
     isempty(antecedents) && return [], Inf
 
-    if min_rule_coverage > 1
-        validindexes = [(count(ant[2]) >= min_rule_coverage) for ant in antecedents
-        ] |> findall
-        isempty(validindexes) && return [], Inf
-        antecedents = antecedents[validindexes]
-    end
-    indexes = collect(1:length(antecedents))
+    # TODO @Edo Fix !
+    #
+    # if min_rule_coverage > 1
+    #     validindexes = [(count(ant[2]) >= min_rule_coverage) for ant in antecedents
+    #     ] |> findall
+    #     isempty(validindexes) && return [], Inf
+    #     antecedents = antecedents[validindexes]
+    # end
 
-    antslossfnctn = map(antd -> begin
-            _, satinds = antd
-            loss_function(y[satinds], w[satinds]; kwargs...)
-        end, antecedents)
+    indexes = eachindex(antecedents)
+
+    antslossfnctn = map(a ->  loss_function(y[a.covmask], w[a.covmask]; kwargs...) , antecedents)
+
+
     if !isnothing(max_infogain_ratio)
-        @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio not in range [0,1]"
+        minloss = (1-max_infogain_ratio)*loss_function(y, w; kwargs...)
 
-        minloss = (1 - max_infogain_ratio) * loss_function(y, w; kwargs...)
+        # Filter antecedents (their indexes by minimum loss), equivalente al codice commentato sotto
+        indexes = [ind for (ind, loss) in enumerate(antslossfnctn) if loss ≥ minloss]
+        # indexes = map(aq -> 
+        #     begin
+        #         (index, lossfnctn) = aq
+        #         (lossfnctn >= minloss) && index
+        #     end, 
+        #     enumerate(antslossfnctn)
+        # ) |> filter(x -> x != false)
 
-        indexes = map(aq -> begin
-                (index, lossfnctn) = aq
-                (lossfnctn >= minloss) && index
-            end, enumerate(antslossfnctn)
-        ) |> filter(x -> x != false)
         isempty(indexes) && return [], Inf
     end
     valid_indexes = partialsortperm(antslossfnctn[indexes], 1:min(beam_width, length(indexes)))
