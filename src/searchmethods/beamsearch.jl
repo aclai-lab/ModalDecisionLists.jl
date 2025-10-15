@@ -170,6 +170,7 @@ function init_ants(
     conditions = alphabet2conditions(sm, _alphabet, X)
 
     # TODO @Edo2Nicola
+    # Nota come ogni condizione si ripete 3 volte...perchè?
     @showlc conditions :blue
 
     # return [Antecedent(LeftmostConjunctiveForm([f]), mask) for (f, mask) in conditions]
@@ -447,7 +448,7 @@ function find_singlerule(
     return best
 end
 
-############################################################################################
+############################################################################################,
 ############################################################################################
 ############################################################################################
 
