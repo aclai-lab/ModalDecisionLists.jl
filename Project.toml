@@ -12,11 +12,8 @@ DecisionTree = "7806a523-6efd-50cb-b5f6-3fa6f1930dbb"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 MLJ = "add582a8-e3ab-11e8-2d5e-e98b27df1bc7"
-<<<<<<< HEAD
 MLJBase = "a7f614a8-145f-11e9-1d2a-a57a1082229d"
 MLJDecisionTreeInterface = "c6f25543-311c-4c74-83dc-3ea6d1015661"
-=======
->>>>>>> 9acf572ac99ac33d72c3a1d005a43f648d18b6ff
 MLJModelInterface = "e80e1ace-859a-464e-9ed9-23947d8ae3ea"
 MLJModels = "d491faf4-2d78-11e9-2867-c94bc002c0b7"
 Parameters = "d96e819e-fc66-5662-9728-84c9c7592b0a"
@@ -41,11 +38,8 @@ DecisionTree = "0.12.4"
 Distributions = "0.25"
 FillArrays = "1"
 MLJ = "0.21.0"
-<<<<<<< HEAD
 MLJBase = "1.9.0"
 MLJDecisionTreeInterface = "0.4.2"
-=======
->>>>>>> 9acf572ac99ac33d72c3a1d005a43f648d18b6ff
 MLJModelInterface = "1.11"
 MLJModels = "0.18.1"
 Parameters = "0.12"
@@ -58,10 +52,7 @@ SoleData = "0.15 - 0.16"
 SoleLogics = "0.11 - 0.13"
 SoleModels = "0.9 - 0.10"
 StatsBase = "0.30 - 0.34"
-<<<<<<< HEAD
 Test = "1.11.0"
-=======
->>>>>>> 9acf572ac99ac33d72c3a1d005a43f648d18b6ff
 julia = "1"
 
 [extras]

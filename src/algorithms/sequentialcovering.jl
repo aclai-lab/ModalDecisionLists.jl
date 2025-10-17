@@ -299,29 +299,63 @@ function IREP_Star(
     suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
+    # ARGUMENT PARSING
+    !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
+    max_rulebase_length = (isnothing(max_rulebase_length)) ? Inf : max_rulebase_length
+
+
+    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+    @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
+
+    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
+                                                "than one. Please provide a valid value."
+
+    w = if isnothing(w) || w == :default
+        default_weights(y) # ones
+    elseif w == :rebalance
+        balanced_weights(y)
+    else
+        w
+    end
+
+    # in Parameters.jl
+    searchmethod = reconstruct(searchmethod, kwargs)
+
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty trainig set")
+
+    info_dl = (;
+        supporting_labels=y,
+        # supporting_weights=w, # TODO
+        # supporting_predictions=[],
+    )
+
+
     # y è un vettore di interi {1,2,...} corrispondenti ai label, labels è un vettore di clabel come {"setosa", "virginica", "versicolor"}
     y, labels = y |> maptointeger   
     poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
 
-    original_y = y
+    uncovered_original_y = y
 
     y = convert.(UInt32, (y .== poslabel_idx))  # ora y è un array di {0,1}^n, dove 1 corrisponde alla classe positiva e 0 ad un'altra
 
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
-    uncovered_original_y = original_y
 
     rulebase = Rule[]       # Il rulebase effettivo
+    rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
     #data_curr_ruleset_desc_length = rs_dataset_bits(X, y, [])
     data_curr_ruleset_desc_length = Inf
     println("Entering main IREP* loop...")
     
     i = 1
 
-    while true
+    while length(rulebase) < max_rulebase_length
         println("------------------- Starting iteration #$(i) -------------------")
         
+        # Creazione regola
         result = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
         result === nothing && break
         growX, growy, grow_w, pruneX, pruney, grow_inds, prune_inds = result
@@ -343,25 +377,23 @@ function IREP_Star(
         println("best antecedent: $bestantecedent")
         bestantecedent == ⊤ && break
 
-        #justcoveredy = growy[coverage]
-        #justcoveredw = grow_w[coverage]
-        #predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
-        #predlabel_code = findfirst(x -> x == predlabel, labels)
+        bestantecedent, bestantecedent_prune_cov = PruneRule(pruneX, pruney, bestantecedent)
 
-        bestantecedent = PruneRule(pruneX, pruney, bestantecedent)
-
-        coverage_indices = compute_coverage(bestantecedent, growX, grow_inds, pruneX, prune_inds)
+        # indici in uncoveredX che sono stati coperti dalla regola
+        coverage_indices = compute_coverage(bestantecedent, growX, grow_inds, pruneX, prune_inds, bestantecedent_prune_cov)
 
         # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
-        rule = build_rule(bestantecedent, poslabel)
+        rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
         
+        #println("bestantecedent_prune_cov: \n$bestantecedent_prune_cov")
 
-        # TODO: check TDL
+
+        # Check TDL
         rule_desc_length = _r_theory_bits(X, y, rule, discretizedomain)
 
         push!(rulebase, rule)
 
-        data_new_ruleset_desc_length = rs_dataset_bits(X, y, rulebase)
+        data_new_ruleset_desc_length, rulebase_sat_mask = rs_dataset_bits(X, y, rule, rulebase_sat_mask)
 
         println("New Rule description length: $rule_desc_length")
         println("New dataset description length: $data_new_ruleset_desc_length")
@@ -374,14 +406,14 @@ function IREP_Star(
         println("Total tdl difference: $ΔTDL")
 
         if ΔTDL > tdl_threshold
-            # TODO: vedere se devo togliere l'ultima regola, aggiunta in push!(rulebase, rule) (dato che aumenta la tdl oltre la soglia)
+            pop!(rulebase, rule)
             break
         end
 
         data_curr_ruleset_desc_length = data_new_ruleset_desc_length
 
 
-        # Rimozione
+        # Rimozione slice coperta
         uncovered_slice = setdiff(1:ninstances(uncoveredX), coverage_indices)
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
@@ -393,20 +425,16 @@ function IREP_Star(
         println("------------------- End of iteration #$(i) -------------------")
     end
 
-    info_dl = (;
-        supporting_labels=original_y,
-        # supporting_weights=w, # TODO
-        # supporting_predictions=[],
-    )
 
-    prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
-    prediction = (prediction == 1) ? poslabel : "other";
+    #prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
+    #prediction = (prediction == 1) ? poslabel : "other";
+    prediction = "other"
     
 
     info_cm = (;
-        #supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
         # supporting_weights=collect(justcoveredw), # TODO
-        #supporting_predictions=fill(prediction, length(uncovered_original_y)),
+        supporting_predictions=fill(prediction, length(uncovered_original_y)),
     )
     defaultconsequent = ConstantModel(prediction, info_cm)
     return DecisionList(rulebase, defaultconsequent, info_dl)
@@ -442,15 +470,24 @@ end
     Se growX e pruneX sono i sottoinsiemi del dataset X tali che growX = X[grow_inds] e pruneX = X[prune_inds],
     la funzione ritorna l'insieme di indici tali che X[inds] sono i samples coperti da antecedent
 """
-function compute_coverage(antecedent::LeftmostConjunctiveForm, growX, grow_inds, pruneX, prune_inds)
+function compute_coverage(antecedent::LeftmostConjunctiveForm, 
+    growX, grow_inds, 
+    pruneX, prune_inds, 
+    bestantecedent_prune_cov
+)    
     grow_mask = check(antecedent, growX)
     grow_cov_local = findall(grow_mask)
     grow_cov_global = grow_inds[grow_cov_local]
 
-    prune_mask = check(antecedent, pruneX)
+    
+    if bestantecedent_prune_cov === nothing 
+        prune_mask = check(antecedent, pruneX)
+    else 
+        prune_mask = bestantecedent_prune_cov
+    end
     prune_cov_local = findall(prune_mask)
     prune_cov_global = prune_inds[prune_cov_local]
-
+    
     return vcat(grow_cov_global, prune_cov_global)
 end
 
@@ -463,18 +500,18 @@ end
     uncoveredw --> vettore di reali con i pesi dei vari samples
     coverage_indices --> indici dei valori che la regola ha coperto
 """
-function build_rule(antecedent, poslabel)
-    #justcoveredy = uncoveredy[coverage_indices]
+function build_rule(antecedent, uncovered_original_y, poslabel, coverage_indices, labels)
+    justcoveredy = uncovered_original_y[coverage_indices]
     predlabel = poslabel
 
     info_cm = (;
-        #supporting_labels=[labels[x] for x in collect(justcoveredy)],
-        #supporting_predictions=fill(predlabel, length(justcoveredy)),
+        supporting_labels=[labels[x] for x in collect(justcoveredy)],
+        supporting_predictions=fill(predlabel, length(justcoveredy)),
     )
     consequent = ConstantModel(predlabel, info_cm)
 
     info_r = (;
-        #supporting_labels=[labels[x] for x in collect(uncoveredy)],
+        supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
     )
 
     return Rule(antecedent, consequent, info_r)
@@ -494,8 +531,8 @@ function PruneRule(
 
     best_rule = rule
     best_rule_score = -Inf
-    # TODO: ritornare la sat mask della regola migliore (best_rule)? Si potrebbe non ricalcolarla dopo in compute coverage
-
+    best_rule_sat_mask = []
+    
     # per ogni sottoinsieme finale non nullo delle condizioni
     for cond_idx = n_conditions:-1:1
         new_grandchildren = rule.grandchildren[1:cond_idx]
@@ -511,12 +548,13 @@ function PruneRule(
         if rule_score > best_rule_score
             best_rule_score = rule_score
             best_rule = new_rule
+            best_rule_sat_mask = rule_sat_mask
         end
     end
 
     #println("Best rule: $(best_rule) | best_rule_score: $best_rule_score")
 
-    return best_rule
+    return best_rule, best_rule_sat_mask
 end
 
 
@@ -599,14 +637,18 @@ function _rs_theory_bits(X::AbstractLogiset, y, ruleset::Vector{Rule}, discretiz
 end
 
 
-# ritorna un'approssimazione di ln(n!) usando Stirling
+# ritorna un'approssimazione di log2(n!) usando Stirling
 function log2_factorial(n::Int)::Real
     if n == 0
         return 0
     end
-    
-    println("[log2_factorial] n = $n")
-    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ))
+
+    # 0.115/n è stato scelto perchè, senza cambiare l'uguaglianza asintotica di stirling, esegue una correzione
+    # piuttosto buona per n piccolo, in questa maniera non serve realmente fare un if n < n_min per usare il fattoriale
+    # su piccoli valori
+    # Già per n = 1 l'errore assoluto di questa funzione rispetto al valore corretto è 0.00194 e va diminuendo
+    # confrontare le due curve in una calcolatrice grafica per farsi un'idea
+    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ) + 0.115/n)
 end
 
 # ritorna un'approssimazione di ln( n choose k ) usando log2_factorial
@@ -615,23 +657,32 @@ function log2binomial(n::Int, k::Int)::Real
         return 0
     end
 
-    # Per n piccoli, approssimazione Stirling è imprecisa (es. per n=5, log2(120)≈6.9, Stirling≈7.1). Per precisione, usa log2(factorial(big(n))) per n<20, Stirling per grandi.
-
     println("[log2_binomial] n = $n | k = $k")
     return log2_factorial(n) - log2_factorial(k) - log2_factorial(n-k)
 end
 
 
-function rs_dataset_bits(X::AbstractLogiset, y, ruleset)
+function rs_dataset_bits(
+    X::AbstractLogiset, y, 
+    rule::Rule, 
+    prev_ruleset_satmask::AbstractVector{Bool}
+)
     n_samples = ninstances(X)
 
+    # TODO: Posso pensare di riciclare questa sat_mask tra un'iterazione e l'altra. Ad ogni iterazione del ciclo soprastante
+    # Sto aggiungendo condizioni, ma se ci prima dell'inserimento di una nuova regola ci sono N regola R1, ..., RN, queste ci 
+    # saranno anche dopo, ergo sto ricalcolando la tessa cosa ad ogni iterazione del loop "while true" principale di IREP*
+    # posso risparmiarmi molte check
+    
     # BASTA CHE UNA DELLE REGOLE SIA SODDISFATTA PER DEDURRE LA CLASSIFICAZIONE DI poslabel
     #ruleset_sat_mask = check(ruleset, X)            # TODO: forse lavorando direttamente con le DecisionList si può fare qualcosa di più efficiente di questo
-    ruleset_sat_mask = falses(n_samples)          # array di 0 e di 1
-    for rule ∈ ruleset
-        rule_sat_mask = check(rule.antecedent, X)
-        ruleset_sat_mask = ruleset_sat_mask .| rule_sat_mask
-    end
+    #ruleset_sat_mask = falses(n_samples)          # array di 0 e di 1
+    #for rule ∈ ruleset
+    #    rule_sat_mask = check(rule.antecedent, X)
+    #    ruleset_sat_mask = ruleset_sat_mask .| rule_sat_mask
+    #end
+    rule_sat_mask = check(rule.antecedent, X)
+    ruleset_sat_mask = prev_ruleset_satmask .| rule_sat_mask
 
     #ruleset_sat_mask = convert.(Bool, ruleset_sat_mask)
     
@@ -651,5 +702,5 @@ function rs_dataset_bits(X::AbstractLogiset, y, ruleset)
 
     #desc_length = log2( binomial(p, fp) ) + log2( binomial( n_samples - p, fn ) )   # va in overflow
     desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
-    return desc_length
+    return desc_length, ruleset_sat_mask
 end
