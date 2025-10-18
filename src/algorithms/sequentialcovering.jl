@@ -151,8 +151,8 @@ function sequentialcovering(
         # supporting_predictions=[],
     )
 
-    instanceset = InstanceSet(X,y,w)
-    @show instanceset
+    # instanceset = InstanceSet(X,y,w)
+    # @show instanceset
     
 
 
@@ -168,7 +168,7 @@ function sequentialcovering(
     while true
 
         # bestantecedent_coverage è un array di 0 e 1 con 1 negli indici i dove la regola trovata copre il sample xi (in unconveredX)
-        bestantecedent, bestantecedent_coverage = findbestantecedent(searchmethod,
+        bestantecedent = findbestantecedent(searchmethod,
 
             uncoveredX, uncoveredy, uncoveredw,
             #
@@ -182,13 +182,12 @@ function sequentialcovering(
             max_rule_length = max_rule_length,
             nlabels = length(labels)
         )
-        @show length((bestantecedent_coverage))
-
-        bestantecedent == ⊤ && break    # if bestantecedent == ⊤ break end)
+        
+        istop(bestantecedent) && break    
 
         rule = begin
-            justcoveredy = uncoveredy[bestantecedent_coverage]
-            justcoveredw = uncoveredw[bestantecedent_coverage]
+            justcoveredy = uncoveredy[bestantecedent.covmask]
+            justcoveredw = uncoveredw[bestantecedent.covmask]
             # indice della classe associata alla regola
             predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
             # prediction = labels[consequent_i]
@@ -207,13 +206,13 @@ function sequentialcovering(
                 # supporting_weights=collect(uncoveredw), # TODO
                 # supporting_predictions=fill(prediction, length(uncoveredy)),
             )
-            Rule(bestantecedent, consequent, info_r)
+            Rule(bestantecedent.formula, consequent, info_r)
         end
 
         push!(rulebase, rule)
 
         # indici dei samples non ancora coperti dalla nuova regola (e quindi da nessun'altra)
-        uncovered_slice = (!).(bestantecedent_coverage)
+        uncovered_slice = (!).(bestantecedent.covmask)
 
         # da SoleData
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)

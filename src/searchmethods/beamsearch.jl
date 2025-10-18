@@ -128,7 +128,7 @@ function newconditions(
     ant::Antecedent;
 
     discretizedomain=false,
-    _alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
 
 )::Vector{Tuple{Atom{ScalarCondition},SatMask}}
 
@@ -137,7 +137,7 @@ function newconditions(
     coveredy = y[ant.covmask]
 
     selectedalphabet = begin
-        a = something(_alphabet, alphabet(coveredX; discretizedomain, y = coveredy))
+        a = something(default_alphabet, alphabet(coveredX; discretizedomain, y = coveredy))
 
         # Exclude metaconditons tha are already in `antecedent`
         alphabets = [ a for a in subalphabets(a)
@@ -171,7 +171,7 @@ function init_ants(
 
     # TODO @Edo2Nicola
     # Nota come ogni condizione si ripete 3 volte...perchè?
-    @showlc conditions :blue
+    # @showlc conditions :blue
 
     # return [Antecedent(LeftmostConjunctiveForm([f]), mask) for (f, mask) in conditions]
     return [Antecedent([f], mask) for (f, mask) in conditions]
@@ -318,6 +318,7 @@ Una tupla `(best_antecedent, best_loss)`
 """
 function init_best_antecedent(y, w, loss_function; nlabels)
     return bot_antecedent(length(y)), loss_function(y, w; nlabels=nlabels)
+
 end
 
 
@@ -355,7 +356,7 @@ function findbestantecedent(
     nlabels::Integer,
     max_rule_length::Union{Integer,Nothing},
 
-)::Tuple{Union{Truth,Formula},SatMask}
+)::Antecedent
 
     @unpack conjuncts_search_method, beam_width = bs
 
