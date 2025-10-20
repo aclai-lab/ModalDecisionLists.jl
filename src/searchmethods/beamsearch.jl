@@ -44,7 +44,13 @@ end
 
 
 # checkedatoms(X, alph) = map(a -> (a, check(a, X)), atoms(alph))
-checkedatoms(X, alph) = [(a, check(a, X)) for a ∈ atoms(alph)]
+"""
+    function checkedatoms(X::AbstractLogiset, alph)::Vector{Tuple{Atom,SatMask}}
+
+Given a set of samples/interpretations X and an alphabet alph, it returns a list of tuples
+(a, mask) where each atom is mapped to its corresponding SatMask on X.
+"""
+checkedatoms(X::AbstractLogiset, alph)::Vector{Tuple{Atom,SatMask}} = [(a, check(a, X)) for a ∈ atoms(alph)]
 
 """
     function filteralphabetoptimized(
@@ -93,7 +99,6 @@ end
 """
 Return the list of all possible antecedents containing a single condition from the alphabet.
 """
-# function unarycwnditions(
 function alphabet2conditions(
     ::AtomSearch,
     a::UnionAlphabet,
@@ -149,12 +154,11 @@ function newconditions(
     return filteralphabet(X, selectedalphabet, ant)
 end
 
-# TODO: @Edo in inglese
 """
     initial_antecedents(sm, X, y; discretizedomain=false, default_alphabet=nothing)
 
-Genera antecedenti unari a partire dall'alfabeto specificato o da quello
-costruito dal logiset `X`.
+Generates a list of unary antecedents starting from the specified alphabet, or from that
+built from the logiset `X`.
 """
 function init_ants(
     sm::SearchMethod,
@@ -164,14 +168,16 @@ function init_ants(
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 )::Vector{Antecedent}
 
-    _alphabet = something(default_alphabet,
-        alphabet(X; discretizedomain=discretizedomain, y=y)
-    )
+    # Questo chiama alphabet(X; ...) anche se non viene selezionato.
+    # Per esempio chiamando 'something("a", println("B"))' println viene comunque chiamata anche se è il primo 
+    # argomento a non essere selezionato. Se alphabet itera su X si potrebbe evitare l'overhead che ne consegue
+    # usando un operatore ternario (a) ? b : c
+    _alphabet = isnothing(default_alphabet) ?
+        alphabet(X; discretizedomain=discretizedomain, y=y) :
+        default_alphabet
+        
+    # Il problema è già in alphabet, che prende la stessa condizione più volte 
     conditions = alphabet2conditions(sm, _alphabet, X)
-
-    # TODO @Edo2Nicola
-    # Nota come ogni condizione si ripete 3 volte...perchè?
-    @showlc conditions :blue
 
     # return [Antecedent(LeftmostConjunctiveForm([f]), mask) for (f, mask) in conditions]
     return [Antecedent([f], mask) for (f, mask) in conditions]
@@ -251,7 +257,7 @@ function specializeantecedents(
 
 )::Vector{Antecedent}
 
-    !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
+    !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "alphabet must be finite"
 
     if isempty(antecedents)
         return init_ants(sm,X,y; discretizedomain, default_alphabet)
@@ -260,7 +266,7 @@ function specializeantecedents(
         for antecedent in antecedents
 
             # Find a set of conjunctible conditions
-            conjconds = newconditions(sm, X, y, antecedent; discretizedomain, default_alphabet)
+            conjconds = newconditions(sm, X, y, antecedent; discretizedomain=discretizedomain, _alphabet=default_alphabet)
 
             isempty(conjconds) && continue
 
@@ -333,7 +339,7 @@ end
         loss_function::Function = soleentropy,
         max_rule_length::Union{Nothing,Integer} = nothing,
         alphabet::Union{Nothing,AbstractAlphabet} = nothing
-    )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
+    )::Antecedent
 
 Performs a beam search to find the best antecedent for a given dataset and labels.
 
@@ -355,7 +361,7 @@ function findbestantecedent(
     nlabels::Integer,
     max_rule_length::Union{Integer,Nothing},
 
-)::Tuple{Union{Truth,Formula},SatMask}
+)::Antecedent
 
     @unpack conjuncts_search_method, beam_width = bs
 

@@ -3,16 +3,18 @@ using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
 using SoleData
 # # using MLJ
+using CategoricalArrays: CategoricalValue, CategoricalArray
+using RDatasets
 using StatsBase
 using Random
 using ModalDecisionLists
 
+iris = dataset("datasets", "iris")
 
-X...,y = MLJ.load_iris()
-X_df = DataFrame(X)
-X = PropositionalLogiset(X_df)
-n_instances = ninstances(X)
-y = Vector{CLabel}(y)
+y = iris[:, :Species] |> CategoricalArray
+X = select(iris, Not(:Species))
+X = PropositionalLogiset(X)
+y = String.(y)
 
 sole_decisionlist = IREP_Star(X, y, "setosa")
 print(sole_decisionlist isa DecisionList)
