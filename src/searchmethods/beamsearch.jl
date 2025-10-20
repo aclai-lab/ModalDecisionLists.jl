@@ -177,7 +177,7 @@ function init_ants(
         alphabet(X; discretizedomain=discretizedomain, y=y) :
         default_alphabet
         
-    # Il problema è già in alphabet, che prende la stessa condizione più volte 
+    # TODO: alphabet2conditions si aspetta una AtomSearch, quindi se sm è un SearchMethod diverso questo tira errore, sistemare
     conditions = alphabet2conditions(sm, _alphabet, X)
 
     # return [Antecedent(LeftmostConjunctiveForm([f]), mask) for (f, mask) in conditions]

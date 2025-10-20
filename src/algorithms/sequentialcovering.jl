@@ -344,6 +344,8 @@ function IREP_Star(
     rulebase = Rule[]       # Il rulebase effettivo
     rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
+    dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
+
     println("Entering main IREP* loop...")
     
     i = 1
@@ -383,7 +385,7 @@ function IREP_Star(
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
         
         # Check TDL
-        rule_desc_length = _r_theory_bits(X, y, rule, discretizedomain)
+        rule_desc_length = _r_theory_bits(rule, dataset_num_selectors)
 
         push!(rulebase, rule)
 
@@ -410,15 +412,20 @@ function IREP_Star(
         # Rimozione
         # Incapsulare
         uncovered_slice = setdiff(1:ninstances(uncoveredX), coverage_indices)
+        # tutto il dataset è stato coperto, evitiamo di tirare un errore su slicedataset
+        if length(uncovered_slice) == 0 
+            break
+        end
+        println("uncovered_slice length: $(length(uncovered_slice))")
+
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
         uncoveredw = @view uncoveredw[uncovered_slice]
         uncovered_original_y = @view uncovered_original_y[uncovered_slice]
 
-        println("uncovered_slice length: $(length(uncovered_slice))")
-
-        i += 1
+        
         println("------------------- End of iteration #$(i) -------------------")
+        i += 1
     end
 
 
@@ -555,43 +562,50 @@ function PruneRule(
 end
 
 
-"""
-    Ritorna la lista di tutti gli antecedenti possibili con una sola condizione dall'alfabeto a, escludendo
-    condizioni equivalenti (ovvero quelle che coprono le stesse istanze di X)
-"""
-function unaryconditions_noneq(
-    a::UnionAlphabet,
-    X::AbstractLogiset
-)::Vector{Tuple{Atom{ScalarCondition},SatMask}}
-    seen_masks = Set{BitVector}()
-    conditions = Tuple{Atom{ScalarCondition},SatMask}[]
-    for univalph in subalphabets(a)
-        for atom in atoms(univalph)
-            mask = check(atom, X)
-            if mask ∉ seen_masks
-                push!(conditions, (atom, mask))
-                push!(seen_masks, mask)
-            end
-        end
-    end
-    return conditions
-end
+# Non più necessario, uso direttamente alphabet2conditions che ora filtra le condizioni equivalenti 
+#"""
+#    Ritorna la lista di tutti gli antecedenti possibili con una sola condizione dall'alfabeto a, escludendo
+#    condizioni equivalenti (ovvero quelle che coprono le stesse istanze di X)
+#"""
+#function unaryconditions_noneq(    
+#    a::UnionAlphabet,
+#    X::AbstractLogiset
+#)::Vector{Tuple{Atom{ScalarCondition},SatMask}}
+#    seen_masks = Set{BitVector}()
+#    conditions = Tuple{Atom{ScalarCondition},SatMask}[]
+#    for univalph in subalphabets(a)
+#        for atom in atoms(univalph)
+#            mask = check(atom, X)
+#            if mask ∉ seen_masks
+#                push!(conditions, (atom, mask))
+#                push!(seen_masks, mask)
+#            end
+#        end
+#    end
+#    return conditions
+#end
 
-
-"""
-    Ritorna la TDL (Total Description Length) di una regola in forma di LeftmostConjunctiveForm per un certo dataset (X,y)
-"""
-function _r_theory_bits(X::AbstractLogiset, y, rule::Rule, discretizedomain::Bool = false)
+function get_num_independent_selectors(X::AbstractLogiset, y, discretizedomain::Bool = false)::Int
     alph = alphabet(X;
         discretizedomain = discretizedomain,
         y = y
     )
 
-    #conds = unaryconditions(conjuncts_search_method, alph, X)
-    conds = unaryconditions_noneq(alph, X)
-    #println("------ N CALCOLATO : n = $(length(conds))")
+    independent_conds = alphabet2conditions(AtomSearch(), alph, X)
+    return length(independent_conds)
+end
 
-    n = length(conds)
+"""
+    function _r_theory_bits(rule::Rule, n_possible_conds::Int)::Int
+
+    Ritorna la TDL (Total Description Length) di una regola in forma di LeftmostConjunctiveForm per un certo dataset (X,y)
+"""
+function _r_theory_bits(rule::Rule, n::Int)
+    # conds = unaryconditions_noneq(alph, X)
+    # n_old = length(conds) 
+    
+    #println("\t Conds unaryconds_noneq: $n_old | Conds alphabet2conditions: $n")
+
     k = 1 + nconnectives(rule.antecedent) # si assume che la formula di Rule sia una LeftmostConjunctiveForm
     pr = k / n
 
@@ -604,34 +618,35 @@ function _r_theory_bits(X::AbstractLogiset, y, rule::Rule, discretizedomain::Boo
 end
 
 
-"""
-    Ritorna la TDL (Total Description Length) di un ruleset per un certo dataset (X,y)
-"""
-function _rs_theory_bits(X::AbstractLogiset, y, ruleset::Vector{Rule}, discretizedomain::Bool = false)
-    alph = alphabet(X;
-        discretizedomain = discretizedomain,
-        y = y
-    )
-
-    #conds = unaryconditions(conjuncts_search_method, alph, X)
-    conds = unaryconditions_noneq(alph, X)
-    #println("------ N CALCOLATO : n = $(length(conds))")
-
-    total_desc_length = 0
-    n = length(conds)
-    for rule ∈ ruleset
-        k = 1 + nconnectives(rule.antecedent) # si assume che la formula di Rule sia una LeftmostConjunctiveForm
-        pr = k / n
-
-        S = k * log2(1/pr) + (n - k) * log2(1/(1 - pr))
-        K = log2(k)
-        desc_length = (S + K) * 0.5
-        total_desc_length += desc_length
-    end
-
-    #println("n = $n | k = $k | natoms: $(natoms(rule.antecedent)) | nleaves: $(nleaves(rule.antecedent))")
-    return max(total_desc_length, 1)
-end
+#"""
+#    Ritorna la TDL (Total Description Length) di un ruleset per un certo dataset (X,y)
+#    (Non realmente necessario)
+#"""
+#function _rs_theory_bits(X::AbstractLogiset, y, ruleset::Vector{Rule}, discretizedomain::Bool = false)
+#    alph = alphabet(X;
+#        discretizedomain = discretizedomain,
+#        y = y
+#    )
+#
+#    #conds = unaryconditions(conjuncts_search_method, alph, X)
+#    conds = unaryconditions_noneq(alph, X)
+#    #println("------ N CALCOLATO : n = $(length(conds))")
+#
+#    total_desc_length = 0
+#    n = length(conds)
+#    for rule ∈ ruleset
+#        k = 1 + nconnectives(rule.antecedent) # si assume che la formula di Rule sia una LeftmostConjunctiveForm
+#        pr = k / n
+#
+#        S = k * log2(1/pr) + (n - k) * log2(1/(1 - pr))
+#        K = log2(k)
+#        desc_length = (S + K) * 0.5
+#        total_desc_length += desc_length
+#    end
+#    
+#    #println("n = $n | k = $k | natoms: $(natoms(rule.antecedent)) | nleaves: $(nleaves(rule.antecedent))")
+#    return max(total_desc_length, 1)
+#end
 
 
 # ritorna un'approssimazione di ln(n!) usando Stirling
@@ -641,7 +656,7 @@ function log2_factorial(n::Int)::Real
     end
     
     println("[log2_factorial] n = $n")
-    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ))
+    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ) + 0.115/n)
 end
 
 # ritorna un'approssimazione di ln( n choose k ) usando log2_factorial
@@ -650,9 +665,10 @@ function log2binomial(n::Int, k::Int)::Real
         return 0
     end
 
-    # Per n piccoli, approssimazione Stirling è imprecisa (es. per n=5, log2(120)≈6.9, Stirling≈7.1). Per precisione, usa log2(factorial(big(n))) per n<20, Stirling per grandi.
-
-    println("[log2_binomial] n = $n | k = $k")
+    # 0.115/n è stato scelto perchè, senza cambiare l'uguaglianza asintotica di Stirling, esegue una correzione
+    # piuttosto buona per n piccolo, in questa maniera non serve realmente fare un if n < n_min per usare il fattoriale su piccoli valori
+    # Già per n = 1 l'errore assoluto di questa funzione rispetto al valore corretto è 0.00194 e va diminuendo
+    # confrontare le due curve in una calcolatrice grafica per farsi un'idea
     return log2_factorial(n) - log2_factorial(k) - log2_factorial(n-k)
 end
 
