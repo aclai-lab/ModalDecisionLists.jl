@@ -71,6 +71,7 @@ function bot_antecedent(n::Integer)
     Antecedent(LeftmostConjunctiveForm([⊤]), ones(Bool, n))   # ⊤ rappresenta la formula top 
 end
 
+istop(a::Antecedent)  = a.formula.grandchildren == [⊤]
 
 
 struct InstanceSet

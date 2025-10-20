@@ -133,7 +133,7 @@ function newconditions(
     ant::Antecedent;
 
     discretizedomain=false,
-    _alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
 
 )::Vector{Tuple{Atom{ScalarCondition},SatMask}}
 
@@ -142,7 +142,8 @@ function newconditions(
     coveredy = y[ant.covmask]
 
     selectedalphabet = begin
-        a = something(_alphabet, alphabet(coveredX; discretizedomain, y = coveredy))
+        #a = something(default_alphabet, alphabet(coveredX; discretizedomain, y = coveredy)) # esegue alphabet() anche se non viene selezionata
+        a = isnothing(default_alphabet) ? alphabet(coveredX; ; discretizedomain, y = coveredy) : default_alphabet
 
         # Exclude metaconditons tha are already in `antecedent`
         alphabets = [ a for a in subalphabets(a)
