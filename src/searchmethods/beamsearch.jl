@@ -143,7 +143,7 @@ function newconditions(
 
     selectedalphabet = begin
         #a = something(default_alphabet, alphabet(coveredX; discretizedomain, y = coveredy)) # esegue alphabet() anche se non viene selezionata
-        a = isnothing(default_alphabet) ? alphabet(coveredX; ; discretizedomain, y = coveredy) : default_alphabet
+        a = isnothing(default_alphabet) ? alphabet(coveredX; discretizedomain, y = coveredy) : default_alphabet
 
         # Exclude metaconditons tha are already in `antecedent`
         alphabets = [ a for a in subalphabets(a)
@@ -267,7 +267,7 @@ function specializeantecedents(
         for antecedent in antecedents
 
             # Find a set of conjunctible conditions
-            conjconds = newconditions(sm, X, y, antecedent; discretizedomain=discretizedomain, _alphabet=default_alphabet)
+            conjconds = newconditions(sm, X, y, antecedent; discretizedomain=discretizedomain, default_alphabet=default_alphabet)
 
             isempty(conjconds) && continue
 
