@@ -19,7 +19,7 @@ The beam is dynamically updated to include the most promising solutions, allowin
 efficient exploration of the solution space without examining all possibilities.
 
 # Keyword Arguments
-* `conjuncts_search_method::SearchMethod=AtomSearch()`: Defines the heuristic method by which possible conjuncts are generated during the beam search.
+* `conjuncts_generation_method::SearchMethod=AtomSearch()`: Defines the heuristic method by which possible conjuncts are generated during the beam search.
 * `beam_width::Integer=3` is the width of the beam, i.e., the maximum number of partial solutions to maintain during the search.
 
 See also
@@ -30,27 +30,18 @@ See also
 [`specializeantecedents`](@ref).
 """
 @kwdef mutable struct BeamSearch <: SearchMethod
-    conjuncts_search_method::SearchMethod=AtomSearch()
+    # conjuncts_generation_method::AbstractGenerator=AtomGenerator()
+    conjuncts_generation_method::AbstractGenerator=RandomGenerator()
     beam_width::Integer=3
 end
 
 
-function BeamSearch(; conjuncts_search_method::SearchMethod=AtomSearch(), beam_width::Integer=3)
+function BeamSearch(; conjuncts_generation_method::AbstractGenerator=AtomGenerator(), beam_width::Integer=3)
     if beam_width < 1
         throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
     end
-    return BeamSearch(conjuncts_search_method, beam_width)
+    return BeamSearch(conjuncts_generation_method, beam_width)
 end
-
-
-# checkedatoms(X, alph) = map(a -> (a, check(a, X)), atoms(alph))
-"""
-    function checkedatoms(X::AbstractLogiset, alph)::Vector{Tuple{Atom,SatMask}}
-
-Given a set of samples/interpretations X and an alphabet alph, it returns a list of tuples
-(a, mask) where each atom is mapped to its corresponding SatMask on X.
-"""
-checkedatoms(X::AbstractLogiset, alph)::Vector{Tuple{Atom,SatMask}} = [(a, check(a, X)) for a ∈ atoms(alph)]
 
 """
     function filteralphabetoptimized(
@@ -65,10 +56,9 @@ trivial specialization for the antecedent.
 A trivial specialization correspond to an antecedent covering exactly the same instances as its parent.
 """
 #TODO:  @Edo questo va prevenuto appena si generano gli atomi dall'alfabeto (forse)
-function filteralphabet(
-    X::AbstractLogiset, 
-    alph::UnionAlphabet,
-    ant::Antecedent
+function filterconditions(
+    conditions::Vector{Tuple{Atom,SatMask}},
+    ant::Antecedent,
 )::Vector{Tuple{Atom,SatMask}}
 
     # An atom is considered active for a given antecedent iff its addition 
@@ -77,27 +67,14 @@ function filteralphabet(
         ((ant.covmask .& mask) != ant.covmask) && 
              (atom ∉ atoms(ant.formula))
 
-    return filter(is_active, checkedatoms(X, alph))
+    return filter(is_active, conditions)
 end
 
 
 """
 Return the list of all possible antecedents containing a single condition from the alphabet.
 """
-function alphabet2conditions(
-    ::AtomSearch,
-    a::UnionAlphabet,
-    X::AbstractLogiset
-)::Vector{Tuple{Atom,SatMask}}
 
-    _conditions = Tuple{Atom{ScalarCondition},SatMask}[]
-
-    for univalph in subalphabets(a)
-        newconds = checkedatoms(X, univalph)
-        append!(_conditions, newconds)
-    end
-    return _conditions
-end
 
 
 metaconds(a::Antecedent) = metacond.(SoleData.value.(children(a.formula)))
@@ -112,7 +89,7 @@ Returns the list of all possible conditions (atoms) that can be derived from ins
 of X and can further refine the input antecedent.
 """
 function newconditions(
-    ::AtomSearch,
+    sm::SearchMethod,
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     ant::Antecedent;
@@ -123,21 +100,19 @@ function newconditions(
 )::Vector{Tuple{Atom{ScalarCondition},SatMask}}
 
     # antformula, satindexes = antecedent
-    coveredX = slicedataset(X, ant.covmask; return_view=false)
-    coveredy = y[ant.covmask]
+    _X = slicedataset(X, ant.covmask; return_view=false)
+    _y = y[ant.covmask]
 
     selectedalphabet = begin
-        #a = something(default_alphabet, alphabet(coveredX; discretizedomain, y = coveredy)) # esegue alphabet() anche se non viene selezionata
-        a = isnothing(default_alphabet) ? alphabet(coveredX; discretizedomain, y = coveredy) : default_alphabet
+        _alphabet = isnothing(default_alphabet) ? 
+            alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
+            default_alphabet
 
-        # Exclude metaconditons tha are already in `antecedent`
-        alphabets = [ a for a in subalphabets(a)
-            if metacond(a) ∉ metaconds(ant) 
-        ]
         UnionAlphabet(alphabets)
     end
-
-    return filteralphabet(X, selectedalphabet, ant)
+    
+    conditions = alphabet2conditions(sm.conjuncts_generation_method, selectedalphabet, X)
+    return filterconditions(conditions, ant)
 end
 
 
@@ -147,8 +122,8 @@ end
 Generates a list of unary antecedents starting from the specified alphabet, or from that
 built from the logiset `X`.
 """
-function init_ants(
-    sm::SearchMethod,
+function initialize_antecedents(
+    sm::SearchMethod, 
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel};
     discretizedomain::Bool=false,
@@ -156,11 +131,10 @@ function init_ants(
 )::Vector{Antecedent}
 
     _alphabet = isnothing(default_alphabet) ?
-        alphabet(X; discretizedomain=discretizedomain, y=y) :
-        default_alphabet
-        
-    # TODO: alphabet2conditions si aspetta una AtomSearch, quindi se sm è un SearchMethod diverso questo tira errore, sistemare
-    conditions = alphabet2conditions(sm, _alphabet, X)
+        alphabet(X; discretizedomain, y, sortingmode = :generalfirst) : 
+            default_alphabet
+
+    conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)
     return [Antecedent([f], mask) for (f, mask) in conditions]
 end
 
@@ -177,8 +151,6 @@ prune_noncovering(antecedents::AbstractVector{Antecedent}) = [a for a in anteced
 Specialize rule *antecedents*.
 """
 
-
-
 function specializeantecedents(
     sm::SearchMethod,
     antecedents::AbstractVector{Antecedent},
@@ -194,7 +166,7 @@ function specializeantecedents(
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "alphabet must be finite"
 
     if isempty(antecedents)
-        return init_ants(sm,X,y; discretizedomain, default_alphabet)
+        return initialize_antecedents(sm, X,y; discretizedomain, default_alphabet)
     else
         specializedants = Antecedent[]
         for antecedent in antecedents
@@ -218,55 +190,6 @@ function specializeantecedents(
     return prune_noncovering(specializedants)
 end
 
-# function specializeantecedents(
-#     sm::SearchMethod,
-#     antecedents::AbstractVector{Antecedent},
-#     X::AbstractLogiset,
-#     y::AbstractVector{<:CLabel},
-#
-#     max_rule_length::Union{Nothing,Integer}=nothing,
-#     discretizedomain::Bool=false,
-#     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-#
-# )::Vector{Antecedent}
-#
-#     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "aphabet must be finite"
-#
-#     if isempty(antecedents)
-#
-#         # Seleziona alfabeto (genera uno | default)
-#         alphabet = isnothing(default_alphabet) ?
-#                 alphabet(X; discretizedomain=discretizedomain, y=y) : 
-#                 default_alphabet
-#
-#         _conditions = conditions(sm, alphabet, X)
-#         specializedants =  map((f, satmask) ->  Antecedent([f], satmask), 
-#                                _conditions)
-#     else
-#         specializedants = Antecedent[]
-#         for antecedent ∈ antecedents
-#
-#             # antformula, antcoverage = antecedent
-#             conjunctibleconditions = newconditions(sm, X, y, antecedent;
-#                         alph             = default_alphabet,
-#                         discretizedomain = discretizedomain)
-#
-#             isempty(conjunctibleconditions) && continue
-#
-#             currentant_specialization = [ begin
-#                 newantformula = deepcopy(antformula)
-#                 pushconjunct!(newantformula, newatom)
-#
-#                 (newantformula, antcoverage .& newatom_satmsk)
-#             end for (newatom, newatom_satmsk) ∈ conjunctibleconditions ]
-#             append!(specializedants, currentant_specialization)
-#         end
-#     end
-#     return prune_noncovering(specializedants)
-# end
-#
-#
-#
 
 function exitcondition(
     candidates,
@@ -344,7 +267,7 @@ function findbestantecedent(
 
 )::Antecedent
 
-    @unpack conjuncts_search_method, beam_width = bs
+    @unpack conjuncts_generation_method, beam_width = bs
 
     # Inizializza il migliore antecedente come formula ⊤ 
     # (sempre vera, copre tutte le istanze)
@@ -355,13 +278,15 @@ function findbestantecedent(
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Antecedent[]
 
-        newcandidates = specializeantecedents(conjuncts_search_method,
+        newcandidates = specializeantecedents(conjuncts_generation_method,
                                             candidates, X, y,
 
                                             max_rule_length,
                                             discretizedomain,
                                             default_alphabet)
-
+        
+        @show newcandidates
+        readline()
         # Sort new candidates
         (newcandidates, bestcandidate_loss) = sortantecedents(newcandidates,
                                                     y, w, beam_width,

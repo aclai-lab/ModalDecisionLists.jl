@@ -11,26 +11,6 @@ using ModalDecisionLists.LossFunctions: significance_test
 
 const SatMask = BitVector
 
-############################################################################################
-############ Helping function ##############################################################
-############################################################################################
-
-pp(str) = printstyled("$(str) \n", color=:red, bold=true)
-
-macro showlc(list, c)
-
-    return esc(quote
-        infolist = (length($list) == 0 ?
-                    "EMPTY" :
-                    "len: $(length($list))"
-        )
-        printstyled($(string(list)), " | $infolist \n", bold=true, color=$c)
-        for (ind, element) in enumerate($list)
-            printstyled(ind, ") ", element, "\n", color=$c)
-        end
-    end)
-
-end
 
 ############################################################################################
 ############ Utilities #####################################################################
@@ -169,32 +149,39 @@ function findbestantecedent(
 end
 
 ############################################################################################
-############ AtomSearch ####################################################################
+############ AbstractGenerator #############################################################
 ############################################################################################
+#
 """
 
-        AtomSearch
+        AbstractGenerator
 
-Method for conjunctions search to be used with [`BeamSearch`](@ref), where the conjunctions are restricted to
-atomic conditions. This approach precisely implements the CN2 algorithm.
+Abstract type representing a generic generator of logical conjuncts.
+
+Subtypes of `AbstractGenerator` are responsible for producing individual conjuncts 
+— either atomic predicates or composite formulas — according to specific generation 
+rules or constraints. These conjuncts can then be combined using logical `AND` 
+operators to form full rule bodies.
+
+Typical use cases include:
+- Generating candidate atoms for rule induction.
+- Sampling logical subformulas under syntactic or semantic constraints.
+- Building the conjunction part of a logical rule (the rule's body).
+
+Implementations should define at least:
+- `generate_conjuncts(gen::YourGenerator)`: returns an iterable or vector
+  of conjuncts produced by the generator.
 """
-struct AtomSearch <: SearchMethod end
 
-function findbestantecedent(
-    as::AtomSearch,
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    w::AbstractVector;
-    kwargs...
-)
-    return findbestantecedent(BeamSearch(; conjuncts_search_method=as, max_rule_length=1), X, y, w; kwargs...)
-end
+abstract type AbstractGenerator end
 
 ############################################################################################
 
 
 include("searchmethods/beamsearch.jl")
 include("searchmethods/randsearch.jl")
+include("searchmethods/atom-generator.jl")
+include("searchmethods/random-generator.jl")
 
 
 function maptointeger(y::AbstractVector{<:CLabel})

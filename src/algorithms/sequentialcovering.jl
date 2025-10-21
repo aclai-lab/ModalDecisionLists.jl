@@ -591,7 +591,7 @@ function get_num_independent_selectors(X::AbstractLogiset, y, discretizedomain::
         y = y
     )
 
-    independent_conds = alphabet2conditions(AtomSearch(), alph, X)
+    independent_conds = alphabet2conditions(AtomGenerator(), alph, X)
     return length(independent_conds)
 end
 
