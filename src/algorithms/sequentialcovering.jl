@@ -346,9 +346,11 @@ function irepstar(
         # println("best antecedent: $bestantecedent")
 
 
+        # -------- !------------
+        # Ora pruneantecedent ritorna il miglior Antecedent 
         bestantecedent, bestantecedent_prune_cov = pruneantecedent(pruneX, pruney, bestantecedent)
 
-        coverage_indices = compute_coverage(bestantecedent, growX, growindxs, pruneX, pruneindxs, bestantecedent_prune_cov)
+        coverage_indices = compute_global_coverage(bestantecedent, growX, growindxs, pruneX, pruneindxs, bestantecedent_prune_cov)
 
         # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
@@ -430,7 +432,7 @@ function split_instances(X, y, w, split_ratio)
 
     # TODO @Nicola : Aggungere seed per riproducibilità !!
 
-    # @Nicola ho cambiato così
+    # ho cambiato così
     permindxs = randperm(n)
     growindxs = permindxs[1:ngrow]
     prunindxs = permindxs[ngrow+1:end]
@@ -446,11 +448,53 @@ function split_instances(X, y, w, split_ratio)
 end
 
 """
-    Calcola gli indici dei sample del dataset originale che sono coperti dalla condizione antecedent.
-    Se growX e pruneX sono i sottoinsiemi del dataset X tali che growX = X[growindxs] e pruneX = X[pruneindxs],
-    la funzione ritorna l'insieme di indici tali che X[inds] sono i samples coperti da antecedent
+    compute_coverage(
+        antecedent::LeftmostConjunctiveForm, 
+        growX, growindxs, 
+        pruneX, pruneindxs, 
+        bestantecedent_prune_cov
+    ) -> Vector{Int}
+
+Calcola gli indici **globali** delle istanze del dataset originale che sono 
+coperte da un dato `antecedent` (regola logica o congiunzione di condizioni), 
+combinando la copertura nei sottoinsiemi *grow* e *prune*.
+
+# Descrizione
+il dataset viene suddiviso in due parti:
+- **grow set** (`growX`): usato per costruire la regola;
+- **prune set** (`pruneX`): usato per ottimizzarla e ridurne l'overfitting.
+
+Questa funzione valuta la regola su entrambi i sottoinsiemi e restituisce 
+gli indici delle istanze (riferiti al dataset originale) che risultano coperte.
+
+Se è già disponibile una maschera di copertura per la fase di pruning 
+(`bestantecedent_prune_cov`), questa viene riutilizzata per evitare 
+ricomputazioni.
+
+# Argomenti
+- `antecedent::LeftmostConjunctiveForm`: la regola o congiunzione di condizioni da valutare.
+- `growX`: il sottoinsieme di dati usato nella fase di *growing*.
+- `growindxs`: vettore degli indici globali corrispondenti alle istanze di `growX`.
+- `pruneX`: il sottoinsieme di dati usato nella fase di *pruning*.
+- `pruneindxs`: vettore degli indici globali corrispondenti alle istanze di `pruneX`.
+- `bestantecedent_prune_cov`: maschera booleana opzionale già calcolata che indica 
+  le istanze coperte su `pruneX` (può essere `nothing`).
+
+# Ritorna
+- `Vector{Int}` — un vettore contenente tutti gli indici **globali** delle istanze 
+  coperte dall'antecedent, sia in `growX` che in `pruneX`.
+
+
+
+TODO: Tutti i commenti in inglese
 """
-function compute_coverage(
+
+
+# @Nicola: questa funzione non mi piace tanto, intuisco ci 
+# sia un modo migliore di farla senza che evita una ulteriore check.
+# Io partirei dalla funzione split_instances(...). Qui so come vengono 
+# permutate le istanze, magari posso portarmi dietro questa info e riuscire a riordinare tutto
+function compute_global_coverage(
     antecedent::LeftmostConjunctiveForm, 
     growX, growindxs, 
     pruneX, pruneindxs, 
@@ -532,7 +576,7 @@ function pruneantecedent(
     negmask = (!).(posmask)
 
     _bestant = (antecedent.formula, antecedent.covmask)
-    _bestant_score = -Inf
+    _bestant_score = -Inf # @Nicola sei sicuro che dabba partire da -Inf, per me no ...? 
 
     # per ogni sottoinsieme finale non nullo delle condizioni
     for pformula in generate_pruned_formulas(antecedent)
@@ -684,7 +728,7 @@ end
 function log2_factorial(n::Int)::Real
     if n == 0
         return 0
-    endComuqnue 
+    end
     
     println("[log2_factorial] n = $n")
     return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ) + 0.115/n)
