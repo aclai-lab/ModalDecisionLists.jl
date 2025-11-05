@@ -48,10 +48,13 @@ end
 
 # Funzione per creare un Antecedent "top"
 function bot_antecedent(n::Integer)
-    Antecedent(LeftmostConjunctiveForm([⊤]), ones(Bool, n))   # ⊤ rappresenta la formula top 
+    return Antecedent(LeftmostConjunctiveForm([⊤]), ones(Bool, n))   # ⊤ rappresenta la formula top 
 end
 
 istop(a::Antecedent)  = a.formula.grandchildren == [⊤]
+
+conds(a::Antecedent) = a.formula.grandchildren
+nconds(a::Antecedent) = length(conds(a))
 
 
 struct InstanceSet

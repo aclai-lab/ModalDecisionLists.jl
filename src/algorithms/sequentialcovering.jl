@@ -258,7 +258,7 @@ end
 # TODO: fare una versione solo per il caso binario in modo che sia fedele all'algoritmo originale. 
 # Basta aggiungere un parametro pos_label per il label da considerarsi positivo, e poi rimpiazzare y con un
 # array di 1 dove y = pos_label e 0 dove y != pos label, tipo "y = y .== pos_label_idx"
-function IREP_Star(
+function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
@@ -283,8 +283,6 @@ function IREP_Star(
 )::DecisionList where {U<:Real}
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
-    max_rulebase_length = (isnothing(max_rulebase_length)) ? Inf : max_rulebase_length
-
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
@@ -298,7 +296,6 @@ function IREP_Star(
         supporting_labels=y,
     )
 
-
     y, labels = y |> maptointeger   
     poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
 
@@ -310,22 +307,24 @@ function IREP_Star(
     uncoveredy = y
     uncoveredw = w
 
-    rulebase = Rule[]       # Il rulebase effettivo
 
     rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
 
     println("Entering main IREP* loop...")
-    
+    rulebase = Rule[]
+    while true
 
-    while length(rulebase) < max_rulebase_length
-        
+        if !isnothing(max_rulebase_length) && length(rulebase) < max_rulebase_length
+            break
+        end
+
         result = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
         result === nothing && break
-        growX, growy, grow_w, pruneX, pruney, grow_inds, prune_inds = result
 
-        # prima era una LeftmostConjunctiveForm
+        growX, growy, grow_w, pruneX, pruney, growindxs, pruneindxs = result
+
         bestantecedent = findbestantecedent(searchmethod,
             growX, growy, grow_w,
             #
@@ -339,15 +338,17 @@ function IREP_Star(
             max_rule_length = max_rule_length,
             nlabels = 2
         )
-        coverage = bestantecedent.covmask
-        bestantecedent = bestantecedent.formula
 
-        println("best antecedent: $bestantecedent")
-        bestantecedent == ⊤ && break
+        istop(bestantecedent) && break
 
-        bestantecedent, bestantecedent_prune_cov = PruneRule(pruneX, pruney, bestantecedent)
+        # bestantecedent = bestantecedent.formula
 
-        coverage_indices = compute_coverage(bestantecedent, growX, grow_inds, pruneX, prune_inds, bestantecedent_prune_cov)
+        # println("best antecedent: $bestantecedent")
+
+
+        bestantecedent, bestantecedent_prune_cov = pruneantecedent(pruneX, pruney, bestantecedent)
+
+        coverage_indices = compute_coverage(bestantecedent, growX, growindxs, pruneX, pruneindxs, bestantecedent_prune_cov)
 
         # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
@@ -367,7 +368,8 @@ function IREP_Star(
         ΔTDL_data_given_ruleset = data_new_ruleset_desc_length - data_curr_ruleset_desc_length
         ΔTDL_ruleset = rule_desc_length                         
         ΔTDL = ΔTDL_ruleset + ΔTDL_data_given_ruleset
-        println("Total tdl difference: $ΔTDL")
+
+        # println("Total tdl difference: $ΔTDL")
 
         if ΔTDL > tdl_threshold
             pop!(rulebase)
@@ -399,7 +401,6 @@ function IREP_Star(
     
     prediction = "other"    # default prediction se nessuna altra regola si applica
 
-
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
         # supporting_weights=collect(justcoveredw), # TODO
@@ -412,43 +413,52 @@ end
 
 """
     Separa il dataset (X,y) con i pesi w in una parte (growX, growy, grow_w) e in un'altra (pruneX, pruney) dove
-    gli indici dei due dataset sono salvati in grow_inds e in prune_inds
+    gli indici dei due dataset sono salvati in growindxs e in pruneindxs
 """
 function split_instances(X, y, w, split_ratio)
+# function split_instances(X, y, w, split_ratio, seed)
+
     n = ninstances(X)
-    n_grow = convert(Int, ceil(n * split_ratio))
-    # @Edo: Quando questo test è verificato
-    if n_grow == 0 || n - n_grow == 0
+    ngrow = convert(Int, ceil(n * split_ratio))
+    # @Nicola Semplicemente round(n * split_ratio)
+
+    # @Nicola TODO: Cambiare, bisogna fare un test a priori 
+    # su split_ratio (che non sia saturo, quindi non 0 o 1)
+    if ngrow == 0 || n - ngrow == 0
         return nothing
     end
-    all_inds = collect(1:n)
-    grow_inds = randperm(n)[1:n_grow]
-    prune_inds = setdiff(all_inds, grow_inds)
-    
-    growX = slicedataset(X, grow_inds)
-    growy = y[grow_inds]
-    groww = w[grow_inds]
 
-    pruneX = slicedataset(X, prune_inds)
-    pruney = y[prune_inds]
+    # TODO @Nicola : Aggungere seed per riproducibilità !!
 
-    return growX, growy, groww, pruneX, pruney, grow_inds, prune_inds
+    # @Nicola ho cambiato così
+    permindxs = randperm(n)
+    growindxs = permindxs[1:ngrow]
+    prunindxs = permindxs[ngrow+1:end]
+
+    growX = slicedataset(X, growindxs)
+    growy = y[growindxs]
+    groww = w[growindxs]
+
+    prunX = slicedataset(X, prunindxs)
+    pruny = y[prunindxs]
+
+    return growX, growy, groww, prunX, pruny, growindxs, prunindxs
 end
 
 """
     Calcola gli indici dei sample del dataset originale che sono coperti dalla condizione antecedent.
-    Se growX e pruneX sono i sottoinsiemi del dataset X tali che growX = X[grow_inds] e pruneX = X[prune_inds],
+    Se growX e pruneX sono i sottoinsiemi del dataset X tali che growX = X[growindxs] e pruneX = X[pruneindxs],
     la funzione ritorna l'insieme di indici tali che X[inds] sono i samples coperti da antecedent
 """
 function compute_coverage(
     antecedent::LeftmostConjunctiveForm, 
-    growX, grow_inds, 
-    pruneX, prune_inds, 
+    growX, growindxs, 
+    pruneX, pruneindxs, 
     bestantecedent_prune_cov
 )    
     grow_mask = check(antecedent, growX)
     grow_cov_local = findall(grow_mask)
-    grow_cov_global = grow_inds[grow_cov_local]
+    grow_cov_global = growindxs[grow_cov_local]
 
     
     if bestantecedent_prune_cov === nothing 
@@ -457,7 +467,7 @@ function compute_coverage(
         prune_mask = bestantecedent_prune_cov
     end
     prune_cov_local = findall(prune_mask)
-    prune_cov_global = prune_inds[prune_cov_local]
+    prune_cov_global = pruneindxs[prune_cov_local]
     
     return vcat(grow_cov_global, prune_cov_global)
 end
@@ -490,41 +500,97 @@ end
 
 
 
-function PruneRule(
-    pruneX::AbstractLogiset,
-    pruneY::Vector{UInt32},
-    rule::LeftmostConjunctiveForm
+
+
+"""
+    generate_pruned_rules(rule::LeftmostConjunctiveForm)
+
+Genera tutte le versioni "potate" (prefissi) della regola `rule`,
+in ordine decrescente di lunghezza (dalla regola completa al suo atomo più semplice).
+
+Utile per la fase di pruning di RIPPER.
+"""
+
+# TODO: @Nicola: specificare un ulteriore parametro per il pruning: 
+# Esistono metodi alternativi oper il pruning invece che rimuovere in maniera monotona l'ultima condizione ? 
+function generate_pruned_formulas(ant::Antecedent)
+    _range = nconds(ant):-1:1
+    return [LeftmostConjunctiveForm(conds(ant)[1:i]) 
+        for i in _range
+    ]
+end
+
+function pruneantecedent(
+    X::AbstractLogiset,
+    y::Vector{UInt32},
+    antecedent::Antecedent;
+
+    target_class::Integer=1
 )
-    n_conditions = length(rule.grandchildren)  # cercare funzione default di sole (tipo natoms?)
+    # @Nicola : Quindi qui perchè fisso la classe target a 1 ? 
+    posmask = y .== target_class
+    negmask = (!).(posmask)
 
-    pos_samples_indxs = findall(label -> label == 1, pruneY)
-    neg_samples_indxs = findall(label -> label != 1, pruneY)
+    _bestant = (antecedent.formula, antecedent.covmask)
+    _bestant_score = -Inf
 
-    best_rule = rule
-    best_rule_score = -Inf
-    best_rule_sat_mask = []
-    
     # per ogni sottoinsieme finale non nullo delle condizioni
-    for cond_idx = n_conditions:-1:1
-        new_grandchildren = rule.grandchildren[1:cond_idx]
-        new_rule = LeftmostConjunctiveForm(new_grandchildren)
+    for pformula in generate_pruned_formulas(antecedent)
 
-        rule_sat_mask = check(new_rule, pruneX)  
-        rule_covered_idxs = findall(rule_sat_mask)
+        pformula_covmask = check(pformula, X)  
 
-        p = length(intersect(rule_covered_idxs, pos_samples_indxs)) # num. di samples positivi coperti dalla regola
-        n = length(intersect(rule_covered_idxs, neg_samples_indxs)) # num. di samples negativi coperti dalla regola
-        
-        rule_score = (p - n)/(p + n)        # v* nel paper
-        if rule_score > best_rule_score
-            best_rule_score = rule_score
-            best_rule = new_rule
-            best_rule_sat_mask = rule_sat_mask
+        # num. di samples positivi (p) e negativi(n) coperti dalla regola
+        p = sum(posmask .& pformula_covmask) 
+        n = sum(negmask .& pformula_covmask) 
+        score = (p-n)/(p+n)        # v* nel paper
+
+        if score > _bestant_score
+            _bestant = (pformula, pformula_covmask)
+            _bestant_score = score
         end
     end
 
-    return best_rule, best_rule_sat_mask
+    return Antecedent(_bestant...)
 end
+
+# function pruneantecedent(
+#     X::AbstractLogiset,
+#     y::Vector{UInt32},
+#     antecedent::Antecedent
+#     # rule :: Lmcf
+# )
+#     # Quindi qui la y è booleana ? 
+#
+#     @show y
+#     pos_indxs = findall(label -> label == 1, y)
+#     neg_indxs = findall(label -> label != 1, y)
+#
+#     bestf = antecedent.formula
+#     bestf_score = -Inf
+#     bestf_satmask = []
+#
+#     # per ogni sottoinsieme finale non nullo delle condizioni
+#     for pformula in generate_pruned_formulas(antecedent)
+#
+#         satmask = check(pformula, X)  
+#
+#         rule_covered_idxs = findall(satmask)
+#
+#         # num. di samples positivi coperti dalla regola
+#         p = length(intersect(rule_covered_idxs, pos_indxs)) 
+#         # num. di samples negativi coperti dalla regola
+#         n = length(intersect(rule_covered_idxs, neg_indxs))
+#
+#         rule_score = (p - n)/(p + n)        # v* nel paper
+#         if rule_score > best_rule_score
+#             best_rule_score = rule_score
+#             best_rule = new_rule
+#             best_rule_sat_mask = rule_sat_mask
+#         end
+#     end
+#
+#     return best_rule, best_rule_sat_mask
+# end
 
 
 # Non più necessario, uso direttamente alphabet2conditions che ora filtra le condizioni equivalenti 
@@ -587,7 +653,7 @@ end
 #    Ritorna la TDL (Total Description Length) di un ruleset per un certo dataset (X,y)
 #    (Non realmente necessario)
 #"""
-#function _rs_theory_bits(X::AbstractLogiset, y, ruleset::Vector{Rule}, discretizedomain::Bool = false)
+#function _rs_theory_bits(X::AbstractLogiset, y, ruleset::Vector{Rule}, discretizedomain::Bool = false)Comuqnue 
 #    alph = alphabet(X;
 #        discretizedomain = discretizedomain,
 #        y = y
@@ -618,7 +684,7 @@ end
 function log2_factorial(n::Int)::Real
     if n == 0
         return 0
-    end
+    endComuqnue 
     
     println("[log2_factorial] n = $n")
     return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ) + 0.115/n)
