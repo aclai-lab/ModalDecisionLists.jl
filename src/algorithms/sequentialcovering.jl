@@ -144,25 +144,14 @@ function sequentialcovering(
 
     searchmethod = reconstruct(searchmethod, kwargs)
 
-    
     info_dl = (;
         supporting_labels=y,
-        # supporting_weights=w, # TODO
-        # supporting_predictions=[],
     )
-
-    # instanceset = InstanceSet(X,y,w)
-    # @show instanceset
-    
-
 
     y, labels = y |> maptointeger
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
-
-    # TODO
-    # instanceset = InstanceSet(X, y, w=nothing)
 
     rulebase = Rule[]       # Il rulebase effettivo
     while true
@@ -190,12 +179,9 @@ function sequentialcovering(
             justcoveredw = uncoveredw[bestantecedent.covmask]
             # indice della classe associata alla regola
             predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
-            # prediction = labels[consequent_i]
 
-            # le informazioni che vanno al ConstantModel che sarà il consequent dell'oggetto Rule che rappresenta la regola appena trovata
             info_cm = (;
                 supporting_labels=[labels[x] for x in collect(justcoveredy)],       # array con i labels dei sample appena coperti dalla regola creata
-                # supporting_weights=collect(justcoveredw), # TODO
                 supporting_predictions=fill(predlabel, length(justcoveredy)),       # array dove per ogni sample appena coperto c'è il label che la nuova regola gli assegna 
             )
             consequent = ConstantModel(predlabel, info_cm)
@@ -203,8 +189,6 @@ function sequentialcovering(
             # info della struct regola appena trovata
             info_r = (;
                 supporting_labels=[labels[x] for x in collect(uncoveredy)],
-                # supporting_weights=collect(uncoveredw), # TODO
-                # supporting_predictions=fill(prediction, length(uncoveredy)),
             )
             Rule(bestantecedent.formula, consequent, info_r)
         end
@@ -223,48 +207,46 @@ function sequentialcovering(
             break
         end
     end
-    # !allequal(uncoveredy) && @warn "Remaining classes are not all equal; defaultclass represents the best estimate."
     prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
     prediction = labels[prediction]
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(uncoveredy)],
-        # supporting_weights=collect(justcoveredw), # TODO
         supporting_predictions=fill(prediction, length(uncoveredy)),
     )
     defaultconsequent = ConstantModel(prediction, info_cm)
     return DecisionList(rulebase, defaultconsequent, info_dl)
 end
 
-function build_cn2(
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
-    kwargs...
-)
-    return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
-end
-
-function build_orange_cn2(
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
-    kwargs...
-)
-    error("TODO: what's the default parametrization for orange CN2?")
-    # return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
-end
-
-function build_randcn2(
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
-    kwargs...
-)
-    return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
-end
-
-
-
+# function build_cn2(
+#     X::AbstractLogiset,
+#     y::AbstractVector{<:CLabel},
+#     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
+#     kwargs...
+# )
+#     return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
+# end
+#
+# function build_orange_cn2(
+#     X::AbstractLogiset,
+#     y::AbstractVector{<:CLabel},
+#     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
+#     kwargs...
+# )
+#     error("TODO: what's the default parametrization for orange CN2?")
+#     # return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
+# end
+#
+# function build_randcn2(
+#     X::AbstractLogiset,
+#     y::AbstractVector{<:CLabel},
+#     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
+#     kwargs...
+# )
+#     return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
+# end
+#
+#
+#
 
 
 ############################################################################################
@@ -280,6 +262,7 @@ function IREP_Star(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
+
     tdl_threshold::Int = 64,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
@@ -292,11 +275,13 @@ function IREP_Star(
     significance_alpha::Union{Real,Nothing}=0.0,
     min_rule_coverage::Integer=1,
     max_rule_length::Union{Nothing,Integer}=nothing,
+
     max_rulebase_length::Union{Nothing,Integer}=nothing,
+
     suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
-    # ARGUMENT PARSING
+
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
     max_rulebase_length = (isnothing(max_rulebase_length)) ? Inf : max_rulebase_length
 
@@ -306,52 +291,35 @@ function IREP_Star(
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                 "than one. Please provide a valid value."
-
-    w = if isnothing(w) || w == :default
-        default_weights(y) # ones
-    elseif w == :rebalance
-        balanced_weights(y)
-    else
-        w
-    end
-
     # in Parameters.jl
     searchmethod = reconstruct(searchmethod, kwargs)
 
-    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
-    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
-    (ninstances(X) == 0) && error("Empty trainig set")
-
     info_dl = (;
         supporting_labels=y,
-        # supporting_weights=w, # TODO
-        # supporting_predictions=[],
     )
 
 
-    # y è un vettore di interi {1,2,...} corrispondenti ai label, labels è un vettore di clabel come {"setosa", "virginica", "versicolor"}
     y, labels = y |> maptointeger   
     poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
 
     uncovered_original_y = y
 
-    y = convert.(UInt32, (y .== poslabel_idx))  # ora y è un array di {0,1}^n, dove 1 corrisponde alla classe positiva e 0 ad un'altra
+    y = UInt32.(y .== poslabel_idx)  # ora y è un array di {0,1}^n, dove 1 corrisponde alla classe positiva e 0 ad un'altra
 
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
 
     rulebase = Rule[]       # Il rulebase effettivo
+
     rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
 
     println("Entering main IREP* loop...")
     
-    i = 1
 
     while length(rulebase) < max_rulebase_length
-        println("------------------- Starting iteration #$(i) -------------------")
         
         result = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
         result === nothing && break
@@ -423,9 +391,6 @@ function IREP_Star(
         uncoveredw = @view uncoveredw[uncovered_slice]
         uncovered_original_y = @view uncovered_original_y[uncovered_slice]
 
-        
-        println("------------------- End of iteration #$(i) -------------------")
-        i += 1
     end
 
 

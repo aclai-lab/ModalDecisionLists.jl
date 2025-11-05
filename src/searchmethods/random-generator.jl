@@ -38,7 +38,7 @@ See also
     subalphabets_weights::Union{AbstractWeights,AbstractVector{<:Real},Nothing} = nothing
 end
 
-f"""
+"""
     alphabet2conditions(gen::RandomGenerator, alphabet::UnionAlphabet, X::AbstractLogiset)
         -> Vector{Tuple{Formula, SatMask}}
 
@@ -75,12 +75,11 @@ function alphabet2conditions(
     # Early exit if the alphabet contains no atoms
     natoms(alphabet) == 0 && return Tuple{Formula, SatMask}[]
     
-    atompicker = (rng, a) -> SoleLogics.randatom(
-        rng, a;
+    atompicker = (rng, a) -> SoleLogics.randatom(rng, a;
         atompicking_mode,
         subalphabets_weights,
     )
-
+ 
     # Generate candidate formulas and keep only satisfiable ones
     conditions = Tuple{Formula, SatMask}[]
     for _ in 1:cardinality

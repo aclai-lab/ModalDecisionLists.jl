@@ -31,7 +31,7 @@ See also
 """
 @kwdef mutable struct BeamSearch <: SearchMethod
     # conjuncts_generation_method::AbstractGenerator=AtomGenerator()
-    conjuncts_generation_method::AbstractGenerator=RandomGenerator()
+    conjuncts_generation_method::AbstractGenerator=AtomGenerator()
     beam_width::Integer=3
 end
 
@@ -108,7 +108,7 @@ function newconditions(
             alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
             default_alphabet
 
-        UnionAlphabet(alphabets)
+        UnionAlphabet([_alphabet])
     end
     
     conditions = alphabet2conditions(sm.conjuncts_generation_method, selectedalphabet, X)
@@ -278,15 +278,15 @@ function findbestantecedent(
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Antecedent[]
 
-        newcandidates = specializeantecedents(conjuncts_generation_method,
+        newcandidates = specializeantecedents(bs,
                                             candidates, X, y,
 
                                             max_rule_length,
                                             discretizedomain,
                                             default_alphabet)
         
-        @show newcandidates
-        readline()
+        # @show newcandidates
+        # readline()
         # Sort new candidates
         (newcandidates, bestcandidate_loss) = sortantecedents(newcandidates,
                                                     y, w, beam_width,
