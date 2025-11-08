@@ -1,17 +1,5 @@
 Main:
     Generic:
-        ☐ SyntaxSearch
-            # Formule di una certa grammatica e di un certo alfabeto si generan così
-                # a = ExplicitAlphabet(@atoms p q r s)
-                # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
-                # formulas(g; maxdepth = 2)
-                # formulas(g; maxdepth = 100, nformulas = 100)
-        ☐ Define DecisionSet and corresponding apply method
+        ☐ Eliminare la struttura Antecedent,   
+            # le funzioni che ritornano Antecedent devono ritornare una NTuple{LmCf, BitMask}
 
-    
-    Urgenti:
-        ☐ Definire una struttura del tipo InstanceSet dove poter operare tutte le operazioni sulle istanze in maniera trasparente rispetto al dataset
-
-Dato che il codice si fà sempre di più, e sempre più complesso penso che sia l'ora di cominciare ad incapsularle
-le strutture base di Sole in Strutture a noi più comode ed intuitive.
-il primo passo che farei è quello di implementare (Sempre in MDL un InstanceSet), ovvero un insieme di istanze, intese come coppia (x, y) e potenzialmente anche w.

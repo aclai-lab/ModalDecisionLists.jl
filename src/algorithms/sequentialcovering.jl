@@ -243,6 +243,7 @@ function irepstar(
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
     min_rule_coverage::Integer=1,
+
     max_rule_length::Union{Nothing,Integer}=nothing,
 
     max_rulebase_length::Union{Nothing,Integer}=nothing,
@@ -279,9 +280,8 @@ function irepstar(
 
     rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
-    dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
 
-    println("isujsxsx")
+    dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
 
     rulebase = Rule[]
     while true
@@ -291,7 +291,6 @@ function irepstar(
         end
 
         split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
-
         split === nothing && break
 
         bestantecedent = findbestantecedent(searchmethod,

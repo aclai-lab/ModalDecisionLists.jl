@@ -19,9 +19,9 @@ const SatMask = BitVector
 
 #=
 
-using Revise
 using RDatasets
 using SoleBase: CLabel
+using Revise
 using ModalDecisionLists
 iris = dataset("datasets", "iris")
 X = PropositionalLogiset(iris[:, 1:4])
@@ -56,7 +56,18 @@ istop(a::Antecedent)  = a.formula.grandchildren == [⊤]
 conds(a::Antecedent) = a.formula.grandchildren
 nconds(a::Antecedent) = length(conds(a))
 
-
+# Utilizzare questo Wrapper di Accessors
+# @forward Antecedent.formula (
+#     SoleLogics.check,  # check(antecedent, X) diventa check(antecedent.formula, X)
+#     Base.length,
+#     nconjuncts,
+#     # ... altri metodi
+# )
+#
+# # Ora puoi fare:
+# ant = Antecedent(formula, mask)
+# check(ant, X)  # Automaticamente delegato a check(ant.formula, X)
+#
 struct InstanceSet
     X::AbstractLogiset
     y::AbstractVector{<:CLabel}
