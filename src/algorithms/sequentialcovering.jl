@@ -266,7 +266,7 @@ function irepstar(
     )
 
     y, labels = y |> maptointeger   
-    poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
+   poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
 
     uncovered_original_y = y
 
@@ -291,12 +291,11 @@ function irepstar(
         end
 
         split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
+
         split === nothing && break
 
         bestantecedent = findbestantecedent(searchmethod,
-            split.gr.X, 
-            split.gr.y,
-            split.gr.w,
+            split.gr..., 
             #
             loss_function,
             max_infogain_ratio,
@@ -312,11 +311,7 @@ function irepstar(
         istop(bestantecedent) && break
         target_class = 1
 
-        # Qui la copertura degli antecedenti è globale (sia su growing che pruning set)
-        bestantecedent = pruneantecedent(bestantecedent,
-                            split.pr...,
-                            split.gr.idx,
-                        )
+        bestantecedent = pruneantecedent(bestantecedent, split.pr...)
 
         # @Nicola TODO: Continua qui....
 
@@ -347,7 +342,6 @@ function irepstar(
         end
 
         data_curr_ruleset_desc_length = data_new_ruleset_desc_length
-
 
         # Rimozione
         # Incapsulare
@@ -413,8 +407,8 @@ function split_instances(X, y, w, split_ratio)
     pruny = y[prunindxs]
 
     return (
-        gr = (X = growX, y = growy, w = groww, idx = growindxs),
-        pr = (X = prunX, y = pruny, idx = prunindxs),
+        gr = (X = growX, y = growy, w = groww),
+        pr = (X = prunX, y = pruny),
         permutation = permindxs
     )
 end
@@ -539,11 +533,10 @@ end
 function pruneantecedent(antecedent::Antecedent,
     X::AbstractLogiset,
     y::Vector{UInt32},
-    prunindxs::AbstractVector{<:Integer},
-    growindxs::AbstractVector{<:Integer},
 )
-    # 1. Costruzione delle maschere positive/negative rispetto alla classe target
     target_class = 1
+
+    # 1. Costruzione delle maschere positive/negative rispetto alla classe target
     posmask = y .== target_class
     negmask = .!posmask
 
@@ -575,9 +568,9 @@ function pruneantecedent(antecedent::Antecedent,
     end
 
     # 4. Costruzione della maschera di copertura globale prima di istanziare il nuovo antecedente
-    total_cov = falses(length(prunindxs) + length(growindxs))
-    total_cov[growindxs] .= antecedent.covmask          # coverage del growing set
-    total_cov[prunindxs] .= _best_covmask               # coverage del pruning set
+    # total_cov = falses(length(prunindxs) + length(growindxs))
+    # total_cov[growindxs] .= antecedent.covmask          # coverage del growing set
+    # total_cov[prunindxs] .= _best_covmask               # coverage del pruning set
 
     return Antecedent(_best_formula, total_cov)
 end
