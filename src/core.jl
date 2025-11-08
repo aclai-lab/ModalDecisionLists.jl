@@ -66,37 +66,37 @@ struct InstanceSet
 end
 
 # Contruttore
-function InstanceSet(
-    X::AbstractLogiset, 
-    y::AbstractVector{<:CLabel}, 
-    w::Union{Nothing,AbstractVector{<:Real},Symbol}=nothing
-)
-    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
-
-    w = if isnothing(w) || w == :default
-        default_weights(y) # ones
-    elseif w == :rebalance
-        balanced_weights(y)
-    else
-        w
-    end
-
-    # in Parameters.jl
-
-    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
-    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
-    (ninstances(X) == 0) && error("Empty trainig set")
-
-    return InstanceSet(X, y, w, zeros(Bool, length(y)))
-end
-
-function sliceinstances(inset::InstanceSet, mask::SatMask)
-
-    uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
-    uncoveredy = @view uncoveredy[uncovered_slice]
-    uncoveredw = @view uncoveredw[uncovered_slice]
-end
-
+# function InstanceSet(
+#     X::AbstractLogiset, 
+#     y::AbstractVector{<:CLabel}, 
+#     w::Union{Nothing,AbstractVector{<:Real},Symbol}=nothing
+# )
+#     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+#
+#     w = if isnothing(w) || w == :default
+#         default_weights(y) # ones
+#     elseif w == :rebalance
+#         balanced_weights(y)
+#     else
+#         w
+#     end
+#
+#     # in Parameters.jl
+#
+#     !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+#     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+#     (ninstances(X) == 0) && error("Empty trainig set")
+#
+#     return InstanceSet(X, y, w, zeros(Bool, length(y)))
+# end
+#
+# function sliceinstances(inset::InstanceSet, mask::SatMask)
+#
+#     uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+#     uncoveredy = @view uncoveredy[uncovered_slice]
+#     uncoveredw = @view uncoveredw[uncovered_slice]
+# end
+#
 
 
 

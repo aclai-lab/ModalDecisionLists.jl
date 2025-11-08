@@ -30,7 +30,7 @@ end
 
 export ExtendedSequentialCovering
 export OrderedCN2Learner
-export build_cn2
+# export build_cn2
 
 # MLJ Interface
 include("interfaces/MLJ.jl")

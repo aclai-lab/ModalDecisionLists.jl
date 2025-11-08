@@ -217,37 +217,6 @@ function sequentialcovering(
     return DecisionList(rulebase, defaultconsequent, info_dl)
 end
 
-# function build_cn2(
-#     X::AbstractLogiset,
-#     y::AbstractVector{<:CLabel},
-#     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
-#     kwargs...
-# )
-#     return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
-# end
-#
-# function build_orange_cn2(
-#     X::AbstractLogiset,
-#     y::AbstractVector{<:CLabel},
-#     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
-#     kwargs...
-# )
-#     error("TODO: what's the default parametrization for orange CN2?")
-#     # return sequentialcovering(X, y, w; searchmethod=BeamSearch(), kwargs...)
-# end
-#
-# function build_randcn2(
-#     X::AbstractLogiset,
-#     y::AbstractVector{<:CLabel},
-#     w::Union{Nothing,AbstractVector{<:Real},Symbol}=default_weights(length(y));
-#     kwargs...
-# )
-#     return sequentialcovering(X, y, w; searchmethod=RandSearch(), kwargs...)
-# end
-#
-#
-#
-
 
 ############################################################################################
 ################### SequentialCovering - RIPPER ######################################
@@ -312,7 +281,8 @@ function irepstar(
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
 
-    println("Entering main IREP* loop...")
+    println("isujsxsx")
+
     rulebase = Rule[]
     while true
 
@@ -320,13 +290,13 @@ function irepstar(
             break
         end
 
-        result = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
-        result === nothing && break
-
-        growX, growy, grow_w, pruneX, pruney, growindxs, pruneindxs = result
+        split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
+        split === nothing && break
 
         bestantecedent = findbestantecedent(searchmethod,
-            growX, growy, grow_w,
+            split.gr.X, 
+            split.gr.y,
+            split.gr.w,
             #
             loss_function,
             max_infogain_ratio,
@@ -340,17 +310,15 @@ function irepstar(
         )
 
         istop(bestantecedent) && break
+        target_class = 1
 
-        # bestantecedent = bestantecedent.formula
+        # Qui la copertura degli antecedenti è globale (sia su growing che pruning set)
+        bestantecedent = pruneantecedent(bestantecedent,
+                            split.pr...,
+                            split.gr.idx,
+                        )
 
-        # println("best antecedent: $bestantecedent")
-
-
-        # -------- !------------
-        # Ora pruneantecedent ritorna il miglior Antecedent 
-        bestantecedent, bestantecedent_prune_cov = pruneantecedent(pruneX, pruney, bestantecedent)
-
-        coverage_indices = compute_global_coverage(bestantecedent, growX, growindxs, pruneX, pruneindxs, bestantecedent_prune_cov)
+        # @Nicola TODO: Continua qui....
 
         # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
@@ -444,7 +412,11 @@ function split_instances(X, y, w, split_ratio)
     prunX = slicedataset(X, prunindxs)
     pruny = y[prunindxs]
 
-    return growX, growy, groww, prunX, pruny, growindxs, prunindxs
+    return (
+        gr = (X = growX, y = growy, w = groww, idx = growindxs),
+        pr = (X = prunX, y = pruny, idx = prunindxs),
+        permutation = permindxs
+    )
 end
 
 """
@@ -491,22 +463,22 @@ TODO: Tutti i commenti in inglese
 
 
 # @Nicola: questa funzione non mi piace tanto, intuisco ci 
-# sia un modo migliore di farla senza che evita una ulteriore check.
+# sia un modo migliore di farla che evita una ulteriore check.
 # Io partirei dalla funzione split_instances(...). Qui so come vengono 
 # permutate le istanze, magari posso portarmi dietro questa info e riuscire a riordinare tutto
 function compute_global_coverage(
-    antecedent::LeftmostConjunctiveForm, 
+    antecedent::Antecedent, 
     growX, growindxs, 
     pruneX, pruneindxs, 
     bestantecedent_prune_cov
 )    
-    grow_mask = check(antecedent, growX)
+    grow_mask = check(antecedent.formula, growX)
     grow_cov_local = findall(grow_mask)
     grow_cov_global = growindxs[grow_cov_local]
 
     
     if bestantecedent_prune_cov === nothing 
-        prune_mask = check(antecedent, pruneX)
+        prune_mask = check(antecedent.formula, pruneX)
     else 
         prune_mask = bestantecedent_prune_cov
     end
@@ -564,38 +536,52 @@ function generate_pruned_formulas(ant::Antecedent)
     ]
 end
 
-function pruneantecedent(
+function pruneantecedent(antecedent::Antecedent,
     X::AbstractLogiset,
     y::Vector{UInt32},
-    antecedent::Antecedent;
-
-    target_class::Integer=1
+    prunindxs::AbstractVector{<:Integer},
+    growindxs::AbstractVector{<:Integer},
 )
-    # @Nicola : Quindi qui perchè fisso la classe target a 1 ? 
+    # 1. Costruzione delle maschere positive/negative rispetto alla classe target
+    target_class = 1
     posmask = y .== target_class
-    negmask = (!).(posmask)
+    negmask = .!posmask
 
-    _bestant = (antecedent.formula, antecedent.covmask)
-    _bestant_score = -Inf # @Nicola sei sicuro che dabba partire da -Inf, per me no ...? 
+    # 2. Inizializzazione del miglior antecedente (best rule)
+    _best_formula = antecedent.formula
+    _best_covmask = check(_best_formula, X)
+    _best_score = -1.0   # valore minimo possibile per (p - n)/(p + n)
 
-    # per ogni sottoinsieme finale non nullo delle condizioni
+    # 3. Valuta tutte le versioni potate della formula
     for pformula in generate_pruned_formulas(antecedent)
 
-        pformula_covmask = check(pformula, X)  
+        p_covmask = check(pformula, X)
 
-        # num. di samples positivi (p) e negativi(n) coperti dalla regola
-        p = sum(posmask .& pformula_covmask) 
-        n = sum(negmask .& pformula_covmask) 
-        score = (p-n)/(p+n)        # v* nel paper
+        p = sum(posmask .& p_covmask)
+        n = sum(negmask .& p_covmask)
+        # evita divisioni per zero o regole vuote
+        if p + n == 0
+            continue
+        end
 
-        if score > _bestant_score
-            _bestant = (pformula, pformula_covmask)
-            _bestant_score = score
+        # v* (RIPPER pruning criterion)
+        score = (p - n) / (p + n)
+
+        if score > _best_score
+            _best_formula = pformula
+            _best_covmask = p_covmask
+            _best_score = score
         end
     end
 
-    return Antecedent(_bestant...)
+    # 4. Costruzione della maschera di copertura globale prima di istanziare il nuovo antecedente
+    total_cov = falses(length(prunindxs) + length(growindxs))
+    total_cov[growindxs] .= antecedent.covmask          # coverage del growing set
+    total_cov[prunindxs] .= _best_covmask               # coverage del pruning set
+
+    return Antecedent(_best_formula, total_cov)
 end
+
 
 # function pruneantecedent(
 #     X::AbstractLogiset,
