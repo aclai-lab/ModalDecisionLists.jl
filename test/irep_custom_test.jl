@@ -16,7 +16,7 @@ X = select(iris, Not(:Species))
 X = PropositionalLogiset(X)
 y = String.(y)
 
-sole_decisionlist = IREP_Star(X, y, "setosa")
+sole_decisionlist = irepstar(X, y, "setosa")
 print(sole_decisionlist isa DecisionList)
 sole_outcome_on_training = apply(sole_decisionlist, X)
 

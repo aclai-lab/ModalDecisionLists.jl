@@ -246,7 +246,8 @@ function irepstar(
     max_rule_length::Union{Nothing,Integer}=nothing,
 
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-
+    rand_seed::Union{Nothing, Integer}=nothing,
+    
     suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
@@ -258,6 +259,13 @@ function irepstar(
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                 "than one. Please provide a valid value."
+
+    @assert (0 < split_ratio < 1) "split_ratio must be in range (0,1)"
+
+    if !isnothing(rand_seed)
+        Random.seed!(rand_seed)
+    end
+
     # in Parameters.jl
     searchmethod = reconstruct(searchmethod, kwargs)
 
@@ -311,9 +319,9 @@ function irepstar(
         istop(bestantecedent) && break
         target_class = 1
 
-        bestantecedent = pruneantecedent(bestantecedent, split.pr...)
+        bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split.pr...)
 
-        # @Nicola TODO: Continua qui....
+        coverage_indices = compute_global_coverage(bestantecedent, split, bestantecedent_prune_cov)
 
         # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
@@ -377,22 +385,26 @@ end
 
 """
     Separa il dataset (X,y) con i pesi w in una parte (growX, growy, grow_w) e in un'altra (pruneX, pruney) dove
-    gli indici dei due dataset sono salvati in growindxs e in pruneindxs
+    gli indici dei due dataset sono salvati in growindxs e in pruneindxs.
+
+    Ritorna una Named Tuple con 
+        gr = NamedTuple ( X = growX, y = growy, w = groww ),
+        pr = NamedTuple ( X = prunX, y = pruny ),4
+        gr_inds = growindxs
+        permutation = perm_indices 
+    Dove permutation è una permutazione casuale dei numeri da 1 a n (dimensione di X passato per argomento).
+    I primi ngrow = round(n * split_ratio) indici di permutation sono usati per il set di growth, gli altri per il set
+    di pruning.
+    growindxs e prunindxs sono gli indici dei sample in X selezionati rispettivamente per il set di growth e per il set
+    di pruning.
 """
 function split_instances(X, y, w, split_ratio)
-# function split_instances(X, y, w, split_ratio, seed)
-
     n = ninstances(X)
-    ngrow = convert(Int, ceil(n * split_ratio))
-    # @Nicola Semplicemente round(n * split_ratio)
+    ngrow = round(Integer, n * split_ratio)
 
-    # @Nicola TODO: Cambiare, bisogna fare un test a priori 
-    # su split_ratio (che non sia saturo, quindi non 0 o 1)
     if ngrow == 0 || n - ngrow == 0
         return nothing
     end
-
-    # TODO @Nicola : Aggungere seed per riproducibilità !!
 
     # ho cambiato così
     permindxs = randperm(n)
@@ -409,6 +421,8 @@ function split_instances(X, y, w, split_ratio)
     return (
         gr = (X = growX, y = growy, w = groww),
         pr = (X = prunX, y = pruny),
+        gr_inds = growindxs,
+        pr_inds = prunindxs,
         permutation = permindxs
     )
 end
@@ -452,7 +466,7 @@ ricomputazioni.
 
 
 
-TODO: Tutti i commenti in inglese
+TODO: Tutti i commenti in inglese + fix per versione attuale dopo che i parametri sono stati cambiati
 """
 
 
@@ -461,23 +475,26 @@ TODO: Tutti i commenti in inglese
 # Io partirei dalla funzione split_instances(...). Qui so come vengono 
 # permutate le istanze, magari posso portarmi dietro questa info e riuscire a riordinare tutto
 function compute_global_coverage(
-    antecedent::Antecedent, 
-    growX, growindxs, 
-    pruneX, pruneindxs, 
+    antecedent::LeftmostConjunctiveForm, 
+    split,
     bestantecedent_prune_cov
 )    
-    grow_mask = check(antecedent.formula, growX)
+
+    growX = split.gr.X
+    pruneX = split.pr.X
+
+    grow_mask = check(antecedent, growX)
     grow_cov_local = findall(grow_mask)
-    grow_cov_global = growindxs[grow_cov_local]
+    grow_cov_global = split.gr_inds[grow_cov_local]
 
     
     if bestantecedent_prune_cov === nothing 
-        prune_mask = check(antecedent.formula, pruneX)
+        prune_mask = check(antecedent, pruneX)
     else 
         prune_mask = bestantecedent_prune_cov
     end
     prune_cov_local = findall(prune_mask)
-    prune_cov_global = pruneindxs[prune_cov_local]
+    prune_cov_global = split.pr_inds[prune_cov_local]
     
     return vcat(grow_cov_global, prune_cov_global)
 end
@@ -572,72 +589,9 @@ function pruneantecedent(antecedent::Antecedent,
     # total_cov[growindxs] .= antecedent.covmask          # coverage del growing set
     # total_cov[prunindxs] .= _best_covmask               # coverage del pruning set
 
-    return Antecedent(_best_formula, total_cov)
+    return _best_formula, _best_covmask  #, total_cov
 end
 
-
-# function pruneantecedent(
-#     X::AbstractLogiset,
-#     y::Vector{UInt32},
-#     antecedent::Antecedent
-#     # rule :: Lmcf
-# )
-#     # Quindi qui la y è booleana ? 
-#
-#     @show y
-#     pos_indxs = findall(label -> label == 1, y)
-#     neg_indxs = findall(label -> label != 1, y)
-#
-#     bestf = antecedent.formula
-#     bestf_score = -Inf
-#     bestf_satmask = []
-#
-#     # per ogni sottoinsieme finale non nullo delle condizioni
-#     for pformula in generate_pruned_formulas(antecedent)
-#
-#         satmask = check(pformula, X)  
-#
-#         rule_covered_idxs = findall(satmask)
-#
-#         # num. di samples positivi coperti dalla regola
-#         p = length(intersect(rule_covered_idxs, pos_indxs)) 
-#         # num. di samples negativi coperti dalla regola
-#         n = length(intersect(rule_covered_idxs, neg_indxs))
-#
-#         rule_score = (p - n)/(p + n)        # v* nel paper
-#         if rule_score > best_rule_score
-#             best_rule_score = rule_score
-#             best_rule = new_rule
-#             best_rule_sat_mask = rule_sat_mask
-#         end
-#     end
-#
-#     return best_rule, best_rule_sat_mask
-# end
-
-
-# Non più necessario, uso direttamente alphabet2conditions che ora filtra le condizioni equivalenti 
-#"""
-#    Ritorna la lista di tutti gli antecedenti possibili con una sola condizione dall'alfabeto a, escludendo
-#    condizioni equivalenti (ovvero quelle che coprono le stesse istanze di X)
-#"""
-#function unaryconditions_noneq(    
-#    a::UnionAlphabet,
-#    X::AbstractLogiset
-#)::Vector{Tuple{Atom{ScalarCondition},SatMask}}
-#    seen_masks = Set{BitVector}()
-#    conditions = Tuple{Atom{ScalarCondition},SatMask}[]
-#    for univalph in subalphabets(a)
-#        for atom in atoms(univalph)
-#            mask = check(atom, X)
-#            if mask ∉ seen_masks
-#                push!(conditions, (atom, mask))
-#                push!(seen_masks, mask)
-#            end
-#        end
-#    end
-#    return conditions
-#end
 
 function get_num_independent_selectors(X::AbstractLogiset, y, discretizedomain::Bool = false)::Int
     alph = alphabet(X;
@@ -655,7 +609,7 @@ end
     Ritorna la TDL (Total Description Length) di una regola in forma di LeftmostConjunctiveForm per un certo dataset (X,y)
 """
 function _r_theory_bits(rule::Rule, n::Int)
-    # conds = unaryconditions_noneq(alph, X)
+    # conds = unaryconditions_noneq(alph, X)        # va richiamato?
     # n_old = length(conds) 
     
     #println("\t Conds unaryconds_noneq: $n_old | Conds alphabet2conditions: $n")
@@ -670,37 +624,6 @@ function _r_theory_bits(rule::Rule, n::Int)
     #println("n = $n | k = $k | natoms: $(natoms(rule.antecedent)) | nleaves: $(nleaves(rule.antecedent))")
     return max(desc_length, 1)
 end
-
-
-#"""
-#    Ritorna la TDL (Total Description Length) di un ruleset per un certo dataset (X,y)
-#    (Non realmente necessario)
-#"""
-#function _rs_theory_bits(X::AbstractLogiset, y, ruleset::Vector{Rule}, discretizedomain::Bool = false)Comuqnue 
-#    alph = alphabet(X;
-#        discretizedomain = discretizedomain,
-#        y = y
-#    )
-#
-#    #conds = unaryconditions(conjuncts_search_method, alph, X)
-#    conds = unaryconditions_noneq(alph, X)
-#    #println("------ N CALCOLATO : n = $(length(conds))")
-#
-#    total_desc_length = 0
-#    n = length(conds)
-#    for rule ∈ ruleset
-#        k = 1 + nconnectives(rule.antecedent) # si assume che la formula di Rule sia una LeftmostConjunctiveForm
-#        pr = k / n
-#
-#        S = k * log2(1/pr) + (n - k) * log2(1/(1 - pr))
-#        K = log2(k)
-#        desc_length = (S + K) * 0.5
-#        total_desc_length += desc_length
-#    end
-#    
-#    #println("n = $n | k = $k | natoms: $(natoms(rule.antecedent)) | nleaves: $(nleaves(rule.antecedent))")
-#    return max(total_desc_length, 1)
-#end
 
 
 # ritorna un'approssimazione di ln(n!) usando Stirling
