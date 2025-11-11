@@ -231,11 +231,11 @@ function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
-
-    tdl_threshold::Int = 64,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
-    split_ratio::Real=0.66,
+
+    tdl_threshold::Int = 64,
+    split_ratio::Real=0.7,
 
     loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
     max_infogain_ratio::Real=1.0,

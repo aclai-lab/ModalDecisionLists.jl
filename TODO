@@ -2,4 +2,15 @@ Main:
     Generic:
         ☐ Eliminare la struttura Antecedent,   
             # le funzioni che ritornano Antecedent devono ritornare una NTuple{LmCf, BitMask}
-
+        
+        ☐ Aggiungere wrapper per parametri ricerca antecedente
+            # Base.@kwdef struct AntecedentSearchParams
+            #   loss_function::Function = ModalDecisionLists.LossFunctions.entropy
+            #   max_infogain_ratio::Real = 1.0
+            #   significance_alpha::Union{Nothing,Real} = 0.0
+            #   min_rule_coverage::Int = 1
+            #   max_rule_length::Union{Nothing,Int} = nothing
+            #   discretizedomain::Bool = false
+            #   default_alphabet::Union{Nothing,AbstractAlphabet} = nothing
+            # end
+    
