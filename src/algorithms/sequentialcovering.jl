@@ -274,7 +274,7 @@ function irepstar(
     )
 
     y, labels = y |> maptointeger   
-   poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
+    poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva)
 
     uncovered_original_y = y
 
@@ -316,8 +316,13 @@ function irepstar(
             nlabels = 2
         )
 
+        # TODO: @Nicola2Edo Guardare i label coperti qui sotto: ci sono step di training in cui bestantecedent non è nullo ma copre
+        # quasi solo samples con i label della classe sbagliata... E' un problema di findbestantecedent?
+        just_covered_indices = findall(bestantecedent.covmask)
+        just_covered_labels = split.gr.y[just_covered_indices]
+        print("just covered labels:\n$just_covered_labels \n\n")    
+
         istop(bestantecedent) && break
-        target_class = 1
 
         bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split.pr...)
 
@@ -540,6 +545,8 @@ Utile per la fase di pruning di RIPPER.
 
 # TODO: @Nicola: specificare un ulteriore parametro per il pruning: 
 # Esistono metodi alternativi oper il pruning invece che rimuovere in maniera monotona l'ultima condizione ? 
+# Questo andrebbe fatto in una propria struct effettiva, magari con dispatching sulle varie pruning strategies.
+# Bisogna prima identificare qualche metodo che si vuole implementare poi si pensa a tutta la struttura effettiva
 function generate_pruned_formulas(ant::Antecedent)
     _range = nconds(ant):-1:1
     return [LeftmostConjunctiveForm(conds(ant)[1:i]) 
@@ -609,7 +616,7 @@ end
     Ritorna la TDL (Total Description Length) di una regola in forma di LeftmostConjunctiveForm per un certo dataset (X,y)
 """
 function _r_theory_bits(rule::Rule, n::Int)
-    # conds = unaryconditions_noneq(alph, X)        # va richiamato?
+    # conds = unaryconditions_noneq(alph, X)        # @Nicola va richiamato? su wittgenstein sembra sia fissato ma mi puzza come cosa
     # n_old = length(conds) 
     
     #println("\t Conds unaryconds_noneq: $n_old | Conds alphabet2conditions: $n")
@@ -654,7 +661,8 @@ end
 function rs_dataset_bits(
     X::AbstractLogiset, y, 
     rule::Rule, 
-    prev_ruleset_satmask::AbstractVector{Bool}
+    # prev_ruleset_satmask::AbstractVector{Bool}
+    prev_ruleset_satmask::BitVector
 )
     n_samples = ninstances(X)
 
