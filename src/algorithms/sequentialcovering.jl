@@ -320,7 +320,17 @@ function irepstar(
         # quasi solo samples con i label della classe sbagliata... E' un problema di findbestantecedent?
         just_covered_indices = findall(bestantecedent.covmask)
         just_covered_labels = split.gr.y[just_covered_indices]
-        print("just covered labels:\n$just_covered_labels \n\n")    
+        println("just covered labels:\n$just_covered_labels")
+
+        positive_indices = findall(label -> label == 1, split.gr.y) 
+        neg_indices = findall(label -> label != 1, split.gr.y)
+        println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
+        
+        covered_pos_indices = findall(label -> label == 1, split.gr.y[just_covered_indices])
+        covered_neg_indices = findall(label -> label != 1, split.gr.y[just_covered_indices])
+
+        println("Covered grow dataset distribution (neg, pos): ($(length(covered_neg_indices)), $(length(covered_pos_indices)))\n\n")
+
 
         istop(bestantecedent) && break
 
