@@ -187,6 +187,30 @@ include("searchmethods/atom-generator.jl")
 include("searchmethods/random-generator.jl")
 
 
+"""
+maptointeger(y::AbstractVector{<:CLabel})
+
+Map a categorical label vector to 1-based integer codes and return the ordered unique labels.
+
+Arguments
+- y: AbstractVector whose element type is a subtype of CLabel. Labels are compared using `==`.
+
+Returns
+- integer_y::Vector{UInt32}: a vector of length `length(y)` containing 1-based integer codes. Each distinct label v in `values` is assigned the code `i` where `values[i] == v`.
+- values::Vector{eltype(y)}: the unique labels appearing in `y`, in the order of their first occurrence (as produced by `unique(y)`).
+
+Notes
+- The mapping is stable with respect to the first occurrence order of labels in `y`.
+- The current implementation determines codes by comparing each label against the list of unique values (cost roughly O(n*m) where m = number of unique labels). For very large numbers of distinct labels a dictionary-based approach may be more efficient.
+
+Example
+```
+julia> y = ["red","blue","red"]
+julia> codes, vals = maptointeger(y)
+ codes == UInt32[1,2,1]
+ vals  == ["red","blue"]
+```
+"""
 function maptointeger(y::AbstractVector{<:CLabel})
 
     # ordered values
@@ -202,16 +226,13 @@ end
 """
     TODO sortantecedents....
 
-Sort rule satmasks based on their loss, using a specified loss function.
-
-Sorts rule antecedents based on their lossfnctn using a specified loss function.
 
 Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
 Each antecedent is evaluated on his covered y using the provided *loss_function* function.
-Then the permutation of the bests *beam_search* sorted antecedent is returned with the lossfnctn
+Then the permutation of the bests *beam_width* sorted antecedent is returned with the lossfnctn
 value of the best one.
 
-See alsoì com’è, non funziona: c’è ancora un problema di tipo nella prima riga del costruttore.
+See also
 [`entropy`](@ref).
 """
 function sortantecedents(
@@ -225,42 +246,38 @@ function sortantecedents(
     significance_alpha::Union{Real,Nothing};
     kwargs...
 )::Tuple{AbstractVector,<:Real}
-
+    # così com’è, non funziona: c’è ancora un problema di tipo nella prima riga del costruttore.
     isempty(antecedents) && return [], Inf
 
-    # TODO @Edo Fix !
-    #
-    # if min_rule_coverage > 1
-    #     validindexes = [(count(ant[2]) >= min_rule_coverage) for ant in antecedents
-    #     ] |> findall
-    #     isempty(validindexes) && return [], Inf
-    #     antecedents = antecedents[validindexes]
-    # end
 
-    indexes = eachindex(antecedents)
+    # TODO: da testare
+    # If 'min_rule_coverage' is defined, this filters out from antecedents any antecedent whose covmasks covers less than 'min_rule_coverage' samples 
+    if min_rule_coverage > 1
+        validindices = findall(ant -> count(ant.covmask) >= min_rule_coverage, antecedents)
+        isempty(validindices) && return [], Inf
+        antecedents = antecedents[validindices]
+    end
 
+    indices = eachindex(antecedents)
+
+    # loss function values for each antecedent
     antslossfnctn = map(a ->  loss_function(y[a.covmask], w[a.covmask]; kwargs...) , antecedents)
 
-
     if !isnothing(max_infogain_ratio)
-        minloss = (1-max_infogain_ratio)*loss_function(y, w; kwargs...)
+        # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting faster at the end faster
+        minloss = (1-max_infogain_ratio) * loss_function(y, w; kwargs...)
 
-        # Filter antecedents (their indexes by minimum loss), equivalente al codice commentato sotto
-        indexes = [ind for (ind, loss) in enumerate(antslossfnctn) if loss ≥ minloss]
-        # indexes = map(aq -> 
-        #     begin
-        #         (index, lossfnctn) = aq
-        #         (lossfnctn >= minloss) && index
-        #     end, 
-        #     enumerate(antslossfnctn)
-        # ) |> filter(x -> x != false)
+        # Keep only the indices corresponding antecedents whose loss is ≥ min_loss
+        indices = [ind for (ind, loss) in enumerate(antslossfnctn) if loss ≥ minloss]
 
-        isempty(indexes) && return [], Inf
+        isempty(indices) && return [], Inf
     end
-    valid_indexes = partialsortperm(antslossfnctn[indexes], 1:min(beam_width, length(indexes)))
 
-    newstar_perm = indexes[valid_indexes]
-    newstar = antecedents[newstar_perm]
+    # Extract the indices (with respect to antslossfnctn) of the 'beam_width' best antecedents (with lowest loss)
+    valid_indices = partialsortperm(antslossfnctn[indices], 1:min(beam_width, length(indices)))
+
+    newstar_perm = indices[valid_indices]  # convert indices to those relative to the parameter antecedents
+    newstar = antecedents[newstar_perm]    # extract best antecedents and corresponding loss functions
     bestantecedent_lossfnctn = antslossfnctn[newstar_perm[1]]
 
     return newstar, bestantecedent_lossfnctn

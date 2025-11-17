@@ -237,8 +237,8 @@ function irepstar(
     searchmethod::SearchMethod=BeamSearch(),
     split_ratio::Real=0.66,
 
-    loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
-    max_infogain_ratio::Real=1.0,
+    loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+    max_infogain_ratio::Union{Nothing, Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
@@ -255,7 +255,7 @@ function irepstar(
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
-    @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
+    #@assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                 "than one. Please provide a valid value."
@@ -289,7 +289,7 @@ function irepstar(
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
 
-    println("isujsxsx")
+    println("STARTING IREP TRAINING")
 
     rulebase = Rule[]
     while true
@@ -302,6 +302,12 @@ function irepstar(
 
         split === nothing && break
 
+        num_pos = length(findall(label -> label == 1, uncoveredy))
+
+        if num_pos < min_rule_coverage
+            break
+        end
+
         bestantecedent = findbestantecedent(searchmethod,
             split.gr..., 
             #
@@ -313,14 +319,17 @@ function irepstar(
             min_rule_coverage;
 
             max_rule_length = max_rule_length,
-            nlabels = 2
+            nlabels = 2,
+            target_class = 1
         )
 
         # TODO: @Nicola2Edo Guardare i label coperti qui sotto: ci sono step di training in cui bestantecedent non è nullo ma copre
         # quasi solo samples con i label della classe sbagliata... E' un problema di findbestantecedent?
         just_covered_indices = findall(bestantecedent.covmask)
         just_covered_labels = split.gr.y[just_covered_indices]
-        println("just covered labels:\n$just_covered_labels")
+        num_pos = length(findall(label -> label == 1, just_covered_labels))
+        num_neg = length(just_covered_labels) - num_pos
+        println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
 
         positive_indices = findall(label -> label == 1, split.gr.y) 
         neg_indices = findall(label -> label != 1, split.gr.y)
@@ -331,6 +340,7 @@ function irepstar(
 
         println("Covered grow dataset distribution (neg, pos): ($(length(covered_neg_indices)), $(length(covered_pos_indices)))\n\n")
 
+        println("Antecedent developed:\n$bestantecedent")
 
         istop(bestantecedent) && break
 
@@ -649,7 +659,6 @@ function log2_factorial(n::Int)::Real
         return 0
     end
     
-    println("[log2_factorial] n = $n")
     return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ) + 0.115/n)
 end
 
@@ -690,8 +699,6 @@ function rs_dataset_bits(
     fp = length(intersect(ruleset_covered_idxs, neg_samples_indxs)) # false positives
     
     fn = num_pos - tp  # false negatives
-    
-    println("[rs dataset bits] n_samples: $n_samples | num_pos: $num_pos | valori coperti: $p | false positives: $fp | false negatives: $fn")
 
     #desc_length = log2( binomial(p, fp) ) + log2( binomial( n_samples - p, fn ) )   # va in overflow
     desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)

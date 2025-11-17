@@ -11,22 +11,49 @@ using Distributions
 ############################################################################################
 ############################# Loss Functions ###############################################
 
+"""
+    Calculates the laplace accuracy for the given data.\\
+"""
 function laplace_accuracy(
-    y::AbstractVector{<:Integer},
+    y::AbstractVector{<:UInt32},
     w::AbstractVector=default_weights(length(y));
     nlabels::Integer,
     target_class::Union{Integer,Nothing} = nothing,
     kwargs...
 )
-    dist = counts(y, nlabels)
+    isempty(y) && return 0.0
 
-    k, target = begin
-        if !isnothing(target_class)
-            (2, dist[target_class])
-        else
-            (length(dist), maximum(dist))
-        end
+    @assert length(w) == length(y) "weights e labels devono avere stessa lunghezza"
+
+    y_min = convert(Int64, minimum(y))
+
+    y_offset = -y_min + 1
+
+    # y_adj is just y normalized with a constant offset so that the smallest value is +1 
+    y_adj = convert.(Int64, y) .+ y_offset
+
+    # dist[i] is the number of occurrences of the label i in y_adj
+    dist = counts(y_adj, nlabels, Weights(w))
+
+    # number of effective labels (k) and number of matches for target class (target)
+    k, target = nothing, nothing
+    if !isnothing(target_class)
+        # Converti target_class se era 0-based
+        target_class_adj = target_class .+ y_offset
+
+        # println("Number of pos elements in y: $(length(findall(label -> label==1, y)))")
+        # println("Number of pos elements in y_adj: $(length(findall(label -> label==target_class_adj, y_adj)))")
+
+        # println("y: $y")
+        # println("y adj: $y_adj")
+
+        # println("target class adj: $target_class_adj")
+        # println("dist: $dist")
+        k, target = 2, dist[Int(target_class_adj)]
+    else
+        k, target = nlabels, maximum(dist)
     end
+
     return 1 - ((target + 1) / (sum(dist) + k))
 end
 

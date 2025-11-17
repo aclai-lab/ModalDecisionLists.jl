@@ -22,6 +22,7 @@ include("algorithms/sequentialcovering.jl")
 # include("algorithms/sequentialcovering-unordered.jl")
 
 export irepstar
+export initialize_antecedents
 
 module BaseCN2
 using ModalDecisionLists: SatMask
