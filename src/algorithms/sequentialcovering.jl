@@ -293,11 +293,11 @@ function irepstar_sc(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
-
-    tdl_threshold::Int = 64,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
     searchmethod::SearchMethod=BeamSearch(),
-    split_ratio::Real=0.66,
+
+    tdl_threshold::Int = 64,
+    split_ratio::Real=0.7,
 
     loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
     max_infogain_ratio::Union{Nothing, Real}=nothing,
@@ -305,10 +305,13 @@ function irepstar_sc(
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
     min_rule_coverage::Integer=1,
-    max_rule_length::Union{Nothing,Integer}=nothing,
 
+    max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-    rand_seed::Union{Nothing, Integer}=nothing,
+
+    # rand_seed::Union{Nothing, Integer}=nothing, 
+    # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
+    rand_seed::Union{Nothing, Integer}=3,
     
     suppress_parity_warning::Bool=false,
     kwargs...
@@ -350,7 +353,6 @@ function irepstar_sc(
     rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
-
     println("STARTING IREP TRAINING")
 
     rulebase = Rule[]
@@ -361,7 +363,6 @@ function irepstar_sc(
         end
 
         split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
-
         split === nothing && break
 
         num_pos = length(findall(label -> label == 1, uncoveredy))
@@ -385,10 +386,9 @@ function irepstar_sc(
             target_class = 1
         )
 
-        # TODO: @Nicola2Edo Guardare i label coperti qui sotto: ci sono step di training in cui bestantecedent non è nullo ma copre
-        # quasi solo samples con i label della classe sbagliata... E' un problema di findbestantecedent?
         just_covered_indices = findall(bestantecedent.covmask)
-        just_covered_labels = split.gr.y[just_covered_indices]
+        just_covered_labels = split.gr.y[bestantecedent.covmask]
+
         num_pos = length(findall(label -> label == 1, just_covered_labels))
         num_neg = length(just_covered_labels) - num_pos
         println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
@@ -404,6 +404,24 @@ function irepstar_sc(
 
         println("Antecedent developed:\n$bestantecedent")
 
+
+        # NOTE: @Edo2Nicola cerca di non utilizzare delle `findall`
+        # Equivalente a quanto scritto sopra. Meglio lavorare con delle 
+        # maschere binarie ([1,0,1,1,1,0,0,0...]) che con liste di indici ([1,4,6,8,11, ...])
+        # Guarda qui:
+
+        # just_covered_mask = bestantecedent.covmask
+        # just_covered_labs = split.gr.y[just_covered_mask]
+        #
+        # covered_pos_mask = just_covered_labs .== 1
+        # covered_neg_mask = just_covered_labs .!= 1
+        #
+        # num_pos = covered_pos_mask |> sum
+        # num_neg = covered_neg_mask |> sum
+        # println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
+        # # Accertati che sia corretto !
+        println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
+        
         istop(bestantecedent) && break
 
         bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split.pr...)
