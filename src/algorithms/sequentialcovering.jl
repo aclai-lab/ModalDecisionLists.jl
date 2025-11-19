@@ -342,6 +342,31 @@ function irepstar(
 
         println("Antecedent developed:\n$bestantecedent")
 
+
+        # NOTE: @Edo2Nicola cerca di non utilizzare delle `findall`
+        # Equivalente a quanto scritto sopra meglio lavorare con delle 
+        # maschere binarie ([1,0,1,1,1,0,0,0...]) che con liste di indici ([1,4,6,8,11, ...])
+        # Guarda qui:
+
+        # just_covered_mask = bestantecedent.covmask
+        # just_covered_labs = split.gr.y[just_covered_mask]
+        #
+        # covered_pos_mask = just_covered_labs .== 1
+        # covered_neg_mask = just_covered_labs .!= 1
+        #
+        # num_pos = covered_pos_mask |> sum
+        # num_neg = covered_neg_mask |> sum
+        # println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
+
+
+
+
+        println("Covered grow dataset distribution (neg, pos): ($(sum(neg_mask)), $(sum(pos_mask)))\n\n")
+
+
+
+        println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
+        
         istop(bestantecedent) && break
 
         bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split.pr...)
