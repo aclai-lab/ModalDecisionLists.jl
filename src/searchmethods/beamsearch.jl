@@ -55,7 +55,6 @@ trivial specialization for the antecedent.
 
 A trivial specialization correspond to an antecedent covering exactly the same instances as its parent.
 """
-#TODO:  @Edo questo va prevenuto appena si generano gli atomi dall'alfabeto (forse)
 function filterconditions(
     conditions::Vector{Tuple{Atom,SatMask}},
     ant::Antecedent,
@@ -71,12 +70,12 @@ function filterconditions(
 end
 
 
+
+
+
 """
 Return the list of all possible antecedents containing a single condition from the alphabet.
 """
-
-
-
 metaconds(a::Antecedent) = metacond.(SoleData.value.(children(a.formula)))
 
 """
@@ -86,7 +85,8 @@ metaconds(a::Antecedent) = metacond.(SoleData.value.(children(a.formula)))
     )::Vector{Tuple{Atom, SatMask}}
 
 Returns the list of all possible conditions (atoms) that can be derived from instances
-of X and can further refine the input antecedent.
+of X and can further refine the input antecedent.\\
+Only refinements that do not cover exactly the same samples as the original antecedent 'ant' are returned.
 """
 function newconditions(
     sm::SearchMethod,
@@ -96,19 +96,19 @@ function newconditions(
 
     discretizedomain=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
-
 )::Vector{Tuple{Atom{ScalarCondition},SatMask}}
 
-    # antformula, satindexes = antecedent
+    # dataset composed of the samples covered by 'ant'
     _X = slicedataset(X, ant.covmask; return_view=false)
     _y = y[ant.covmask]
 
     selectedalphabet = begin
+        # make sure to create the alphabet automatically if default_alphabet is null
         _alphabet = isnothing(default_alphabet) ? 
             alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
             default_alphabet
 
-        UnionAlphabet([_alphabet])
+        UnionAlphabet([_alphabet])   # return is cleaner
     end
     
     conditions = alphabet2conditions(sm.conjuncts_generation_method, selectedalphabet, X)
@@ -120,7 +120,8 @@ end
     initial_antecedents(sm, X, y; discretizedomain=false, default_alphabet=nothing)
 
 Generates a list of unary antecedents starting from the specified alphabet, or from that
-built from the logiset `X`.
+built from the logiset `X`. The antecedents are built using the specified search method's
+procedure 'conjuncts_generation_method'
 """
 function initialize_antecedents(
     sm::SearchMethod, 
@@ -136,11 +137,14 @@ function initialize_antecedents(
 
     conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)
     return [Antecedent([f], mask) for (f, mask) in conditions]
-end
+end # TODO: Spostare in core.jl, non ha nulla di specifico che abbia a che fare con beamsearch
 
 
-###
+""" Returns an AbstractVector{Antecedent} like the one passed as arguments, but 
+    filtering out any antecedent whose covmask is identically null.
+"""
 prune_noncovering(antecedents::AbstractVector{Antecedent}) = [a for a in antecedents if any(a.covmask)]
+
 """
     specializeantecedents(
         antecedents::Vector{Tuple{RuleAntecbedent,SatMask}},
@@ -150,7 +154,6 @@ prune_noncovering(antecedents::AbstractVector{Antecedent}) = [a for a in anteced
 
 Specialize rule *antecedents*.
 """
-
 function specializeantecedents(
     sm::SearchMethod,
     antecedents::AbstractVector{Antecedent},
@@ -169,6 +172,7 @@ function specializeantecedents(
         return initialize_antecedents(sm, X,y; discretizedomain, default_alphabet)
     else
         specializedants = Antecedent[]
+        # specialize every antecedent independently
         for antecedent in antecedents
             # Find a set of conjunctible conditions
             conjconds = newconditions(sm, X, y, antecedent; 
@@ -176,6 +180,7 @@ function specializeantecedents(
                     default_alphabet=default_alphabet)
 
             isempty(conjconds) && continue
+            # concatenate antecedent and the newly generated conditions
             new_ants = [
                 let
                     new_formula = deepcopy(antecedent.formula)
@@ -226,10 +231,9 @@ Crea un Antecedent iniziale "bot" e ne calcola la loss sul dataset.
 # Ritorna
 Una tupla `(best_antecedent, best_loss)`
 """
-function init_best_antecedent(y, w, loss_function; nlabels)
-    return bot_antecedent(length(y)), loss_function(y, w; nlabels=nlabels)
+function init_best_antecedent(y, w, loss_function; nlabels, kwargs...)
+    return bot_antecedent(length(y)), loss_function(y, w; nlabels=nlabels, kwargs...)
 end
-
 
 
 
@@ -257,7 +261,7 @@ function findbestantecedent(
     w::AbstractVector,
 
     loss_function::Function,
-    max_infogain_ratio::Real,
+    max_infogain_ratio::Union{Real, Nothing},
     default_alphabet::Union{Nothing,AbstractAlphabet},
     discretizedomain::Bool,
     significance_alpha::Real,
@@ -265,13 +269,15 @@ function findbestantecedent(
     nlabels::Integer,
     max_rule_length::Union{Integer,Nothing},
 
+    target_class::Union{Integer,Nothing} = nothing,  # this is passed down to the loss function
 )::Antecedent
 
     @unpack conjuncts_generation_method, beam_width = bs
 
     # Inizializza il migliore antecedente come formula ⊤ 
     # (sempre vera, copre tutte le istanze)
-    best, best_loss = init_best_antecedent(y, w, loss_function; nlabels)
+    best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class)
+    println("best loss: $best_loss")
 
     newcandidates = Antecedent[]
     while true
@@ -295,7 +301,8 @@ function findbestantecedent(
                                                     max_infogain_ratio,
                                                     significance_alpha;
                                                         #
-                                                    nlabels=nlabels)
+                                                    nlabels=nlabels,
+                                                    target_class=target_class)
 
         isempty(newcandidates) && break
 

@@ -288,8 +288,14 @@ function irepstar(
 
     rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
+
+<<<<<<< HEAD
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
+||||||| afcdd76
+    println("isujsxsx")
+=======
     println("STARTING IREP TRAINING")
+>>>>>>> 2420846397a248953ce1f8d6377726e9b27c0787
 
     rulebase = Rule[]
     while true
