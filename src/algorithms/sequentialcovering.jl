@@ -245,9 +245,11 @@ function irepstar(
     min_rule_coverage::Integer=1,
 
     max_rule_length::Union{Nothing,Integer}=nothing,
-
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-    rand_seed::Union{Nothing, Integer}=nothing,
+
+    # rand_seed::Union{Nothing, Integer}=nothing, 
+    # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
+    rand_seed::Union{Nothing, Integer}=3,
     
     suppress_parity_warning::Bool=false,
     kwargs...
@@ -322,10 +324,9 @@ function irepstar(
             target_class = 1
         )
 
-        # TODO: @Nicola2Edo Guardare i label coperti qui sotto: ci sono step di training in cui bestantecedent non è nullo ma copre
-        # quasi solo samples con i label della classe sbagliata... E' un problema di findbestantecedent?
         just_covered_indices = findall(bestantecedent.covmask)
-        just_covered_labels = split.gr.y[just_covered_indices]
+        just_covered_labels = split.gr.y[bestantecedent.covmask]
+
         num_pos = length(findall(label -> label == 1, just_covered_labels))
         num_neg = length(just_covered_labels) - num_pos
         println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
