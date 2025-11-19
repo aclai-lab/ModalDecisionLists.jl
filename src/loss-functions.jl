@@ -23,9 +23,9 @@ function laplace_accuracy(
 )
     isempty(y) && return 0.0
 
-    @assert length(w) == length(y) "weights e labels devono avere stessa lunghezza"
+    @assert length(w) == length(y) "weights and labels must have the same length"
 
-    y_min = convert(Int64, minimum(y))
+    y_min = convert(Int64, minimum(y)) # this is necesssary, otherwise -y_min underflows when calculating y_offset
 
     y_offset = -y_min + 1
 

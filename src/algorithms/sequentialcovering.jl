@@ -223,11 +223,73 @@ end
 ############################################################################################
 
 
-
-# TODO: fare una versione solo per il caso binario in modo che sia fedele all'algoritmo originale. 
-# Basta aggiungere un parametro pos_label per il label da considerarsi positivo, e poi rimpiazzare y con un
-# array di 1 dove y = pos_label e 0 dove y != pos label, tipo "y = y .== pos_label_idx"
 function irepstar(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+
+    tdl_threshold::Int = 64,
+    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+    searchmethod::SearchMethod=BeamSearch(),
+    split_ratio::Real=0.66,
+
+    loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+    max_infogain_ratio::Union{Nothing, Real}=nothing,
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    discretizedomain::Bool=false,
+    significance_alpha::Union{Real,Nothing}=0.0,
+    min_rule_coverage::Integer=1,
+    max_rule_length::Union{Nothing,Integer}=nothing,
+
+    max_rulebase_length::Union{Nothing,Integer}=nothing,
+    rand_seed::Union{Nothing, Integer}=nothing,
+    
+    suppress_parity_warning::Bool=false,
+    kwargs...
+) where {U<:Real}
+    # TODO: write all the checks on the inputs
+
+    # STEP 1: order the classes from least prevalent to most prevalent in the data
+    # y is now an encoding of targets with integers {1, ..., n}, whereas labels[i] is the actual label value 
+    # corresponding to the integer value in the targets in y
+    y_int, labels = y |> maptointeger   
+    y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
+
+    # indici ordinati delle classi in ordine decrescente
+    sorted_indices = sortperm(y_dist, rev = true)
+
+    # tutto il codice negli if con debug = true poi è da rimuovere
+    debug = true
+
+    if debug
+        println("labels: $labels")
+
+        println("y_int: \n$y_int\n\n")
+        println("y_dist: \n$y_dist\n\n")
+        println("sorted indices: \n$sorted_indices\n\n")
+
+        for i = 1 : length(y_dist)
+            num_in_class = length( findall( label -> label == i, y_int ) )
+            println("Number of elements in class $i: $num_in_class")
+        end
+
+        println(y_dist[sorted_indices])
+    end
+
+    # starting from the most common class index and going down to the least common
+    for class_idx ∈ sorted_indices 
+        label = labels[class_idx]
+        println("Calling IREP* on label $label")
+        # class_decision_list = irepstar_sc(X, y, label,
+        #     kwargs...
+        # )
+    end
+
+end
+
+
+
+
+function irepstar_sc(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
@@ -255,7 +317,7 @@ function irepstar(
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
-    #@assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
+    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                 "than one. Please provide a valid value."

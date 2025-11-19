@@ -16,14 +16,21 @@ X = select(iris, Not(:Species))
 X = PropositionalLogiset(X)
 y = String.(y)
 
-sole_decisionlist = irepstar(X, y, "setosa", min_rule_coverage = 3)
-sole_outcome_on_training = apply(sole_decisionlist, X)
+#println(X[1:85, :])
 
-n = length(y)
-println("Index - True label - Pred label")
+sole_decisionlist = irepstar(X[50:120, :], y[50:120], min_rule_coverage = 3)
 
-for i = 1:n 
-    pred = sole_outcome_on_training[i]
-    correct = y[i]
-    println("\t $i \t $correct \t $pred")
-end
+exit()
+
+
+# sole_decisionlist = irepstar(X, y, "setosa", min_rule_coverage = 3)
+# sole_outcome_on_training = apply(sole_decisionlist, X)
+
+# n = length(y)
+# println("Index - True label - Pred label")
+
+# for i = 1:n 
+#     pred = sole_outcome_on_training[i]
+#     correct = y[i]
+#     println("\t $i \t $correct \t $pred")
+# end
