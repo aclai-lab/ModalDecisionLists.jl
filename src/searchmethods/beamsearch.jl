@@ -277,7 +277,6 @@ function findbestantecedent(
     # Inizializza il migliore antecedente come formula ⊤ 
     # (sempre vera, copre tutte le istanze)
     best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class)
-    println("best loss: $best_loss")
 
     newcandidates = Antecedent[]
     while true

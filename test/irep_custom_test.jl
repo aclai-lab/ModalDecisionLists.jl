@@ -18,7 +18,9 @@ y = String.(y)
 
 #println(X[1:85, :])
 
-sole_decisionlist = irepstar(X[50:120, :], y[50:120], min_rule_coverage = 3)
+sole_decisionlist = irepstar(X, y, min_rule_coverage = 3)
+
+@show sole_decisionlist
 
 exit()
 

@@ -117,11 +117,7 @@ function sequentialcovering(
     # Da incapsulaper dentro InstanceSet
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-
-    searchmethod::SearchMethod=BeamSearch(),
-
-    loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
+    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); searchmethod::SearchMethod=BeamSearch(), loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
     max_infogain_ratio::Real=1.0,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
@@ -130,17 +126,14 @@ function sequentialcovering(
     max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     suppress_parity_warning::Bool=false,
-    kwargs...
-
-
-)::DecisionList where {U<:Real}
+    kwargs...)::DecisionList where {U<:Real}
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
-                                                "than one. Please provide a valid value."
+                                                               "than one. Please provide a valid value."
 
     searchmethod = reconstruct(searchmethod, kwargs)
 
@@ -157,22 +150,18 @@ function sequentialcovering(
     while true
 
         # bestantecedent_coverage è un array di 0 e 1 con 1 negli indici i dove la regola trovata copre il sample xi (in unconveredX)
-        bestantecedent = findbestantecedent(searchmethod,
-
-            uncoveredX, uncoveredy, uncoveredw,
+        bestantecedent = findbestantecedent(searchmethod, uncoveredX, uncoveredy, uncoveredw,
             #
             loss_function,
             max_infogain_ratio,
             default_alphabet,
             discretizedomain,
             significance_alpha,
-            min_rule_coverage;
-
-            max_rule_length = max_rule_length,
-            nlabels = length(labels)
+            min_rule_coverage; max_rule_length=max_rule_length,
+            nlabels=length(labels)
         )
-        
-        istop(bestantecedent) && break    
+
+        istop(bestantecedent) && break
 
         rule = begin
             justcoveredy = uncoveredy[bestantecedent.covmask]
@@ -207,7 +196,7 @@ function sequentialcovering(
             break
         end
     end
-    prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
+    prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning=suppress_parity_warning)
     prediction = labels[prediction]
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(uncoveredy)],
@@ -226,39 +215,39 @@ end
 function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-
-    tdl_threshold::Int = 64,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-    searchmethod::SearchMethod=BeamSearch(),
-    split_ratio::Real=0.66,
-
-    loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
-    max_infogain_ratio::Union{Nothing, Real}=nothing,
+    searchmethod::SearchMethod=BeamSearch(), tdl_threshold::Int=64,
+    split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+    max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Integer=1,
-    max_rule_length::Union{Nothing,Integer}=nothing,
-
+    min_rule_coverage::Integer=1, max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-    rand_seed::Union{Nothing, Integer}=nothing,
-    
-    suppress_parity_warning::Bool=false,
-    kwargs...
-) where {U<:Real}
-    # TODO: write all the checks on the inputs
 
-    # STEP 1: order the classes from least prevalent to most prevalent in the data
+    # rand_seed::Union{Nothing, Integer}=nothing, 
+    # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
+    rand_seed::Union{Nothing,Integer}=3, suppress_parity_warning::Bool=false,
+    kwargs...
+)::NamedTuple{(:rules, :label),Tuple{AbstractVector{DecisionList},<:CLabel}} where {U<:Real}
+    # TODO: IREP* ritorna una lista ordinata di DecisionList con un tipo di default se nessuna delle regole si applica, 
+    # conviene creare una struttura che encapsula questo tipo e che deriva da AbstractModel così da implementare
+    # funzioni come apply() e info() e così via, e rendere il codice più pulito 
+
+    # TODO: scrivere tutti i check sull'input
+
     # y is now an encoding of targets with integers {1, ..., n}, whereas labels[i] is the actual label value 
     # corresponding to the integer value in the targets in y
-    y_int, labels = y |> maptointeger   
+    y_int, labels = y |> maptointeger
     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
 
-    # indici ordinati delle classi in ordine decrescente
-    sorted_indices = sortperm(y_dist, rev = true)
+    # indici ordinati delle classi in ordine crescente di copertura
+    sorted_indices = sortperm(y_dist)
 
     # tutto il codice negli if con debug = true poi è da rimuovere
-    debug = true
+    debug = false
+
+    result = Vector{DecisionList}[]
 
     if debug
         println("labels: $labels")
@@ -267,53 +256,87 @@ function irepstar(
         println("y_dist: \n$y_dist\n\n")
         println("sorted indices: \n$sorted_indices\n\n")
 
-        for i = 1 : length(y_dist)
-            num_in_class = length( findall( label -> label == i, y_int ) )
+        for i = 1:length(y_dist)
+            num_in_class = length(findall(label -> label == i, y_int))
             println("Number of elements in class $i: $num_in_class")
         end
 
         println(y_dist[sorted_indices])
     end
 
-    # starting from the most common class index and going down to the least common
-    for class_idx ∈ sorted_indices 
+    uncoveredX = X
+    uncoveredy = y
+    uncoveredw = w
+
+    # starting from the least common class index and going up to the most common, the last class
+    # is used as the default consequent
+    for class_idx ∈ sorted_indices[1:end-1]
+        # Create the decision list with a call to IREP* on the data that still hasn't been classified
         label = labels[class_idx]
-        println("Calling IREP* on label $label")
-        # class_decision_list = irepstar_sc(X, y, label,
-        #     kwargs...
-        # )
+        # TODO: passare kwargs a irepstar multiclasse e evitare di rispecificarli tutti qua
+        class_decision_list = irepstar(
+            uncoveredX, uncoveredy, label,
+            w = uncoveredw,
+            searchmethod = searchmethod,
+            tdl_threshold = tdl_threshold,
+            split_ratio = split_ratio,
+            loss_function = loss_function,
+            max_infogain_ratio = max_infogain_ratio,
+            default_alphabet = default_alphabet,
+            discretizedomain = discretizedomain,
+            significance_alpha = significance_alpha,
+            min_rule_coverage = min_rule_coverage,
+            max_rulebase_length = max_rulebase_length,
+            rand_seed = rand_seed,
+            suppress_parity_warning = suppress_parity_warning,
+            kwargs...
+        )
+
+        # Extract the coverage mask for the decision list just created
+        declist_satmask = apply(class_decision_list, uncoveredX)
+        covered_indices = findall(declist_satmask)  # indices just covered by the decision list for the label class_idx
+
+        # Remove the covered samples from the uncovered slice of the dataset
+        uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
+        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+        uncoveredy = @view uncoveredy[uncovered_slice]
+        uncoveredw = @view uncoveredw[uncovered_slice]
+
+        # Add the decision list to the AbstractVector of decisionLists
+        push!(result, class_decision_list)
     end
 
+    # la classe più numerosa nel dataset, viene predetta come default class quando 
+    default_class_index = sorted_indices[end]
+    default_class = labels[default_class_index]
+
+    return (
+        criteria=result,
+        default_class=default_class
+    )
 end
 
 
 
-
-function irepstar_sc(
+# TODO: aggiungere un parametro verbosity, e tenere o meno alcuni/tutti i 
+# println in base al livello di verbosity scelto?
+function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-    searchmethod::SearchMethod=BeamSearch(),
-
-    tdl_threshold::Int = 64,
-    split_ratio::Real=0.7,
-
-    loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
-    max_infogain_ratio::Union{Nothing, Real}=nothing,
+    searchmethod::SearchMethod=BeamSearch(), tdl_threshold::Int=64,
+    split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+    max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Integer=1,
-
-    max_rule_length::Union{Nothing,Integer}=nothing,
+    min_rule_coverage::Integer=1, max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
 
     # rand_seed::Union{Nothing, Integer}=nothing, 
     # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
-    rand_seed::Union{Nothing, Integer}=3,
-    
-    suppress_parity_warning::Bool=false,
+    rand_seed::Union{Nothing,Integer}=3, suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
 
@@ -323,7 +346,7 @@ function irepstar_sc(
     !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
-                                                "than one. Please provide a valid value."
+                                                               "than one. Please provide a valid value."
 
     @assert (0 < split_ratio < 1) "split_ratio must be in range (0,1)"
 
@@ -338,7 +361,7 @@ function irepstar_sc(
         supporting_labels=y,
     )
 
-    y, labels = y |> maptointeger   
+    y, labels = y |> maptointeger
     poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva)
 
     uncovered_original_y = y
@@ -350,7 +373,7 @@ function irepstar_sc(
     uncoveredw = w
 
 
-    rulebase_sat_mask = falses( ninstances(X) )   # sat mask della rulebase su uncoveredX
+    rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
     println("STARTING IREP TRAINING")
@@ -372,38 +395,37 @@ function irepstar_sc(
         end
 
         bestantecedent = findbestantecedent(searchmethod,
-            split.gr..., 
+            split.gr...,
             #
             loss_function,
             max_infogain_ratio,
             default_alphabet,
             discretizedomain,
             significance_alpha,
-            min_rule_coverage;
-
-            max_rule_length = max_rule_length,
-            nlabels = 2,
-            target_class = 1
+            min_rule_coverage; max_rule_length=max_rule_length,
+            nlabels=2,
+            target_class=1
         )
 
+        #           ----------- DEBUG STUFF -----------
         just_covered_indices = findall(bestantecedent.covmask)
         just_covered_labels = split.gr.y[bestantecedent.covmask]
 
         num_pos = length(findall(label -> label == 1, just_covered_labels))
         num_neg = length(just_covered_labels) - num_pos
-        println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
+        #println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
 
-        positive_indices = findall(label -> label == 1, split.gr.y) 
+        positive_indices = findall(label -> label == 1, split.gr.y)
         neg_indices = findall(label -> label != 1, split.gr.y)
-        println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
-        
+        #println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
+
         covered_pos_indices = findall(label -> label == 1, split.gr.y[just_covered_indices])
         covered_neg_indices = findall(label -> label != 1, split.gr.y[just_covered_indices])
 
-        println("Covered grow dataset distribution (neg, pos): ($(length(covered_neg_indices)), $(length(covered_pos_indices)))\n\n")
+        #println("Covered grow dataset distribution (neg, pos): ($(length(covered_neg_indices)), $(length(covered_pos_indices)))\n\n")
 
-        println("Antecedent developed:\n$bestantecedent")
-
+        #println("Antecedent developed:\n$bestantecedent")
+        #           ----------- END OF DEBUG STUFF -----------
 
         # NOTE: @Edo2Nicola cerca di non utilizzare delle `findall`
         # Equivalente a quanto scritto sopra. Meglio lavorare con delle 
@@ -420,8 +442,8 @@ function irepstar_sc(
         # num_neg = covered_neg_mask |> sum
         # println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
         # # Accertati che sia corretto !
-        println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
-        
+        # println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
+
         istop(bestantecedent) && break
 
         bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split.pr...)
@@ -430,7 +452,7 @@ function irepstar_sc(
 
         # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
-        
+
         # Check TDL
         rule_desc_length = _r_theory_bits(rule, dataset_num_selectors)
 
@@ -438,13 +460,13 @@ function irepstar_sc(
 
         data_new_ruleset_desc_length, rulebase_sat_mask = rs_dataset_bits(X, y, rule, rulebase_sat_mask)
 
-        println("New Rule description length: $rule_desc_length")
-        println("New dataset description length: $data_new_ruleset_desc_length")
+        #println("New Rule description length: $rule_desc_length")
+        #println("New dataset description length: $data_new_ruleset_desc_length")
 
         # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset | Ruleset), dove ΔTDL(Ruleset) = TDL(Ruleset + Rule_i) - TDL(Ruleset) = TDL(Rule_i), 
         # # a ogni iterazione si aggiunge una regola e quindi anche la tdl del ruleset aumenta della lunghezza di descrizione della regola
         ΔTDL_data_given_ruleset = data_new_ruleset_desc_length - data_curr_ruleset_desc_length
-        ΔTDL_ruleset = rule_desc_length                         
+        ΔTDL_ruleset = rule_desc_length
         ΔTDL = ΔTDL_ruleset + ΔTDL_data_given_ruleset
 
         # println("Total tdl difference: $ΔTDL")
@@ -460,10 +482,10 @@ function irepstar_sc(
         # Incapsulare
         uncovered_slice = setdiff(1:ninstances(uncoveredX), coverage_indices)
         # tutto il dataset è stato coperto, evitiamo di tirare un errore su slicedataset
-        if length(uncovered_slice) == 0 
+        if length(uncovered_slice) == 0
             break
         end
-        println("uncovered_slice length: $(length(uncovered_slice))")
+        #println("uncovered_slice length: $(length(uncovered_slice))")
 
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
@@ -472,10 +494,6 @@ function irepstar_sc(
 
     end
 
-
-    #prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning = suppress_parity_warning)
-    #prediction = (prediction == 1) ? poslabel : "other";
-    
     prediction = "other"    # default prediction se nessuna altra regola si applica
 
     info_cm = (;
@@ -524,11 +542,11 @@ function split_instances(X, y, w, split_ratio)
     pruny = y[prunindxs]
 
     return (
-        gr = (X = growX, y = growy, w = groww),
-        pr = (X = prunX, y = pruny),
-        gr_inds = growindxs,
-        pr_inds = prunindxs,
-        permutation = permindxs
+        gr=(X=growX, y=growy, w=groww),
+        pr=(X=prunX, y=pruny),
+        gr_inds=growindxs,
+        pr_inds=prunindxs,
+        permutation=permindxs
     )
 end
 
@@ -580,10 +598,10 @@ TODO: Tutti i commenti in inglese + fix per versione attuale dopo che i parametr
 # Io partirei dalla funzione split_instances(...). Qui so come vengono 
 # permutate le istanze, magari posso portarmi dietro questa info e riuscire a riordinare tutto
 function compute_global_coverage(
-    antecedent::LeftmostConjunctiveForm, 
+    antecedent::LeftmostConjunctiveForm,
     split,
     bestantecedent_prune_cov
-)    
+)
 
     growX = split.gr.X
     pruneX = split.pr.X
@@ -592,15 +610,15 @@ function compute_global_coverage(
     grow_cov_local = findall(grow_mask)
     grow_cov_global = split.gr_inds[grow_cov_local]
 
-    
-    if bestantecedent_prune_cov === nothing 
+
+    if bestantecedent_prune_cov === nothing
         prune_mask = check(antecedent, pruneX)
-    else 
+    else
         prune_mask = bestantecedent_prune_cov
     end
     prune_cov_local = findall(prune_mask)
     prune_cov_global = split.pr_inds[prune_cov_local]
-    
+
     return vcat(grow_cov_global, prune_cov_global)
 end
 
@@ -649,8 +667,8 @@ Utile per la fase di pruning di RIPPER.
 # Bisogna prima identificare qualche metodo che si vuole implementare poi si pensa a tutta la struttura effettiva
 function generate_pruned_formulas(ant::Antecedent)
     _range = nconds(ant):-1:1
-    return [LeftmostConjunctiveForm(conds(ant)[1:i]) 
-        for i in _range
+    return [LeftmostConjunctiveForm(conds(ant)[1:i])
+            for i in _range
     ]
 end
 
@@ -700,10 +718,10 @@ function pruneantecedent(antecedent::Antecedent,
 end
 
 
-function get_num_independent_selectors(X::AbstractLogiset, y, discretizedomain::Bool = false)::Int
+function get_num_independent_selectors(X::AbstractLogiset, y, discretizedomain::Bool=false)::Int
     alph = alphabet(X;
-        discretizedomain = discretizedomain,
-        y = y
+        discretizedomain=discretizedomain,
+        y=y
     )
 
     independent_conds = alphabet2conditions(AtomGenerator(), alph, X)
@@ -718,13 +736,13 @@ end
 function _r_theory_bits(rule::Rule, n::Int)
     # conds = unaryconditions_noneq(alph, X)        # @Nicola va richiamato? su wittgenstein sembra sia fissato ma mi puzza come cosa
     # n_old = length(conds) 
-    
+
     #println("\t Conds unaryconds_noneq: $n_old | Conds alphabet2conditions: $n")
 
     k = 1 + nconnectives(rule.antecedent) # si assume che la formula di Rule sia una LeftmostConjunctiveForm
     pr = k / n
 
-    S = k * log2(1/pr) + (n - k) * log2(1/(1 - pr))
+    S = k * log2(1 / pr) + (n - k) * log2(1 / (1 - pr))
     K = log2(k)
     desc_length = (S + K) * 0.5
 
@@ -738,8 +756,8 @@ function log2_factorial(n::Int)::Real
     if n == 0
         return 0
     end
-    
-    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n/ℯ) + 0.115/n)
+
+    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.115 / n)
 end
 
 # ritorna un'approssimazione di ln( n choose k ) usando log2_factorial
@@ -752,14 +770,14 @@ function log2binomial(n::Int, k::Int)::Real
     # piuttosto buona per n piccolo, in questa maniera non serve realmente fare un if n < n_min per usare il fattoriale su piccoli valori
     # Già per n = 1 l'errore assoluto di questa funzione rispetto al valore corretto è 0.00194 e va diminuendo
     # confrontare le due curve in una calcolatrice grafica per farsi un'idea
-    return log2_factorial(n) - log2_factorial(k) - log2_factorial(n-k)
+    return log2_factorial(n) - log2_factorial(k) - log2_factorial(n - k)
 end
 
 
 # @Edo TODO: Qui lavoriamo su Bitmask, più efficente
 function rs_dataset_bits(
-    X::AbstractLogiset, y, 
-    rule::Rule, 
+    X::AbstractLogiset, y,
+    rule::Rule,
     # prev_ruleset_satmask::AbstractVector{Bool}
     prev_ruleset_satmask::BitVector
 )
@@ -767,7 +785,7 @@ function rs_dataset_bits(
 
     rule_sat_mask = check(rule.antecedent, X)       # controlla quali sample copre la nuova regola
     ruleset_sat_mask = prev_ruleset_satmask .| rule_sat_mask    # aggiorno la maschera dei sample coperti dalle regole
-    
+
     ruleset_covered_idxs = findall(ruleset_sat_mask)
 
     pos_samples_indxs = findall(label -> label == 1, y)
@@ -777,7 +795,7 @@ function rs_dataset_bits(
     p = length(ruleset_covered_idxs)
     tp = length(intersect(ruleset_covered_idxs, pos_samples_indxs)) # num. di samples positivi coperti dalla regola 
     fp = length(intersect(ruleset_covered_idxs, neg_samples_indxs)) # false positives
-    
+
     fn = num_pos - tp  # false negatives
 
     #desc_length = log2( binomial(p, fp) ) + log2( binomial( n_samples - p, fn ) )   # va in overflow
