@@ -117,8 +117,10 @@ function sequentialcovering(
     # Da incapsulaper dentro InstanceSet
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); searchmethod::SearchMethod=BeamSearch(), loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
-    max_infogain_ratio::Real=1.0,
+    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
+    searchmethod::SearchMethod=BeamSearch(), 
+    loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
+    max_infogain_ratio::Real=1.0, 
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
@@ -211,111 +213,112 @@ end
 ################### SequentialCovering - RIPPER ######################################
 ############################################################################################
 
-
-function irepstar(
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-    searchmethod::SearchMethod=BeamSearch(), tdl_threshold::Int=64,
-    split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
-    max_infogain_ratio::Union{Nothing,Real}=nothing,
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-    discretizedomain::Bool=false,
-    significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Integer=1, max_rule_length::Union{Nothing,Integer}=nothing,
-    max_rulebase_length::Union{Nothing,Integer}=nothing,
-
-    # rand_seed::Union{Nothing, Integer}=nothing, 
-    # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
-    rand_seed::Union{Nothing,Integer}=3, suppress_parity_warning::Bool=false,
-    kwargs...
-)::NamedTuple{(:rules, :label),Tuple{AbstractVector{DecisionList},<:CLabel}} where {U<:Real}
-    # TODO: IREP* ritorna una lista ordinata di DecisionList con un tipo di default se nessuna delle regole si applica, 
-    # conviene creare una struttura che encapsula questo tipo e che deriva da AbstractModel così da implementare
-    # funzioni come apply() e info() e così via, e rendere il codice più pulito 
-
-    # TODO: scrivere tutti i check sull'input
-
-    # y is now an encoding of targets with integers {1, ..., n}, whereas labels[i] is the actual label value 
-    # corresponding to the integer value in the targets in y
-    y_int, labels = y |> maptointeger
-    y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
-
-    # indici ordinati delle classi in ordine crescente di copertura
-    sorted_indices = sortperm(y_dist)
-
-    # tutto il codice negli if con debug = true poi è da rimuovere
-    debug = false
-
-    result = Vector{DecisionList}[]
-
-    if debug
-        println("labels: $labels")
-
-        println("y_int: \n$y_int\n\n")
-        println("y_dist: \n$y_dist\n\n")
-        println("sorted indices: \n$sorted_indices\n\n")
-
-        for i = 1:length(y_dist)
-            num_in_class = length(findall(label -> label == i, y_int))
-            println("Number of elements in class $i: $num_in_class")
-        end
-
-        println(y_dist[sorted_indices])
-    end
-
-    uncoveredX = X
-    uncoveredy = y
-    uncoveredw = w
-
-    # starting from the least common class index and going up to the most common, the last class
-    # is used as the default consequent
-    for class_idx ∈ sorted_indices[1:end-1]
-        # Create the decision list with a call to IREP* on the data that still hasn't been classified
-        label = labels[class_idx]
-        # TODO: passare kwargs a irepstar multiclasse e evitare di rispecificarli tutti qua
-        class_decision_list = irepstar(
-            uncoveredX, uncoveredy, label,
-            w = uncoveredw,
-            searchmethod = searchmethod,
-            tdl_threshold = tdl_threshold,
-            split_ratio = split_ratio,
-            loss_function = loss_function,
-            max_infogain_ratio = max_infogain_ratio,
-            default_alphabet = default_alphabet,
-            discretizedomain = discretizedomain,
-            significance_alpha = significance_alpha,
-            min_rule_coverage = min_rule_coverage,
-            max_rulebase_length = max_rulebase_length,
-            rand_seed = rand_seed,
-            suppress_parity_warning = suppress_parity_warning,
-            kwargs...
-        )
-
-        # Extract the coverage mask for the decision list just created
-        declist_satmask = apply(class_decision_list, uncoveredX)
-        covered_indices = findall(declist_satmask)  # indices just covered by the decision list for the label class_idx
-
-        # Remove the covered samples from the uncovered slice of the dataset
-        uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
-        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
-        uncoveredy = @view uncoveredy[uncovered_slice]
-        uncoveredw = @view uncoveredw[uncovered_slice]
-
-        # Add the decision list to the AbstractVector of decisionLists
-        push!(result, class_decision_list)
-    end
-
-    # la classe più numerosa nel dataset, viene predetta come default class quando 
-    default_class_index = sorted_indices[end]
-    default_class = labels[default_class_index]
-
-    return (
-        criteria=result,
-        default_class=default_class
-    )
-end
-
+#
+# function irepstar(
+#     X::AbstractLogiset,
+#     y::AbstractVector{<:CLabel},
+#     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+#     searchmethod::SearchMethod=BeamSearch(), tdl_threshold::Int=64,
+#     split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+#     max_infogain_ratio::Union{Nothing,Real}=nothing,
+#     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+#     discretizedomain::Bool=false,
+#     significance_alpha::Union{Real,Nothing}=0.0,
+#     min_rule_coverage::Integer=1, max_rule_length::Union{Nothing,Integer}=nothing,
+#     max_rulebase_length::Union{Nothing,Integer}=nothing,
+#
+#     # rand_seed::Union{Nothing, Integer}=nothing, 
+#     # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
+#     rand_seed::Union{Nothing,Integer}=3,
+#     suppress_parity_warning::Bool=false,
+#     kwargs...
+# )::NamedTuple{(:rules, :label),Tuple{AbstractVector{DecisionList},<:CLabel}} where {U<:Real}
+#     # TODO: IREP* ritorna una lista ordinata di DecisionList con un tipo di default se nessuna delle regole si applica, 
+#     # conviene creare una struttura che encapsula questo tipo e che deriva da AbstractModel così da implementare
+#     # funzioni come apply() e info() e così via, e rendere il codice più pulito 
+#
+#     # TODO: scrivere tutti i check sull'input
+#
+#     # y is now an encoding of targets with integers {1, ..., n}, whereas labels[i] is the actual label value 
+#     # corresponding to the integer value in the targets in y
+#     y_int, labels = y |> maptointeger
+#     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
+#
+#     # indici ordinati delle classi in ordine crescente di copertura
+#     sorted_indices = sortperm(y_dist)
+#
+#     # tutto il codice negli if con debug = true poi è da rimuovere
+#     debug = false
+#
+#     result = Vector{DecisionList}[]
+#
+#     if debug
+#         println("labels: $labels")
+#
+#         println("y_int: \n$y_int\n\n")
+#         println("y_dist: \n$y_dist\n\n")
+#         println("sorted indices: \n$sorted_indices\n\n")
+#
+#         for i = 1:length(y_dist)
+#             num_in_class = length(findall(label -> label == i, y_int))
+#             println("Number of elements in class $i: $num_in_class")
+#         end
+#
+#         println(y_dist[sorted_indices])
+#     end
+#
+#     uncoveredX = X
+#     uncoveredy = y
+#     uncoveredw = w
+#
+#     # starting from the least common class index and going up to the most common, the last class
+#     # is used as the default consequent
+#     for class_idx ∈ sorted_indices[1:end-1]
+#         # Create the decision list with a call to IREP* on the data that still hasn't been classified
+#         label = labels[class_idx]
+#         # TODO: passare kwargs a irepstar multiclasse e evitare di rispecificarli tutti qua
+#         class_decision_list = irepstar(
+#             uncoveredX, uncoveredy, label,
+#             w = uncoveredw,
+#             searchmethod = searchmethod,
+#             tdl_threshold = tdl_threshold,
+#             split_ratio = split_ratio,
+#             loss_function = loss_function,
+#             max_infogain_ratio = max_infogain_ratio,
+#             default_alphabet = default_alphabet,
+#             discretizedomain = discretizedomain,
+#             significance_alpha = significance_alpha,
+#             min_rule_coverage = min_rule_coverage,
+#             max_rulebase_length = max_rulebase_length,
+#             rand_seed = rand_seed,
+#             suppress_parity_warning = suppress_parity_warning,
+#             kwargs...
+#         )
+#
+#         # Extract the coverage mask for the decision list just created
+#         declist_satmask = apply(class_decision_list, uncoveredX)
+#         covered_indices = findall(declist_satmask)  # indices just covered by the decision list for the label class_idx
+#
+#         # Remove the covered samples from the uncovered slice of the dataset
+#         uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
+#         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+#         uncoveredy = @view uncoveredy[uncovered_slice]
+#         uncoveredw = @view uncoveredw[uncovered_slice]
+#
+#         # Add the decision list to the AbstractVector of decisionLists
+#         push!(result, class_decision_list)
+#     end
+#
+#     # la classe più numerosa nel dataset, viene predetta come default class quando 
+#     default_class_index = sorted_indices[end]
+#     default_class = labels[default_class_index]
+#
+#     return (
+#         criteria=result,
+#         default_class=default_class
+#     )
+# end
+#
 
 
 # TODO: aggiungere un parametro verbosity, e tenere o meno alcuni/tutti i 

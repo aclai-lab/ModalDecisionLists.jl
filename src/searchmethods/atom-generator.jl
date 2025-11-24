@@ -24,8 +24,6 @@ Given a set of samples/interpretations X and an alphabet alph, it returns a list
 """
 checkedatoms(X::AbstractLogiset, alph)::Vector{Tuple{Atom,SatMask}} = [(a, check(a, X)) for a ∈ atoms(alph)]
 
-
-
 """
     function checkedatoms( TODO )
 
