@@ -236,7 +236,6 @@ function init_best_antecedent(y, w, loss_function; nlabels, kwargs...)
 end
 
 
-
 """
     function findbestantecedent(
         ::BeamSearch,
@@ -270,13 +269,14 @@ function findbestantecedent(
     max_rule_length::Union{Integer,Nothing},
 
     target_class::Union{Integer,Nothing} = nothing,  # this is passed down to the loss function
+    kwargs...
 )::Antecedent
 
     @unpack conjuncts_generation_method, beam_width = bs
 
     # Inizializza il migliore antecedente come formula ⊤ 
     # (sempre vera, copre tutte le istanze)
-    best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class)
+    best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
 
     newcandidates = Antecedent[]
     while true
@@ -301,7 +301,8 @@ function findbestantecedent(
                                                     significance_alpha;
                                                         #
                                                     nlabels=nlabels,
-                                                    target_class=target_class)
+                                                    target_class=target_class,
+                                                    kwargs...)
 
         isempty(newcandidates) && break
 

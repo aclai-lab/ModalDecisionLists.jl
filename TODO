@@ -1,0 +1,10 @@
+IREP*: 
+    ☐ Ripulire codice
+    ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa)
+    ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
+    ☐ Creare funzione information gain usando accuratezza su true positive e true negatives come in wittgenstein (base.py linea 387)
+    ☐ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity
+    ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
+    
+Test IREP*:
+    ☐ Sviluppare test su dataset vari di RDatasets (yeast)

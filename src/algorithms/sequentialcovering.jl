@@ -325,8 +325,10 @@ function irepstar(
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-    searchmethod::SearchMethod=BeamSearch(), tdl_threshold::Int=64,
-    split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+    searchmethod::SearchMethod=BeamSearch(), 
+    tdl_threshold::Int=64,
+    split_ratio::Real=0.7, 
+    loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
     max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
@@ -391,8 +393,7 @@ function irepstar(
         num_pos = length(findall(label -> label == 1, uncoveredy))
 
         if num_pos < min_rule_coverage
-            break
-        end
+            break end
 
         bestantecedent = findbestantecedent(searchmethod,
             split.gr...,
@@ -483,8 +484,7 @@ function irepstar(
         uncovered_slice = setdiff(1:ninstances(uncoveredX), coverage_indices)
         # tutto il dataset è stato coperto, evitiamo di tirare un errore su slicedataset
         if length(uncovered_slice) == 0
-            break
-        end
+            break end
         #println("uncovered_slice length: $(length(uncovered_slice))")
 
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
@@ -529,7 +529,6 @@ function split_instances(X, y, w, split_ratio)
         return nothing
     end
 
-    # ho cambiato così
     permindxs = randperm(n)
     growindxs = permindxs[1:ngrow]
     prunindxs = permindxs[ngrow+1:end]
@@ -540,63 +539,39 @@ function split_instances(X, y, w, split_ratio)
 
     prunX = slicedataset(X, prunindxs)
     pruny = y[prunindxs]
+    prunw = w[prunindxs]
 
     return (
         gr=(X=growX, y=growy, w=groww),
-        pr=(X=prunX, y=pruny),
+        pr=(X=prunX, y=pruny, w=prunw),
         gr_inds=growindxs,
         pr_inds=prunindxs,
         permutation=permindxs
     )
 end
 
+
 """
-    compute_coverage(
-        antecedent::LeftmostConjunctiveForm, 
-        growX, growindxs, 
-        pruneX, pruneindxs, 
-        bestantecedent_prune_cov
-    ) -> Vector{Int}
+    compute_global_coverage(antecedent::LeftmostConjunctiveForm, split, bestantecedent_prune_cov)
 
-Calcola gli indici **globali** delle istanze del dataset originale che sono 
-coperte da un dato `antecedent` (regola logica o congiunzione di condizioni), 
-combinando la copertura nei sottoinsiemi *grow* e *prune*.
+Compute the global coverage of an antecedent rule across both grow and prune datasets.
 
-# Descrizione
-il dataset viene suddiviso in due parti:
-- **grow set** (`growX`): usato per costruire la regola;
-- **prune set** (`pruneX`): usato per ottimizzarla e ridurne l'overfitting.
+This function evaluates how many instances a given antecedent covers by checking it against
+both the grow and prune subsets of the data. It maps local indices (indices within each subset)
+back to global indices using the provided index mappings.
 
-Questa funzione valuta la regola su entrambi i sottoinsiemi e restituisce 
-gli indici delle istanze (riferiti al dataset originale) che risultano coperte.
+# Arguments
+- `antecedent::LeftmostConjunctiveForm`: The antecedent rule to evaluate coverage for.
+- `split`: A data structure containing grow and prune dataset splits with their corresponding
+  feature matrices (`gr.X`, `pr.X`) and global index mappings (`gr_inds`, `pr_inds`).
+- `bestantecedent_prune_cov`: Either a boolean mask indicating which instances in the prune
+  set are covered by a previously computed best antecedent, or `nothing` if no cached mask
+  is available. If provided, this is used instead of recomputing the mask.
 
-Se è già disponibile una maschera di copertura per la fase di pruning 
-(`bestantecedent_prune_cov`), questa viene riutilizzata per evitare 
-ricomputazioni.
-
-# Argomenti
-- `antecedent::LeftmostConjunctiveForm`: la regola o congiunzione di condizioni da valutare.
-- `growX`: il sottoinsieme di dati usato nella fase di *growing*.
-- `growindxs`: vettore degli indici globali corrispondenti alle istanze di `growX`.
-- `pruneX`: il sottoinsieme di dati usato nella fase di *pruning*.
-- `pruneindxs`: vettore degli indici globali corrispondenti alle istanze di `pruneX`.
-- `bestantecedent_prune_cov`: maschera booleana opzionale già calcolata che indica 
-  le istanze coperte su `pruneX` (può essere `nothing`).
-
-# Ritorna
-- `Vector{Int}` — un vettore contenente tutti gli indici **globali** delle istanze 
-  coperte dall'antecedent, sia in `growX` che in `pruneX`.
-
-
-
-TODO: Tutti i commenti in inglese + fix per versione attuale dopo che i parametri sono stati cambiati
+# Returns
+A vector of global indices representing all instances covered by the antecedent across both
+grow and prune datasets.
 """
-
-
-# @Nicola: questa funzione non mi piace tanto, intuisco ci 
-# sia un modo migliore di farla che evita una ulteriore check.
-# Io partirei dalla funzione split_instances(...). Qui so come vengono 
-# permutate le istanze, magari posso portarmi dietro questa info e riuscire a riordinare tutto
 function compute_global_coverage(
     antecedent::LeftmostConjunctiveForm,
     split,
@@ -672,10 +647,12 @@ function generate_pruned_formulas(ant::Antecedent)
     ]
 end
 
-function pruneantecedent(antecedent::Antecedent,
+function pruneantecedent(
+    antecedent::Antecedent,
     X::AbstractLogiset,
     y::Vector{UInt32},
-)
+    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y))
+) where {U<:Real}
     target_class = 1
 
     # 1. Costruzione delle maschere positive/negative rispetto alla classe target
@@ -692,8 +669,8 @@ function pruneantecedent(antecedent::Antecedent,
 
         p_covmask = check(pformula, X)
 
-        p = sum(posmask .& p_covmask)
-        n = sum(negmask .& p_covmask)
+        p = sum(w[posmask .& p_covmask]) # Sum of True positives weight values
+        n = sum(w[negmask .& p_covmask]) # Sum of False positives weight values
         # evita divisioni per zero o regole vuote
         if p + n == 0
             continue
@@ -709,12 +686,7 @@ function pruneantecedent(antecedent::Antecedent,
         end
     end
 
-    # 4. Costruzione della maschera di copertura globale prima di istanziare il nuovo antecedente
-    # total_cov = falses(length(prunindxs) + length(growindxs))
-    # total_cov[growindxs] .= antecedent.covmask          # coverage del growing set
-    # total_cov[prunindxs] .= _best_covmask               # coverage del pruning set
-
-    return _best_formula, _best_covmask  #, total_cov
+    return _best_formula, _best_covmask
 end
 
 
@@ -751,34 +723,16 @@ function _r_theory_bits(rule::Rule, n::Int)
 end
 
 
-# ritorna un'approssimazione di ln(n!) usando Stirling
-function log2_factorial(n::Int)::Real
-    if n == 0
-        return 0
-    end
-
-    return max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.115 / n)
-end
-
-# ritorna un'approssimazione di ln( n choose k ) usando log2_factorial
-function log2binomial(n::Int, k::Int)::Real
-    if k == 0
-        return 0
-    end
-
-    # 0.115/n è stato scelto perchè, senza cambiare l'uguaglianza asintotica di Stirling, esegue una correzione
-    # piuttosto buona per n piccolo, in questa maniera non serve realmente fare un if n < n_min per usare il fattoriale su piccoli valori
-    # Già per n = 1 l'errore assoluto di questa funzione rispetto al valore corretto è 0.00194 e va diminuendo
-    # confrontare le due curve in una calcolatrice grafica per farsi un'idea
-    return log2_factorial(n) - log2_factorial(k) - log2_factorial(n - k)
-end
+""" ritorna un'approssimazione di ln(n!) usando Stirling """
+log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.1201753 / n)
 
 
-# @Edo TODO: Qui lavoriamo su Bitmask, più efficente
+""" ritorna un'approssimazione di ln( n choose k ) usando log2_factorial """
+log2binomial(n::Integer, k::Integer)::Real = (k == 0) ? 0 : log2_factorial(n) - log2_factorial(k) - log2_factorial(n - k)
+
 function rs_dataset_bits(
     X::AbstractLogiset, y,
     rule::Rule,
-    # prev_ruleset_satmask::AbstractVector{Bool}
     prev_ruleset_satmask::BitVector
 )
     n_samples = ninstances(X)
@@ -798,7 +752,6 @@ function rs_dataset_bits(
 
     fn = num_pos - tp  # false negatives
 
-    #desc_length = log2( binomial(p, fp) ) + log2( binomial( n_samples - p, fn ) )   # va in overflow
     desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
     return desc_length, ruleset_sat_mask
 end

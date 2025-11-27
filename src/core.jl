@@ -234,6 +234,45 @@ function maptointeger(y::AbstractVector{<:CLabel})
     return integer_y, values
 end
 
+
+"""
+    get_binary_labels_distribution(y::AbstractVector{<:Integer}, w::AbstractVector, target_class::Union{Integer,Nothing} = nothing) -> Tuple
+
+Compute the weighted distribution of binary labels for a given target class.
+
+This function calculates the sum of weights for positive and negative instances, where positive 
+instances are those whose labels match the target class, and negative instances are all others.
+If target class is nothing, the tuple (0,0) is returned
+
+# Arguments
+- `y::AbstractVector{<:Integer}`: Vector of class labels.
+- `w::AbstractVector`: Vector of weights corresponding to each instance.
+- `target_class::Union{Integer,Nothing}`: The class label to treat as positive. If `nothing`, 
+  defaults to binary classification with the first unique label as positive. Default: `nothing`.
+
+# Returns
+- `Tuple`: A tuple `(p, n)` where:
+  - `p`: Sum of weights for positive instances (labels equal to `target_class`).
+  - `n`: Sum of weights for negative instances (labels not equal to `target_class`).
+
+"""
+function get_binary_labels_distribution(
+    y::AbstractVector{<:Integer}, 
+    w::AbstractVector,
+    target_class::Union{Integer,Nothing} = nothing
+)
+    if isnothing(target_class)
+        return 0,0
+    end
+
+    pos_mask = (y .== target_class)
+    neg_mask = (y .!= target_class)
+    p = sum(w[pos_mask])
+    n = sum(w[neg_mask])
+    return p, n
+end
+
+
 """
     TODO sortantecedents....
 
@@ -257,11 +296,8 @@ function sortantecedents(
     significance_alpha::Union{Real,Nothing};
     kwargs...
 )::Tuple{AbstractVector,<:Real}
-    # così com’è, non funziona: c’è ancora un problema di tipo nella prima riga del costruttore.
     isempty(antecedents) && return [], Inf
 
-
-    # TODO: da testare
     # If 'min_rule_coverage' is defined, this filters out from antecedents any antecedent whose covmasks covers less than 'min_rule_coverage' samples 
     if min_rule_coverage > 1
         validindices = findall(ant -> count(ant.covmask) >= min_rule_coverage, antecedents)
