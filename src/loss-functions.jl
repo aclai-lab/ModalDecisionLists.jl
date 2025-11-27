@@ -9,7 +9,11 @@ using Distributions
 
 
 """
-    count_labels_distribution(y::AbstractVector{<:UInt32}, nlabels::Integer, w=default_weights(length(y)))::Tuple{AbstractVector{<:Real}, Integer}
+    count_labels_distribution(y::AbstractVector{<:UInt32}, 
+        nlabels::Integer, 
+        w=default_weights(length(y))
+    )::Tuple{AbstractVector{<:Real}, Integer}
+
 
 Compute the weighted distribution of labels in a vector.
 
@@ -28,11 +32,11 @@ The function internally adjusts the label indices by offsetting them so that the
 This adjustment is necessary to properly index into the distribution vector. The offset value is returned
 to allow for later denormalization if needed.
 """
-function count_labels_distribution(
-    y::AbstractVector{<:UInt32},
-    nlabels::Integer,
+function count_labels_distribution( y::AbstractVector{<:UInt32},
+    n::Integer,
     w=default_weights(length(y))
 )::Tuple{AbstractVector{<:Real}, Integer}
+
     y_min = convert(Int64, minimum(y)) # this is necesssary, otherwise -y_min underflows when calculating y_offset
     y_offset = -y_min + 1
 
@@ -40,7 +44,7 @@ function count_labels_distribution(
     y_adj = convert.(Int64, y) .+ y_offset
 
     # dist[i] is the number of occurrences of the label i in y_adj
-    dist = counts(y_adj, nlabels, Weights(w))
+    dist = counts(y_adj, n, Weights(w))
 
     return dist, y_offset   
 end # TODO: Spostare sta roba da qualche altra parte
@@ -59,7 +63,7 @@ abstract type SymmetricLoss <: AbstractLossFunction end
 abstract type AsymmetricLoss <: AbstractLossFunction end
 
 
-function calculate_loss(loss_func::AbstractLossFunction; kwargs...)
+function calculate_loss(::AbstractLossFunction; kwargs...)
     error("calculate_loss can only be called with a non-abstract loss function type")
 end
 
@@ -68,33 +72,33 @@ end
 ################# SYMMETRIC LOSSES ##################
 #####################################################
 
-# GINI IMPURITY
+# Implementa le loss come callable structs
 struct GiniImpurity <: SymmetricLoss end
 
-function calculate_loss(
-    ::GiniImpurity,
+function (::GiniImpurity)(
     y::AbstractVector{<:Integer},
-    w::AbstractVector=default_weights(length(y));
-    kwargs...
+    w::AbstractVector = default_weights(length(y))
 )
     isempty(y) && return Inf
+    
+    dist = w isa Ones ? counts(y) : counts(y, Weights(w))
+    filter!(!iszero, dist)
+    length(dist) == 1 && return 0.0
+    
+    p = dist ./ sum(dist)
+    return 1 - sum(abs2, p)  # abs2 è più efficiente di .^2
+end
 
-    distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
-    distribution = distribution[distribution .!= 0]
+# Da utilizzare così:
+# f_gini = GiniImpurity()
+# val = f_gini(y, ...)
 
-    length(distribution) == 1 && return 0.0
-
-    prob = distribution ./ sum(distribution)
-
-    return 1 - sum(prob .^ 2)
-end 
 
 
 # ENTROPY
 struct Entropy <: SymmetricLoss end
 
-function calculate_loss(
-    ::Entropy,
+function calculate_loss(::Entropy,
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
     kwargs...
@@ -115,8 +119,7 @@ end
 # LAPLACE METRIC
 struct LaplaceMetric <: SymmetricLoss end
 
-function calculate_loss(
-    ::LaplaceMetric,
+function calculate_loss(::LaplaceMetric,
     y::AbstractVector{<:UInt32},
     w::AbstractVector=default_weights(length(y));
     nlabels::Integer,
@@ -143,8 +146,7 @@ end
 # FOIL GAIN
 struct FOILGain <: AsymmetricLoss end
 
-function calculate_loss(
-    ::FOILGain,
+function calculate_loss(::FOILGain,
     y::AbstractVector{<:UInt32},
     w::AbstractVector,
     target_class::Integer;
@@ -164,8 +166,7 @@ end
 # LAPLACE ACCURACY
 struct LaplaceAccuracy <: AsymmetricLoss end
 
-function calculate_loss(
-    ::LaplaceAccuracy,
+function calculate_loss(::LaplaceAccuracy,
     y::AbstractVector{<:UInt32},
     w::AbstractVector,
     target_class::Integer;
