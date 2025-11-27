@@ -1,5 +1,6 @@
 IREP*: 
     ☐ Ripulire codice
+    ☐ Riscrivere le loss functions in modo che prendano tra i vari kwargs il vettore y, y_prev, antecedent
     ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa)
     ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
     ☐ Creare funzione information gain usando accuratezza su true positive e true negatives come in wittgenstein (base.py linea 387)

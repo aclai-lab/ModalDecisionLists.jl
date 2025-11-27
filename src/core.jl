@@ -295,7 +295,7 @@ function sortantecedents(
     max_infogain_ratio::Union{Real,Nothing},
     significance_alpha::Union{Real,Nothing};
     kwargs...
-)::Tuple{AbstractVector,<:Real}
+)::Tuple{AbstractVector,<:Real}     # TODO: Dispatching in base a tipo loss_function
     isempty(antecedents) && return [], Inf
 
     # If 'min_rule_coverage' is defined, this filters out from antecedents any antecedent whose covmasks covers less than 'min_rule_coverage' samples 
@@ -308,10 +308,10 @@ function sortantecedents(
     indices = eachindex(antecedents)
 
     # loss function values for each antecedent
-    antslossfnctn = map(a ->  loss_function(y[a.covmask], w[a.covmask]; kwargs...) , antecedents)
+    antslossfnctn = map(a ->  loss_function(y, w; antecedent=a, kwargs...) , antecedents)
 
     if !isnothing(max_infogain_ratio)
-        # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting faster at the end faster
+        # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting at the end faster
         minloss = (1-max_infogain_ratio) * loss_function(y, w; kwargs...)
 
         # Keep only the indices corresponding antecedents whose loss is ≥ min_loss

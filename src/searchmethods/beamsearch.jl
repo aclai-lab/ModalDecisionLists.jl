@@ -232,7 +232,9 @@ Crea un Antecedent iniziale "bot" e ne calcola la loss sul dataset.
 Una tupla `(best_antecedent, best_loss)`
 """
 function init_best_antecedent(y, w, loss_function; nlabels, kwargs...)
-    return bot_antecedent(length(y)), loss_function(y, w; nlabels=nlabels, kwargs...)
+    antecedent = bot_antecedent(length(y))
+    loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
+    return antecedent, loss_val 
 end
 
 
@@ -299,9 +301,10 @@ function findbestantecedent(
                                                     min_rule_coverage,
                                                     max_infogain_ratio,
                                                     significance_alpha;
-                                                        #
+                                                        # kwargs vari per tutte le possibili loss functions
                                                     nlabels=nlabels,
                                                     target_class=target_class,
+                                                    prev_antecedent=best,
                                                     kwargs...)
 
         isempty(newcandidates) && break
