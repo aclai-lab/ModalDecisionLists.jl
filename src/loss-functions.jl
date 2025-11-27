@@ -89,6 +89,7 @@ function (::GiniImpurity)(
     return 1 - sum(abs2, p)  # abs2 è più efficiente di .^2
 end
 
+#######################
 # Da utilizzare così:
 # f_gini = GiniImpurity()
 # val = f_gini(y, ...)
