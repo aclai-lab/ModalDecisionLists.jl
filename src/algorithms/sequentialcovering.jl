@@ -331,7 +331,7 @@ function irepstar(
     searchmethod::SearchMethod=BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
-    loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+    loss_function::AsymmetricLoss = LaplaceAccuracy(),
     max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
@@ -748,7 +748,8 @@ function rs_dataset_bits(
     pos_samples_indxs = findall(label -> label == 1, y)
     neg_samples_indxs = findall(label -> label != 1, y)
     num_pos = length(pos_samples_indxs)
-
+    
+    # TODO: considerare di calcolare tp e fp come in loss_functions.jl in FOILGain
     p = length(ruleset_covered_idxs)
     tp = length(intersect(ruleset_covered_idxs, pos_samples_indxs)) # num. di samples positivi coperti dalla regola 
     fp = length(intersect(ruleset_covered_idxs, neg_samples_indxs)) # false positives

@@ -3,7 +3,7 @@ using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
 using SoleLogics: subalphabets
 using Parameters
-using ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
+using ModalDecisionLists: entropy, laplace_accuracy
 
 
 ############################################################################################
@@ -231,12 +231,27 @@ Crea un Antecedent iniziale "bot" e ne calcola la loss sul dataset.
 # Ritorna
 Una tupla `(best_antecedent, best_loss)`
 """
-function init_best_antecedent(y, w, loss_function; nlabels, kwargs...)
+function init_best_antecedent(y, w, loss_function::AbstractLossFunction; nlabels, kwargs...)
+    return error("Cannot call init_best_antecedent with an AbstractLossFunction type")
+end
+
+# For symmetric losses
+function init_best_antecedent(y, w, loss_function::SymmetricLoss; nlabels, kwargs...)
     antecedent = bot_antecedent(length(y))
     loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
     return antecedent, loss_val 
 end
 
+# For asymmetric losses (the "target_class" attribute must be passed)
+function init_best_antecedent(y, w, loss_function::AsymmetricLoss; nlabels, target_class::Union{Integer,Nothing}=nothing, kwargs...)
+    if isnothing(target_class)
+        return error("If init_best_antecedent is called with an AsymmetricLoss function, the attribute target_class must be specified")
+    end 
+
+    antecedent = bot_antecedent(length(y))
+    loss_val = loss_function(y, w, target_class; antecedent=antecedent, nlabels=nlabels, kwargs...)
+    return antecedent, loss_val 
+end
 
 """
     function findbestantecedent(
@@ -261,7 +276,7 @@ function findbestantecedent(
     y::AbstractVector{<:Integer},
     w::AbstractVector,
 
-    loss_function::Function,
+    loss_function::AbstractLossFunction,
     max_infogain_ratio::Union{Real, Nothing},
     default_alphabet::Union{Nothing,AbstractAlphabet},
     discretizedomain::Bool,
