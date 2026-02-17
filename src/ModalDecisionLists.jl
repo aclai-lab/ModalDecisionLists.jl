@@ -10,11 +10,28 @@ using Reexport
 @reexport using SoleData
 @reexport using SoleModels
 
+
+
+
+include("utils.jl")
+
+include("metrics.jl")
+
+using .Metrics
+
+include("core.jl")
+
 include("loss-functions.jl")
 
 using .LossFunctions
 
-include("core.jl")
+
+include("search.jl")
+
+
+
+
+
 
 export sequentialcovering
 

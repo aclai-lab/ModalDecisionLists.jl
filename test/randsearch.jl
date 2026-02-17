@@ -9,8 +9,8 @@ using RDatasets
 
 using SoleBase: CLabel
 using ModalDecisionLists
-using ModalDecisionLists: maptointeger
-using ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
+using ModalDecisionLists: maptointeger, entropy, laplace_accuracy
+# using ModalDecisionLists: entropy, laplace_accuracy
 # using MLJ
 
 X...,y = MLJ.load_iris()

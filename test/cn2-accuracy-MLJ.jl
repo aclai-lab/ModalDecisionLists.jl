@@ -12,7 +12,7 @@ using RDatasets
 using ModalDecisionLists
 using ModalDecisionLists: BaseCN2, MLJInterface
 using ModalDecisionLists: preprocess_inputdata
-using ModalDecisionLists.LossFunctions: laplace_accuracy
+using ModalDecisionLists: laplace_accuracy
 using CategoricalArrays: CategoricalValue, CategoricalArray
 using CSV
 

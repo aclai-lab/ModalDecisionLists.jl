@@ -6,6 +6,7 @@ export OrderedCN2Learner
 
 using ModalDecisionLists
 using ModalDecisionLists: LossFunctions
+using ModalDecisionLists: Metrics
 
 # import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
 # import ModalDecisionLists: sequentialcovering
@@ -99,7 +100,7 @@ function ExtendedSequentialCovering(;
     searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     # shared parameters
-    loss_function::Function=LossFunctions.entropy,
+    loss_function::Function=Metrics.entropy,
     discretizedomain::Bool=false,
     max_infogain_ratio::Real=1.0,
     significance_alpha::Union{Real,Nothing}=0.0,
@@ -154,7 +155,7 @@ end
 # Keyword constructor
 function OrderedCN2Learner(;
     beam_width::Integer = 3,
-    loss_function::Function = ModalDecisionLists.LossFunctions.entropy,
+    loss_function::Function = ModalDecisionLists.Metrics.entropy,
     discretizedomain::Bool = false,
     max_infogain_ratio::Union{Real,Nothing} = nothing,
     significance_alpha::Union{Real,Nothing} = nothing,

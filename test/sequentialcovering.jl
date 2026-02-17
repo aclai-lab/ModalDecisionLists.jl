@@ -9,7 +9,7 @@ using SoleBase: CLabel
 using ModalDecisionLists
 import ModalDecisionLists: maptointeger
 
-import ModalDecisionLists.LossFunctions: entropy, laplace_accuracy
+import ModalDecisionLists: entropy, laplace_accuracy
 
 # Iris dataset
 X...,y = load_iris()

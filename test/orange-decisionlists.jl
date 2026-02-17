@@ -2,7 +2,7 @@ using SoleData
 using ModalDecisionLists
 using SoleModels: ClassificationRule, apply, DecisionList, bestguess, parse_orange_decision_list
 using ModalDecisionLists: preprocess_inputdata
-using ModalDecisionLists.LossFunctions: laplace_accuracy
+using ModalDecisionLists: laplace_accuracy
 using CategoricalArrays: CategoricalValue, CategoricalArray
 using RDatasets
 # using MLJ

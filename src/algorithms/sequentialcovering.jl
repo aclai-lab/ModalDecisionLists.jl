@@ -36,21 +36,13 @@ This involves iteratively learning a single rule, and removing the newly covered
 # Keyword Arguments
 
 * `searchmethod::SearchMethod`: The search method for finding single rules (see [`SearchMethod`](@ref));
-* `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
+* `loss_function::Function = ModalDecisionLists.Metrics.entropy` is the function that assigns a score to each partial solution.
 * `max_infogain_ratio::Real=1.0`: constrains the maximum information gain for anantecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
 * `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
 * `discretizedomain::Bool=false`:  discretizes continuous variables by identifying optimal cut points
 * `significance_alpha::Union{Real,Nothing}=0.0` is the significant alpha
 * `min_rule_coverage::Union{Nothing,Integer} = 1` specifies the minimum number of instances covered by each rule.
 * `max_rule_length::Union{Nothing,Integer} = nothing` specifies the maximum length allowed for a rule in the search algorithm.
-* `loss_function::Function = soleentropy` is the function that assigns a score to each partial solution.
-* `max_infogain_ratio::Real=1.0`: constrains the maximum information gain for anantecedent with respect to the uncovered training set. Its value is bounded between 0 and 1.
-* `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing` offers the flexibility to define a tailored alphabet upon which antecedents generation occurs.
-* `discretizedomain::Bool=false`:  discretizes continuous variables by identifying optimal cut points
-* `significance_alpha::Union{Real,Nothing}=0.0` is the significant alpha
-* `max_rulebase_length::Union{Nothing,Integer}` is the maximum length of the rulebase;
-* `suppress_parity_warning::Bool` if `true`, suppresses parity warnings.
-* Any additional keyword argument will be imputed to the `searchmethod`, replacing its original value.
 
 # Examples
 
@@ -119,7 +111,7 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
     searchmethod::SearchMethod=BeamSearch(), 
-    loss_function::Function=ModalDecisionLists.LossFunctions.entropy,
+    loss_function::Function=ModalDecisionLists.Metrics.entropy,
     max_infogain_ratio::Real=1.0, 
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
@@ -219,7 +211,7 @@ end
 #     y::AbstractVector{<:CLabel},
 #     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
 #     searchmethod::SearchMethod=BeamSearch(), tdl_threshold::Int=64,
-#     split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.LossFunctions.laplace_accuracy,
+#     split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.laplace_accuracy,
 #     max_infogain_ratio::Union{Nothing,Real}=nothing,
 #     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
 #     discretizedomain::Bool=false,
@@ -416,15 +408,15 @@ function irepstar(
         just_covered_labels = split.gr.y[bestantecedent.covmask]
 
         num_pos = length(findall(label -> label == 1, just_covered_labels))
-        num_neg = length(just_covered_labels) - num_pos
+        # num_neg = length(just_covered_labels) - num_pos
         #println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
 
-        positive_indices = findall(label -> label == 1, split.gr.y)
-        neg_indices = findall(label -> label != 1, split.gr.y)
+        # positive_indices = findall(label -> label == 1, split.gr.y)
+        # neg_indices = findall(label -> label != 1, split.gr.y)
         #println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
 
-        covered_pos_indices = findall(label -> label == 1, split.gr.y[just_covered_indices])
-        covered_neg_indices = findall(label -> label != 1, split.gr.y[just_covered_indices])
+        # covered_pos_indices = findall(label -> label == 1, split.gr.y[just_covered_indices])
+        # covered_neg_indices = findall(label -> label != 1, split.gr.y[just_covered_indices])
 
         #println("Covered grow dataset distribution (neg, pos): ($(length(covered_neg_indices)), $(length(covered_pos_indices)))\n\n")
 
@@ -454,10 +446,9 @@ function irepstar(
 
         coverage_indices = compute_global_coverage(bestantecedent, split, bestantecedent_prune_cov)
 
-        # costruisce l'istanza di Rule da utilizzare nella DecisionList che si ritorna con Sole
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
 
-        # Check TDL
+        # Description length of the new rule
         rule_desc_length = _r_theory_bits(rule, dataset_num_selectors)
 
         push!(rulebase, rule)
@@ -733,6 +724,9 @@ log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)
 """ ritorna un'approssimazione di ln( n choose k ) usando log2_factorial """
 log2binomial(n::Integer, k::Integer)::Real = (k == 0) ? 0 : log2_factorial(n) - log2_factorial(k) - log2_factorial(n - k)
 
+
+""" In a particular binary classification problem, this function returns the number of bits to describe the dataset (X,y) 
+given the previous satisfaction/coverage mask 'prev_ruleset_satmask' of the ruleset, and a new rule added to the ruleset """
 function rs_dataset_bits(
     X::AbstractLogiset, y,
     rule::Rule,
