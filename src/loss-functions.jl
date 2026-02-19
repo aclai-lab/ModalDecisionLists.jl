@@ -22,9 +22,9 @@ abstract type SymmetricLoss <: AbstractLossFunction end
 abstract type AsymmetricLoss <: AbstractLossFunction end
 
 
-export AbstractLossFunction
-export SymmetricLoss
-export AsymmetricLoss
+# export AbstractLossFunction
+# export SymmetricLoss
+# export AsymmetricLoss
 
 
 function calculate_loss(::AbstractLossFunction; kwargs...)
@@ -39,7 +39,7 @@ end
 # Implementa le loss come callable structs
 struct GiniImpurity <: SymmetricLoss end
 
-export GiniImpurity
+# export GiniImpurity
 
 function (::GiniImpurity)(
     y::AbstractVector{<:Integer},
@@ -58,7 +58,7 @@ end
 # ENTROPY
 struct Entropy <: SymmetricLoss end
 
-export Entropy
+# export Entropy
 
 
 function (::Entropy)(
@@ -73,7 +73,7 @@ end
 # LAPLACE METRIC
 struct LaplaceMetric <: SymmetricLoss end
 
-export LaplaceMetric
+# export LaplaceMetric
 
 
 function (::LaplaceMetric)(
@@ -93,7 +93,7 @@ end
 # FOIL GAIN
 struct FOILGain <: AsymmetricLoss end
 
-export FOILGain
+# export FOILGain
 
 
 function (::FOILGain)(
@@ -136,7 +136,7 @@ end
 # LAPLACE ACCURACY
 struct LaplaceAccuracy <: AsymmetricLoss end    
 
-export LaplaceAccuracy
+# export LaplaceAccuracy
 
 
 function (::LaplaceAccuracy)(

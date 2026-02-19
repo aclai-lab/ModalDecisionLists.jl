@@ -1,5 +1,5 @@
 using Test
-using ModalDecisionLists.LossFunctions: significance_test
+using ModalDecisionLists.Metrics: significance_test
 
 function createsampling(dist)
     vettore = Int[]

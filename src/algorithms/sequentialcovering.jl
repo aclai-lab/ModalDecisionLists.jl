@@ -111,7 +111,8 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
     searchmethod::SearchMethod=BeamSearch(), 
-    loss_function::Function=ModalDecisionLists.Metrics.entropy,
+    # loss_function::Function=ModalDecisionLists.Metrics.entropy,
+    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.Entropy(),
     max_infogain_ratio::Real=1.0, 
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
@@ -323,7 +324,7 @@ function irepstar(
     searchmethod::SearchMethod=BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
-    loss_function::AsymmetricLoss = LaplaceAccuracy(),
+    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
     max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,

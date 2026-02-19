@@ -3,8 +3,10 @@ using SoleData: AbstractLogiset
 using SoleData: isordered, polarity, metacond
 using SoleLogics: subalphabets
 using Parameters
-using ModalDecisionLists: entropy, laplace_accuracy
-
+# using ModalDecisionLists.Metrics: entropy, laplace_accuracy
+# using ModalDecisionLists.LossFunctions
+using .LossFunctions
+# using .Metrics
 
 ############################################################################################
 ############## Beam search #################################################################
@@ -33,6 +35,13 @@ See also
     # conjuncts_generation_method::AbstractGenerator=AtomGenerator()
     conjuncts_generation_method::AbstractGenerator=AtomGenerator()
     beam_width::Integer=3
+
+    # function BeamSearch(; conjuncts_generation_method::AbstractGenerator=AtomGenerator(), beam_width::Integer=3)
+    #     if beam_width < 1
+    #         throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
+    #     end
+    #     return new(conjuncts_generation_method, beam_width)
+    # end
 end
 
 
@@ -231,19 +240,19 @@ Crea un Antecedent iniziale "bot" e ne calcola la loss sul dataset.
 # Ritorna
 Una tupla `(best_antecedent, best_loss)`
 """
-function init_best_antecedent(y, w, loss_function::AbstractLossFunction; nlabels, kwargs...)
+function init_best_antecedent(y, w, loss_function::LossFunctions.AbstractLossFunction; nlabels, kwargs...)
     return error("Cannot call init_best_antecedent with an AbstractLossFunction type")
 end
 
 # For symmetric losses
-function init_best_antecedent(y, w, loss_function::SymmetricLoss; nlabels, kwargs...)
+function init_best_antecedent(y, w, loss_function::LossFunctions.SymmetricLoss; nlabels, kwargs...)
     antecedent = bot_antecedent(length(y))
     loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
     return antecedent, loss_val 
 end
 
 # For asymmetric losses (the "target_class" attribute must be passed)
-function init_best_antecedent(y, w, loss_function::AsymmetricLoss; nlabels, target_class::Union{Integer,Nothing}=nothing, kwargs...)
+function init_best_antecedent(y, w, loss_function::LossFunctions.AsymmetricLoss; nlabels, target_class::Union{Integer,Nothing}=nothing, kwargs...)
     if isnothing(target_class)
         return error("If init_best_antecedent is called with an AsymmetricLoss function, the attribute target_class must be specified")
     end 
@@ -276,7 +285,7 @@ function findbestantecedent(
     y::AbstractVector{<:Integer},
     w::AbstractVector,
 
-    loss_function::AbstractLossFunction,
+    loss_function::LossFunctions.AbstractLossFunction,
     max_infogain_ratio::Union{Real, Nothing},
     default_alphabet::Union{Nothing,AbstractAlphabet},
     discretizedomain::Bool,
