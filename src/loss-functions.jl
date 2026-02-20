@@ -21,11 +21,9 @@ abstract type AbstractLossFunction end
 abstract type SymmetricLoss <: AbstractLossFunction end
 abstract type AsymmetricLoss <: AbstractLossFunction end
 
-
 # export AbstractLossFunction
 # export SymmetricLoss
 # export AsymmetricLoss
-
 
 function calculate_loss(::AbstractLossFunction; kwargs...)
     error("calculate_loss can only be called with a non-abstract loss function type")
@@ -35,45 +33,28 @@ end
 ################# SYMMETRIC LOSSES ##################
 #####################################################
 
-# Implementa le loss come callable structs
 struct GiniImpurity <: SymmetricLoss end
-
-# export GiniImpurity
 
 function (::GiniImpurity)(
     y::AbstractVector{<:Integer},
     w::AbstractVector = default_weights(length(y))
 )
-    return gini_impurity(y, w)                      # lower level implementations of metrics in metrics.jl
+    return gini_impurity(y, w)                      
 end
 
-#######################
-# Da utilizzare così:
-# f_gini = GiniImpurity()
-# val = f_gini(y, ...)
 
-
-
-# ENTROPY
 struct Entropy <: SymmetricLoss end
-
-# export Entropy
-
 
 function (::Entropy)(
     y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
     kwargs...
 )
-    return entropy(y, w; kwargs...)                 # lower level implementations of metrics in metrics.jl
+    return entropy(y, w; kwargs...)                 
 end
 
 
-# LAPLACE METRIC
 struct LaplaceMetric <: SymmetricLoss end
-
-# export LaplaceMetric
-
 
 function (::LaplaceMetric)(
     y::AbstractVector{<:UInt32},
@@ -81,7 +62,7 @@ function (::LaplaceMetric)(
     nlabels::Integer,
     kwargs...
 )
-    return laplace_metric(y, w; nlabels, kwargs...)         # lower level implementations of metrics in metrics.jl
+    return laplace_metric(y, w; nlabels, kwargs...)         
 end
 
 #####################################################
@@ -89,11 +70,7 @@ end
 #####################################################
 
 
-# FOIL GAIN
 struct FOILGain <: AsymmetricLoss end
-
-# export FOILGain
-
 
 function (::FOILGain)(
     y::AbstractVector{<:UInt32},
@@ -112,18 +89,17 @@ function (::FOILGain)(
         return 0 end
 
 
-    # 1 dove y è pari a terget_class, 0 altrimenti
+    # 1 dove y è uguale a terget_class 
     target_vector = (y .== target_class) .> 0   # NOTE: the .> 0 Converts this to a BitVector
 
     # TODO: Tenere conto dei pesi
-    # tp = true positive, fp = false positive, 1 sta per antecedent, 0 per prev_antecedent
     tp1 = sum(antecedent.covmask .& target_vector)         
-    tp0 = sum(prev_antecedent.covmask .& target_vector)
-
     fp1 = sum(antecedent.covmask .& (.!target_vector))
+
+    tp0 = sum(prev_antecedent.covmask .& target_vector)
     fp0 = sum(prev_antecedent.covmask .& (.!target_vector))
 
-    # precisioni
+    # precision
     prec1 = tp1 / (tp1 + fp1)
     prec0 = tp0 / (tp0 + fp0)
     t = sum(prev_antecedent.covmask .& antecedent.covmask)  # sample coperti da entrambi
@@ -132,11 +108,7 @@ function (::FOILGain)(
 end
 
 
-# LAPLACE ACCURACY
 struct LaplaceAccuracy <: AsymmetricLoss end    
-
-# export LaplaceAccuracy
-
 
 function (::LaplaceAccuracy)(
     y::AbstractVector{<:UInt32},

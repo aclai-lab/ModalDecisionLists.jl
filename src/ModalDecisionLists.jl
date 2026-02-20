@@ -25,13 +25,7 @@ include("loss-functions.jl")
 
 using .LossFunctions
 
-
 include("search.jl")
-
-
-
-
-
 
 export sequentialcovering
 
