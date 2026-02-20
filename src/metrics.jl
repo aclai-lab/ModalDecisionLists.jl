@@ -8,6 +8,13 @@ using StatsBase
 using Distributions
 
 
+# export gini_impurity
+# export entropy
+# export laplace_metric
+# export laplace_accuracy
+# export significance_test
+
+
 function gini_impurity(
     y::AbstractVector{<:Integer},
     w::AbstractVector = default_weights(length(y))

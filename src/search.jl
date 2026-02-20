@@ -4,7 +4,7 @@ using SoleModels: bestguess
 using Parameters
 using FillArrays
 using StatsBase
-
+using .LossFunctions
 
 
 include("searchmethods/beamsearch.jl")
@@ -31,7 +31,7 @@ function sortantecedents(
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
-    loss_function::SymmetricLoss,
+    loss_function::LossFunctions.SymmetricLoss,
     min_rule_coverage::Integer,
     max_infogain_ratio::Union{Real,Nothing},
     significance_alpha::Union{Real,Nothing};
@@ -80,7 +80,7 @@ function sortantecedents(
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
-    loss_function::AsymmetricLoss,
+    loss_function::LossFunctions.AsymmetricLoss,
     min_rule_coverage::Integer,
     max_infogain_ratio::Union{Real,Nothing},
     significance_alpha::Union{Real,Nothing};
