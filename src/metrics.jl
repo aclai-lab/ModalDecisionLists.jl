@@ -62,7 +62,12 @@ end
 
 
 """
-    laplace_accuracy(y::AbstractVector{<:UInt32}, w::AbstractVector=default_weights(length(y)); nlabels::Integer, target_class::Union{Integer,Nothing}=nothing, kwargs...) -> Float64
+    laplace_accuracy(
+        y::AbstractVector{<:UInt32}, 
+        w::AbstractVector=default_weights(length(y)); 
+        nlabels::Integer, 
+        target_class::Union{Integer,Nothing}=nothing, kwargs...
+    ) -> Float64
 
 Computes a Laplace-accuracy based loss metric to estimate the coverage level of a rule.
 A lower returned value indicates better coverage of target_class on y.

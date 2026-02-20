@@ -31,7 +31,6 @@ function calculate_loss(::AbstractLossFunction; kwargs...)
     error("calculate_loss can only be called with a non-abstract loss function type")
 end
 
-
 #####################################################
 ################# SYMMETRIC LOSSES ##################
 #####################################################
