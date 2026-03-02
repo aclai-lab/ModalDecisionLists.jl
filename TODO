@@ -1,15 +1,18 @@
 IREP*: 
     ☐ Ripulire codice
-    ✔ Scrivere il sistema di dispatching per le loss functions in findbestantecedent e sortedantecedents @done(25-12-11 19:10)
-    ☐ Finire di implementare le varie loss functions
-    ☐ Sostituire gli usi di counts() nel calcolo dell'entropia e di impurità di Gini con count_labels_distribution
     ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa)
-    ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
-    ✔ Creare funzione information gain usando accuratezza su true positive e true negatives come in wittgenstein (base.py linea 387) @done(25-12-11 19:09)
     ☐ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity
     ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
-    ☐ Gestire warning sugli import e più generalmente aggiornare il resto del codice/dei sistemando gli import
-    
+
+Loss functions e Metrics:
+    ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
+    ✔ Sostituire gli usi di counts() nel calcolo dell'entropia e di impurità di Gini con count_labels_distribution @done(26-03-02 17:37)
+    ✔ Scrivere il sistema di dispatching per le loss functions in findbestantecedent e sortedantecedents @done(25-12-11 19:10)
+    ✔ Gestire warning sugli import e più generalmente aggiornare il resto del codice/dei sistemando gli import @done(26-03-02 15:13)
+    ✔ Creare funzione information gain usando accuratezza su true positive e true negatives come in wittgenstein (base.py linea 387) @done(25-12-11 19:09)
+    ☐ Finire di implementare le varie loss functions @started(26-03-02 17:39)
+    ☐ Scrivere tests per le funzioni in metrics
+
 Test IREP*:
     ☐ Sviluppare test su dataset vari di RDatasets (yeast)
 
@@ -52,3 +55,8 @@ Tuttavia le implementazioni dei vari tipi di ricerca si basano ancora una volta 
 spostare le implementazioni di sorted antecedents in un altro file "search.jl".
 Questo a me sembra anche più pulito da un punto di vista logico: in core si definiscono i tipi principali, in search si possono definire i metodi di ricerca a livello
 più astratto, e poi i vari searchmethods implementano le specifiche.
+
+
+
+in FOILGain, se non c'è un prev_candidate, si dovrebbe ritornare 0 o qualche altro valore?
+Se si ritorna 0, dato che findbestantecedent cerca il candidate con la loss minore, all'inizializzazione best_loss sarà

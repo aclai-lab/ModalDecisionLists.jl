@@ -10,7 +10,7 @@ using Distributions
 
 
 """
-    count_labels_distribution(y::AbstractVector{<:UInt32}, 
+    count_labels_distribution(y::AbstractVector{<:Integer}, 
         nlabels::Integer, 
         w=default_weights(length(y))
     )::Tuple{AbstractVector{<:Real}, Integer}
@@ -19,21 +19,37 @@ using Distributions
 Compute the weighted distribution of labels in a vector.
 
 # Arguments
-- `y::AbstractVector{<:UInt32}`: A vector of label indices.
+- `y::AbstractVector{<:Integer}`: A vector of label indices.
 - `nlabels::Integer`: The total number of distinct labels.
 - `w`: Optional weight vector for each sample. Defaults to uniform weights if not provided.
 
 # Returns
 A tuple containing:
-- `dist::AbstractVector{<:Real}`: A vector where `dist[i]` is the weighted count of occurrences of label `i`.
+- `dist::AbstractVector{<:Real}`: A vector where `dist[i]` is the weighted count of occurrences of label `i`, with i going from 1 to nlabels.
 - `y_offset::Integer`: The offset applied to normalize labels so the minimum label value becomes 1.
 
 # Details
 The function internally adjusts the label indices by offsetting them so that the minimum label value becomes 1.
 This adjustment is necessary to properly index into the distribution vector. The offset value is returned
 to allow for later denormalization if needed.
+# Examples
+```julia
+# with 1-based labels and default weights
+julia> y = UInt32[1, 2, 1, 3]
+julia> counts, offset = count_labels_distribution(y, 5)  # 5 is the number of labels, although only {1, 2, 3} appear in y
+([2, 1, 1, 0, 0], 0)  # offset is zero because the labels were already one-adjusted
+
+# with non‑1-based labels and custom weights
+julia> y = UInt32[10, 12, 10, 11]
+julia> w = [0.5, 1.0, 0.5, 2.0]
+julia> counts, offset = count_labels_distribution(y, 12, w)
+([1.0, 2.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], -9)
+# offset = -9 so labels become 1, 3, 1, 2 after adjustment
+# counts corresponds to weighted sums for adjusted labels 1 to 12
+```
 """
-function count_labels_distribution( y::AbstractVector{<:UInt32},
+function count_labels_distribution( 
+    y::AbstractVector{<:Integer},
     n::Integer,
     w=default_weights(length(y))
 )::Tuple{AbstractVector{<:Real}, Integer}

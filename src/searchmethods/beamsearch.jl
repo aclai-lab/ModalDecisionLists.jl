@@ -35,13 +35,6 @@ See also
     # conjuncts_generation_method::AbstractGenerator=AtomGenerator()
     conjuncts_generation_method::AbstractGenerator=AtomGenerator()
     beam_width::Integer=3
-
-    # function BeamSearch(; conjuncts_generation_method::AbstractGenerator=AtomGenerator(), beam_width::Integer=3)
-    #     if beam_width < 1
-    #         throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
-    #     end
-    #     return new(conjuncts_generation_method, beam_width)
-    # end
 end
 
 
@@ -333,7 +326,7 @@ function findbestantecedent(
 
         isempty(newcandidates) && break
 
-        newcandidate = newcandidates[begin]
+        newcandidate = newcandidates[begin]     # only keep the best new candidate (in terms of its loss value)
 
         # Update the best candidate and its lossfnctn
         if (bestcandidate_loss < best_loss)

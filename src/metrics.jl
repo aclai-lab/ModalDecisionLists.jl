@@ -6,40 +6,49 @@ using SoleModels
 using FillArrays
 using StatsBase
 using Distributions
-
-
-# export gini_impurity
-# export entropy
-# export laplace_metric
-# export laplace_accuracy
-# export significance_test
+using ..ModalDecisionLists: count_labels_distribution
 
 
 function gini_impurity(
-    y::AbstractVector{<:Integer},
-    w::AbstractVector = default_weights(length(y))
+    y::AbstractVector{<:UInt32},
+    w::AbstractVector = default_weights(length(y));
+    nlabels::Union{Integer, Nothing} = nothing,
+    kwargs...
 )
     isempty(y) && return Inf
     
-    dist = w isa Ones ? counts(y) : counts(y, Weights(w))
+    if isnothing(nlabels)
+        nlabels = maximum(y)
+    elseif nlabels <= 0
+        throw(ArgumentError("`nlabels` must be ≥ 1, got $nlabels"))
+    end
+
+    dist, _ = count_labels_distribution(y, nlabels, Weights(w))
     filter!(!iszero, dist)
     length(dist) == 1 && return 0.0
-    
+
     p = dist ./ sum(dist)
-    return 1 - sum(abs2, p)  # abs2 è più efficiente di .^2
+    return 1 - sum(abs2, p)  # abs2 is more efficient than .^2
 end
 
 
 function entropy(
-    y::AbstractVector{<:Integer},
+    y::AbstractVector{<:UInt32},
     w::AbstractVector=default_weights(length(y));
+    nlabels::Union{Integer, Nothing} = nothing,
     kwargs...
 )
     isempty(y) && return Inf
 
-    distribution = (w isa Ones ? counts(y) : counts(y, Weights(w)))
-    distribution = distribution[distribution .!= 0]
+    if isnothing(nlabels)
+        nlabels = maximum(y)
+    elseif nlabels <= 0
+        throw(ArgumentError("`nlabels` must be ≥ 1, got $nlabels"))
+    end
 
+    # extract the labels' distribution, remove zero frequency elements and handle edge case in which all labels are in the same class
+    distribution, offset = count_labels_distribution(y, nlabels, Weights(w))
+    filter!(!iszero, distribution)
     length(distribution) == 1 && return 0.0
 
     prob = distribution ./ sum(distribution)
@@ -148,8 +157,8 @@ function significance_test(
     nlabels::Integer,
     kwargs...
 )
-    currdist = counts(ycurr, nlabels)
-    prevdist = counts(yprev, nlabels)
+    currdist, _ = count_labels_distribution(ycurr, nlabels)
+    prevdist, _ = count_labels_distribution(yprev, nlabels)
     if !isnothing(target_class)
         x = Vector{Real}([currdist[tc], sum(currdist) - currdist[tc]])
         y = Vector{Real}([prevdist[tc], sum(prevdist) - prevdist[tc]])

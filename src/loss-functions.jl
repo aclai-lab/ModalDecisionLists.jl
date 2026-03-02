@@ -21,13 +21,6 @@ abstract type AbstractLossFunction end
 abstract type SymmetricLoss <: AbstractLossFunction end
 abstract type AsymmetricLoss <: AbstractLossFunction end
 
-# export AbstractLossFunction
-# export SymmetricLoss
-# export AsymmetricLoss
-
-function calculate_loss(::AbstractLossFunction; kwargs...)
-    error("calculate_loss can only be called with a non-abstract loss function type")
-end
 
 #####################################################
 ################# SYMMETRIC LOSSES ##################
@@ -37,7 +30,7 @@ struct GiniImpurity <: SymmetricLoss end
 
 function (::GiniImpurity)(
     y::AbstractVector{<:Integer},
-    w::AbstractVector = default_weights(length(y))
+    w::AbstractVector{<:Real} = default_weights(length(y))
 )
     return gini_impurity(y, w)                      
 end
@@ -47,7 +40,7 @@ struct Entropy <: SymmetricLoss end
 
 function (::Entropy)(
     y::AbstractVector{<:Integer},
-    w::AbstractVector=default_weights(length(y));
+    w::AbstractVector{<:Real}=default_weights(length(y));
     kwargs...
 )
     return entropy(y, w; kwargs...)                 
@@ -58,7 +51,7 @@ struct LaplaceMetric <: SymmetricLoss end
 
 function (::LaplaceMetric)(
     y::AbstractVector{<:UInt32},
-    w::AbstractVector=default_weights(length(y));
+    w::AbstractVector{<:Real}=default_weights(length(y));
     nlabels::Integer,
     kwargs...
 )
@@ -74,37 +67,47 @@ struct FOILGain <: AsymmetricLoss end
 
 function (::FOILGain)(
     y::AbstractVector{<:UInt32},
-    w::AbstractVector,
+    w::AbstractVector{<:Real},
     target_class::Integer;
-    antecedent::Antecedent = nothing,
-    prev_antecedent::Antecedent = nothing,
-    nlabels::Integer,
+    antecedent::Union{Antecedent, Nothing} = nothing,
+    prev_antecedent::Union{Antecedent, Nothing} = nothing,
     kwargs...
 )
-    # In information gain, se prev_antecedent = nothing, si può
-    #   A. Assumere che gain = ∞, tuttavia così l'algoritmo non ritornerà mai ⊤ e bisogna considerare come opera
-    #       la funzione di stopping di IREP*
-    #   B. Porre gain = 0, come fa in wittgenstein (base_functions.py linea 538) (MIGLIORE)
-    if isnothing(prev_antecedent)
+    # TODO: This function should probably throw an error if both antecedent and prev_antecedent are null. This, however, depends on 
+    # where and how we actually want to use this outside of findbestantecedent
+    # TODO: Every ".&" operation creates a temporary vector in memory. We should consider replacing everything with a loop over y and
+    # manually counting true positives and false positives for both antecedents. Given that the whole thing is pre-compiled, this might
+    # actually speed things up and it would certainly reduce memory allocation.
+    
+    # If there is no previous antecedent, we return 0.
+    if isnothing(prev_antecedent) || isnothing(antecedent)
         return 0 end
 
-
-    # 1 dove y è uguale a terget_class 
+    # elements are 1 where y equals the terget_class 
     target_vector = (y .== target_class) .> 0   # NOTE: the .> 0 Converts this to a BitVector
 
-    # TODO: Tenere conto dei pesi
-    tp1 = sum(antecedent.covmask .& target_vector)         
-    fp1 = sum(antecedent.covmask .& (.!target_vector))
+    # calculate true and false positives for antecedent
+    tp1_mask = antecedent.covmask .& target_vector          # mask is 1 if the sample is a true positive for antecedent, and zero otherwise
+    fp1_mask = antecedent.covmask .& (.!target_vector)      # mask is 1 if the sample is a false positive for antecedent, and zero otherwise
+    tp1 = sum(tp1_mask .* w)
+    fp1 = sum(fp1_mask .* w)
 
-    tp0 = sum(prev_antecedent.covmask .& target_vector)
-    fp0 = sum(prev_antecedent.covmask .& (.!target_vector))
+    # calculate true and false positives fro prev_antecedent
+    tp0_mask = prev_antecedent.covmask .& target_vector
+    fp0_mask = prev_antecedent.covmask .& (.!target_vector)
+    tp0 = sum(tp0_mask .* w)
+    fp0 = sum(fp0_mask .* w)
 
     # precision
-    prec1 = tp1 / (tp1 + fp1)
-    prec0 = tp0 / (tp0 + fp0)
-    t = sum(prev_antecedent.covmask .& antecedent.covmask)  # sample coperti da entrambi
+    prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0       # make sure division by zero does not occurr
+    prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0
+    
+    simultaneous_cover_mask = prev_antecedent.covmask .& antecedent.covmask     # mask is 1 if the corresponding sample is covered by both antecedent and prev_antecedent
+    t = sum(simultaneous_cover_mask .* w)  
 
-    return t * ( log2(prec1) - log2(prec0) )
+    # A higher FOILGain value corresponds to better accuracy. Since this is to be treated as a loss function we must return 
+    # the negative value of the actual Gain to make sure that better antecedent choices have a lower loss value when they have a higher information gain.
+    return -t * ( log2(prec_curr) - log2(prec_prev) )       
 end
 
 
@@ -112,7 +115,7 @@ struct LaplaceAccuracy <: AsymmetricLoss end
 
 function (::LaplaceAccuracy)(
     y::AbstractVector{<:UInt32},
-    w::AbstractVector,
+    w::AbstractVector{<:Real},
     target_class::Integer;
     antecedent::Antecedent = nothing,
     prev_antecedent::Union{Antecedent, Nothing} = nothing,
