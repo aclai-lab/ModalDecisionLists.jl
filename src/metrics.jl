@@ -47,7 +47,7 @@ function entropy(
     end
 
     # extract the labels' distribution, remove zero frequency elements and handle edge case in which all labels are in the same class
-    distribution, offset = count_labels_distribution(y, nlabels, Weights(w))
+    distribution, _ = count_labels_distribution(y, nlabels, Weights(w))
     filter!(!iszero, distribution)
     length(distribution) == 1 && return 0.0
 
@@ -67,7 +67,7 @@ function laplace_metric(
 
     @assert length(w) == length(y) "weights and labels must have the same length"
 
-    dist, y_offset = count_labels_distribution(y, nlabels, w)
+    dist, _ = count_labels_distribution(y, nlabels, w)
 
     # number of effective labels (k) and number of matches for target class (target)
     # k, target = nothing, nothing

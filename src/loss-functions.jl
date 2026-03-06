@@ -35,7 +35,6 @@ function (::GiniImpurity)(
     return gini_impurity(y, w)                      
 end
 
-
 struct Entropy <: SymmetricLoss end
 
 function (::Entropy)(
@@ -75,39 +74,50 @@ function (::FOILGain)(
 )
     # TODO: This function should probably throw an error if both antecedent and prev_antecedent are null. This, however, depends on 
     # where and how we actually want to use this outside of findbestantecedent
-    # TODO: Every ".&" operation creates a temporary vector in memory. We should consider replacing everything with a loop over y and
-    # manually counting true positives and false positives for both antecedents. Given that the whole thing is pre-compiled, this might
-    # actually speed things up and it would certainly reduce memory allocation.
-    
+    if isnothing(prev_antecedent) && isnothing(antecedent)
+        throw(ArgumentError("`antecedent`and `prev_antecedent` cannot both be nothing")) end
+
     # If there is no previous antecedent, we return 0.
     if isnothing(prev_antecedent) || isnothing(antecedent)
         return 0 end
 
-    # elements are 1 where y equals the terget_class 
-    target_vector = (y .== target_class) .> 0   # NOTE: the .> 0 Converts this to a BitVector
+    # Every ".&" operation creates a temporary vector in memory. Handling everything with a loop over y and
+    # manually counting true positives and false positives for both antecedents is more efficient than using broadcasting
 
-    # calculate true and false positives for antecedent
-    tp1_mask = antecedent.covmask .& target_vector          # mask is 1 if the sample is a true positive for antecedent, and zero otherwise
-    fp1_mask = antecedent.covmask .& (.!target_vector)      # mask is 1 if the sample is a false positive for antecedent, and zero otherwise
-    tp1 = sum(tp1_mask .* w)
-    fp1 = sum(fp1_mask .* w)
+    n_samples = length(y)
+    tp1 = 0.0; tp0 = 0.0;
+    fp1 = 0.0; fp0 = 0.0;
+    t = 0.0;
 
-    # calculate true and false positives fro prev_antecedent
-    tp0_mask = prev_antecedent.covmask .& target_vector
-    fp0_mask = prev_antecedent.covmask .& (.!target_vector)
-    tp0 = sum(tp0_mask .* w)
-    fp0 = sum(fp0_mask .* w)
+    for i = 1 : n_samples
+        # if sample is covered by first antecedent
+        if antecedent.covmask[i]
+            # if class is the target one this is a true positive, otherwise it's a false positive
+            if y[i] == target_class     
+                tp1 += w[i];
+            else
+                fp1 += w[i];
+            end
+        end
 
-    # precision
-    prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0       # make sure division by zero does not occurr
-    prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0
-    
-    simultaneous_cover_mask = prev_antecedent.covmask .& antecedent.covmask     # mask is 1 if the corresponding sample is covered by both antecedent and prev_antecedent
-    t = sum(simultaneous_cover_mask .* w)  
+        if prev_antecedent.covmask[i]
+            if y[i] == target_class
+                tp0 += w[i];
+            else
+                fp0 += w[i];
+            end
+        end
 
-    # A higher FOILGain value corresponds to better accuracy. Since this is to be treated as a loss function we must return 
-    # the negative value of the actual Gain to make sure that better antecedent choices have a lower loss value when they have a higher information gain.
-    return -t * ( log2(prec_curr) - log2(prec_prev) )       
+        if antecedent.covmask[i] && prev_antecedent.covmask[i]
+            t += w[i];
+        end
+
+    end
+
+    prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0;       # make sure division by zero does not occurr
+    prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0;
+
+    return -t * ( log2(prec_curr) - log2(prec_prev) );             
 end
 
 
@@ -123,12 +133,14 @@ function (::LaplaceAccuracy)(
     kwargs...
 )
     # 1 dove y è pari a terget_class, 0 altrimenti
-    target_vector = (y .== target_class) .> 0   # NOTE: the .> 0 Converts this to a BitVector
+    target_vector = (y .== target_class)
 
-    # TODO: Tenere conto dei pesi
     # tp = true positive, fp = false positive
-    tp = sum(antecedent.covmask .& target_vector)         
-    fp = sum(antecedent.covmask .& (.!target_vector))
+    tp_mask = antecedent.covmask .& target_vector
+    fp_mask = antecedent.covmask .& (.!target_vector)
+
+    tp = sum(w .* tp_mask)         
+    fp = sum(w .* fp_mask)
 
     return 1 - (tp + 1) / (tp + fp + 2)
 end

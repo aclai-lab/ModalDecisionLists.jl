@@ -486,7 +486,6 @@ function irepstar(
         uncoveredy = @view uncoveredy[uncovered_slice]
         uncoveredw = @view uncoveredw[uncovered_slice]
         uncovered_original_y = @view uncovered_original_y[uncovered_slice]
-
     end
 
     prediction = "other"    # default prediction se nessuna altra regola si applica
