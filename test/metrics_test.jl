@@ -87,43 +87,60 @@ end
     @test_throws ArgumentError gini_impurity(y; nlabels=0)
 end
 
-# @testset "FOILGain" begin
-    # small dummy data  
-# y = convert(UInt32, rand([1, 2], 1e6))
-# w = default_weights(length(y))
-# target = 1
-
-# # instantiate the loss functor
-# lossf = ModalDecisionLists.LossFunctions.FOILGain()
-
-# # missing antecedents should yield zero loss
-# # @test lossf(y, w, target) == 0
-# # @test lossf(y, w, target; antecedent=nothing) == 0
-# # @test lossf(y, w, target; prev_antecedent=nothing) == 0
-
-# # two handcrafted antecedents with simple coverage masks
-# # ant1 = Antecedent(LeftmostConjunctiveForm([⊤]), BitVector([true, false, true, false]))
-# ant0_coverage = rand([0, 1], 1e6)
-# ant1_coverage = rand([0, 1], 1e6)
-# ant0 = Antecedent(LeftmostConjunctiveForm([⊤]), BitVector(ant0_coverage))
-# ant1 = Antecedent(LeftmostConjunctiveForm([⊤]), BitVector(ant1_coverage))
-
-# @btest lossf(y, w, target; antecedent=ant1, prev_antecedent=ant0)
-
-    # compute expected value with same logic as implementation
-    # tmask = (y .== target) .> 0
-    # tp1 = sum((ant1.covmask .& tmask) .* w)
-    # fp1 = sum((ant1.covmask .& .!tmask) .* w)
-    # tp0 = sum((ant0.covmask .& tmask) .* w)
-    # fp0 = sum((ant0.covmask .& .!tmask) .* w)
-    # prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0
-    # prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0
-    # t = sum((ant0.covmask .& ant1.covmask) .* w)
-    # expected = -t * (log2(prec_curr) - log2(prec_prev))
-
-    # @test isapprox(lossf(y, w, target; antecedent=ant1, prev_antecedent=ant0),
-    #                expected, atol=1e-12)
-# end
+@testset "FOILGain" begin
+    # Small dummy data
+    y = convert(Vector{UInt32}, rand(UInt32[1, 2], 100))
+    w = default_weights(length(y))
+    target = UInt32(1)
+    
+    # Instantiate the loss functor
+    lossf = ModalDecisionLists.LossFunctions.FOILGain()
+    
+    # Create two handcrafted antecedents with simple coverage masks
+    ant0_coverage = BitVector(rand(Bool, length(y)))
+    ant1_coverage = BitVector(rand(Bool, length(y)))
+    ant0 = Antecedent(LeftmostConjunctiveForm([⊤]), ant0_coverage)
+    ant1 = Antecedent(LeftmostConjunctiveForm([⊤]), ant1_coverage)
+    
+    # Test: Both antecedents provided should compute gain
+    loss = lossf(y, w, target; antecedent=ant1, prev_antecedent=ant0)
+    
+    # Compute expected value with same logic as implementation
+    tp1 = 0.0; tp0 = 0.0; fp1 = 0.0; fp0 = 0.0; t = 0.0
+    for i = 1:length(y)
+        if ant1.covmask[i]
+            if y[i] == target
+                tp1 += w[i]
+            else
+                fp1 += w[i]
+            end
+        end
+        if ant0.covmask[i]
+            if y[i] == target
+                tp0 += w[i]
+            else
+                fp0 += w[i]
+            end
+        end
+        if ant1.covmask[i] && ant0.covmask[i]
+            t += w[i]
+        end
+    end
+    prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0
+    prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0
+    expected = -t * (log2(prec_curr) - log2(prec_prev))
+    
+    @test isapprox(loss, expected, atol=1e-12)
+    
+    # Test: Missing both antecedents should throw error
+    @test_throws ArgumentError lossf(y, w, target)
+    
+    # Test: Missing prev_antecedent should return 0
+    @test lossf(y, w, target; antecedent=ant1) == 0
+    
+    # Test: Missing antecedent should return 0
+    @test lossf(y, w, target; prev_antecedent=ant0) == 0
+end
 
 
 @testset "LaplaceAccuracy Tests" begin
