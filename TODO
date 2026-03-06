@@ -1,7 +1,8 @@
 IREP*: 
-    ☐ Ripulire codice
+    ✔ Ripulire codice @started(26-03-06 22:07) @done(26-03-06 22:23) @lasted(16m59s)
+    ☐ Chiedersi se il numero totale delle condizioni non equivalenti n, in _r_theory_bits deve essere richiamato oppure no
     ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa)
-    ☐ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity
+    ✔ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity @done(26-03-06 22:07)
     ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
 
 Loss functions e Metrics:
@@ -14,49 +15,8 @@ Loss functions e Metrics:
     ✔ Scrivere tests per le funzioni in metrics @done(26-03-06 18:38)
 
 Test IREP*:
-    ☐ Sviluppare test su dataset vari di RDatasets (yeast)
+    ☐ Sviluppare test su dataset vari di RDatasets (yeast), guardare anche quali tipi di test hanno fatto gli altri
+    ☐ Confrontare performance con quella di altri metodi (ex: quello in wittgenstein)
 
-
-
-REFACTORING INTERNO PER ModalDecisionLists.
-
-
-Problema: Dopo la definizione di Antecedent, LossFunctions dipende da Antecedent che è in core, ma core dipende da delle metriche (laplace_accuracy e 
-significance_test) che sono in LossFunctions. Si crea una dipendenza circolare ed il tutto è logicamente poco ordinato.
-
-
-Soluzione: Se vogliamo che antecedent rimanga dov'è, e che si possa accedere ad Antecedent dalle Loss Functions, bisogna spostare l'implementazione di queste
-metriche in un proprio file metrics.jl.
-Per pulizia concettuale, si mette in metrics.jl anche l'implementazione effettiva delle SymmetricLosses. Le symmetric losses infatti possono essere interpretate
-sia come delle loss-functions per guidare dei criteri di ricerca, ma anche banalmente come delle metriche su dei dati categorici qualsiasi.
-E' quindi sensato, a mio avviso, spostare l'implementazione effettiva, da usare in qualsiasi necessità di dato categorico, in metrics.jl, e invece aggiungere il
-layer di loss functions in loss-functions.jl che le "wrappa" come AsymmetricLosses da usare negli algoritmi che le usano effettivamente non come pura funzione
-ma come criterio di ricerca.
-
-
-Così facendo, l'ordine di import è
-	1. metrics.jl		-> implementazione di significance_test, laplace_accuracy e altre metriche che non dipendono da un antecedent, ma solo dalla distribuzione
-				            di una serie di classi, senza una "preferita" in alcun modo
-
-	2. core.jl		-> contiene Antecedent e tutte le funzioni e i tipi importanti
-	
-	3. loss-functions.jl	-> può accedere sia ad Antecedent sia a metrics. Le asymmetric losses chiamano le metriche corrispondenti, mentre le symmetric losses sono
-                               implementate nelle funzione corrispettive funzionano
-
-Dato che core.jl ha molte funzioni di utilities che in realtà non c'entrano nulla con i tipi definiti in core, ossia
-	- maptointeger
-	- get_binary_labels_distribution
-	- preprocess_inputdata
-si possono mettere in un ulteriore file "utils.jl", in cui può finire anche count_labels_distribution.
-
-Da lì, rimane il problema delle implementazioni.
-Infatti, una volta definito il tipo SearchMethod, prima d'ora si includevano tutti i tipi di ricerca in core.jl.
-Tuttavia le implementazioni dei vari tipi di ricerca si basano ancora una volta sulle loss functions. Ciò significa che per non avere degli imports circolari bisogna
-spostare le implementazioni di sorted antecedents in un altro file "search.jl".
-Questo a me sembra anche più pulito da un punto di vista logico: in core si definiscono i tipi principali, in search si possono definire i metodi di ricerca a livello
-più astratto, e poi i vari searchmethods implementano le specifiche.
-
-
-
-in FOILGain, se non c'è un prev_candidate, si dovrebbe ritornare 0 o qualche altro valore?
-Se si ritorna 0, dato che findbestantecedent cerca il candidate con la loss minore, all'inizializzazione best_loss sarà
+RIPPER:
+    ☐ Implementare RIPPER

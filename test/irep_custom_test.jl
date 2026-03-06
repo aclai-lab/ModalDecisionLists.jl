@@ -8,6 +8,13 @@ using RDatasets
 using StatsBase
 using Random
 using ModalDecisionLists
+using Logging
+
+
+# Create a logger to set it in debug mode
+debug_logger = ConsoleLogger(stderr, Logging.Debug)
+global_logger(debug_logger)
+
 
 iris = dataset("datasets", "iris")
 
@@ -18,10 +25,11 @@ y = String.(y)
 
 
 sole_decisionlist = irepstar(X, y, "setosa", min_rule_coverage = 3)
-sole_outcome_on_training = apply(sole_decisionlist, X)
+sole_outcome_on_training = apply(sole_decisionlist, X)              # Vector{String}
 
 n = length(y)
-println("Index - True label - Pred label")
+println("\tIndex - True label - Pred label")
+
 
 for i = 1:n 
     pred = sole_outcome_on_training[i]

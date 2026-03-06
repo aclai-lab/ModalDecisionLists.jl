@@ -333,8 +333,9 @@ function irepstar(
     max_rulebase_length::Union{Nothing,Integer}=nothing,
 
     # rand_seed::Union{Nothing, Integer}=nothing, 
-    # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
-    rand_seed::Union{Nothing,Integer}=3, suppress_parity_warning::Bool=false,
+    # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
+    rand_seed::Union{Nothing,Integer}=3, 
+    suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
 
@@ -366,6 +367,7 @@ function irepstar(
 
     y = UInt32.(y .== poslabel_idx)  # ora y è un array di {0,1}^n, dove 1 corrisponde alla classe positiva e 0 ad un'altra
 
+    # samples yet to be covered by any Rule in the RuleSet
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
@@ -379,16 +381,18 @@ function irepstar(
     rulebase = Rule[]
     while true
 
-        if !isnothing(max_rulebase_length) && length(rulebase) < max_rulebase_length
+        if !isnothing(max_rulebase_length) && length(rulebase) >= max_rulebase_length
+            @debug "The IREP* loop was stopped because the specified maximum amount of rules ($max_rulebase_length) has been reached"
             break
         end
 
         split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
         split === nothing && break
 
-        num_pos = length(findall(label -> label == 1, uncoveredy))
+        num_uncovered_pos = count(label -> label == 1, uncoveredy)    # total number of uncovered positive samples
 
-        if num_pos < min_rule_coverage
+        if num_uncovered_pos < min_rule_coverage
+            Base.@debug "Training converged because the number of positive samples remaining is lower than "
             break end
 
         bestantecedent = findbestantecedent(searchmethod,
@@ -405,67 +409,66 @@ function irepstar(
         )
 
         #           ----------- DEBUG STUFF -----------
-        just_covered_indices = findall(bestantecedent.covmask)
-        just_covered_labels = split.gr.y[bestantecedent.covmask]
+        # This block ONLY executes if the logger level is <= Debug
+        Base.@debug begin
+            # 1. Total distribution in the current split
+            tp_potential = count(==(1), split.gr.y)
+            fp_potential = count(!=(1), split.gr.y)
 
-        num_pos = length(findall(label -> label == 1, just_covered_labels))
-        # num_neg = length(just_covered_labels) - num_pos
-        #println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
+            # 2. Coverage counts (True Positives and False Positives)
+            # Here we use @views to avoid allocating a new array during the slice
+            covered_labels = @views split.gr.y[bestantecedent.covmask]
+            
+            rule_tp = count(==(1), covered_labels)
+            rule_fp = count(!=(1), covered_labels) 
+            
+            # Total samples covered by the rule
+            total_covered = rule_tp + rule_fp
 
-        # positive_indices = findall(label -> label == 1, split.gr.y)
-        # neg_indices = findall(label -> label != 1, split.gr.y)
-        #println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
-
-        # covered_pos_indices = findall(label -> label == 1, split.gr.y[just_covered_indices])
-        # covered_neg_indices = findall(label -> label != 1, split.gr.y[just_covered_indices])
-
-        #println("Covered grow dataset distribution (neg, pos): ($(length(covered_neg_indices)), $(length(covered_pos_indices)))\n\n")
-
-        #println("Antecedent developed:\n$bestantecedent")
+            """
+            Antecedent developed: $bestantecedent
+            Split Totals: (Neg: $fp_potential, Pos: $tp_potential)
+            Rule Performance:
+            - True Positives (TP): $rule_tp
+            - False Positives (FP): $rule_fp
+            - Total Covered: $total_covered
+            """
+        end
         #           ----------- END OF DEBUG STUFF -----------
-
-        # NOTE: @Edo2Nicola cerca di non utilizzare delle `findall`
-        # Equivalente a quanto scritto sopra. Meglio lavorare con delle 
-        # maschere binarie ([1,0,1,1,1,0,0,0...]) che con liste di indici ([1,4,6,8,11, ...])
-        # Guarda qui:
-
-        # just_covered_mask = bestantecedent.covmask
-        # just_covered_labs = split.gr.y[just_covered_mask]
-        #
-        # covered_pos_mask = just_covered_labs .== 1
-        # covered_neg_mask = just_covered_labs .!= 1
-        #
-        # num_pos = covered_pos_mask |> sum
-        # num_neg = covered_neg_mask |> sum
-        # println("just covered labels distribution (neg, pos):($num_neg, $num_pos)")
-        # # Accertati che sia corretto !
-        # println("Current grow dataset distribution (neg, pos): ($(length(neg_indices)), $(length(positive_indices)))") 
 
         istop(bestantecedent) && break
 
+        # PRUNING
         bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split.pr...)
 
+        # Create the new Rule as an instance of "Rule" from SoleModels
         coverage_indices = compute_global_coverage(bestantecedent, split, bestantecedent_prune_cov)
-
         rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
 
-        # Description length of the new rule
+
+        # Calculate the description length of the new Rule
         rule_desc_length = _r_theory_bits(rule, dataset_num_selectors)
 
         push!(rulebase, rule)
 
         data_new_ruleset_desc_length, rulebase_sat_mask = rs_dataset_bits(X, y, rule, rulebase_sat_mask)
 
-        #println("New Rule description length: $rule_desc_length")
-        #println("New dataset description length: $data_new_ruleset_desc_length")
 
-        # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset | Ruleset), dove ΔTDL(Ruleset) = TDL(Ruleset + Rule_i) - TDL(Ruleset) = TDL(Rule_i), 
-        # # a ogni iterazione si aggiunge una regola e quindi anche la tdl del ruleset aumenta della lunghezza di descrizione della regola
+        Base.@debug "Description length of the new Rule: $rule_desc_length"
+        Base.@debug "Description length of the dataset given with the addition of the new rule to the ruleset: $data_new_ruleset_desc_length"
+
+
+        # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset | Ruleset), dove ΔTDL(Ruleset) = TDL(Ruleset + Rule_i) - TDL(Ruleset) = TDL(Rule_i), with TDL being the Total Description Length
+        # In other words, since every iteration adds a single Rule to the RuleSet, the description length of the ruleset increases by the description length of the rule
+        # this is why ΔTDL_ruleset is just rule_desc_length
         ΔTDL_data_given_ruleset = data_new_ruleset_desc_length - data_curr_ruleset_desc_length
         ΔTDL_ruleset = rule_desc_length
         ΔTDL = ΔTDL_ruleset + ΔTDL_data_given_ruleset
 
-        # println("Total tdl difference: $ΔTDL")
+        Base.@debug begin
+            printed_diff = isinf(data_curr_ruleset_desc_length) ? rule_desc_length + data_new_ruleset_desc_length : ΔTDL
+            "Difference in Total Description Length: $printed_diff"
+        end
 
         if ΔTDL > tdl_threshold
             pop!(rulebase)
@@ -474,13 +477,16 @@ function irepstar(
 
         data_curr_ruleset_desc_length = data_new_ruleset_desc_length
 
-        # Rimozione
-        # Incapsulare
+        # Calculate the indices that remain uncovered after the new rule has been added to the RuleSet
         uncovered_slice = setdiff(1:ninstances(uncoveredX), coverage_indices)
-        # tutto il dataset è stato coperto, evitiamo di tirare un errore su slicedataset
+        
+        # Stop if the entire dataset has been covered, otherwise slicedataset would throw an error
         if length(uncovered_slice) == 0
             break end
-        #println("uncovered_slice length: $(length(uncovered_slice))")
+        
+        
+        Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
+
 
         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
         uncoveredy = @view uncoveredy[uncovered_slice]
@@ -488,7 +494,7 @@ function irepstar(
         uncovered_original_y = @view uncovered_original_y[uncovered_slice]
     end
 
-    prediction = "other"    # default prediction se nessuna altra regola si applica
+    prediction = "other"    # default prediction if no other Rule applies
 
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
@@ -501,24 +507,30 @@ end
 
 
 """
-    Separa il dataset (X,y) con i pesi w in una parte (growX, growy, grow_w) e in un'altra (pruneX, pruney) dove
-    gli indici dei due dataset sono salvati in growindxs e in pruneindxs.
+    Splits the dataset (X,y) with weights w into one part (growX, growy, grow_w) and another (pruneX, pruney) and
+    saves the indices of the two datasets in growindxs and pruneindxs.
 
-    Ritorna una Named Tuple con 
+    Returns a Named Tuple with 
         gr = NamedTuple ( X = growX, y = growy, w = groww ),
-        pr = NamedTuple ( X = prunX, y = pruny ),4
+        pr = NamedTuple ( X = prunX, y = pruny ),
         gr_inds = growindxs
         permutation = perm_indices 
-    Dove permutation è una permutazione casuale dei numeri da 1 a n (dimensione di X passato per argomento).
-    I primi ngrow = round(n * split_ratio) indici di permutation sono usati per il set di growth, gli altri per il set
-    di pruning.
-    growindxs e prunindxs sono gli indici dei sample in X selezionati rispettivamente per il set di growth e per il set
-    di pruning.
+    Where permutation is a random permutation of numbers from 1 to n (size of X passed as an argument), such that the first
+    first ngrow = round(n * split_ratio) indices of permutation are used for the growth set, whilst the others for the
+    pruning set.
+    growindxs and prunindxs are the indices of the samples in X selected for the growth set and the
+    pruning set, respectively.
 """
-function split_instances(X, y, w, split_ratio)
+function split_instances(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::Union{Nothing,AbstractVector{<:Real},Symbol},
+    split_ratio::Real
+)
     n = ninstances(X)
     ngrow = round(Integer, n * split_ratio)
 
+    # return nothing if the split would put all the data either in the grow category or in the prune category
     if ngrow == 0 || n - ngrow == 0
         return nothing
     end
@@ -568,10 +580,9 @@ grow and prune datasets.
 """
 function compute_global_coverage(
     antecedent::LeftmostConjunctiveForm,
-    split,
-    bestantecedent_prune_cov
+    split::NamedTuple,
+    bestantecedent_prune_cov::Union{Nothing, Vector{<:Bool}, BitVector}
 )
-
     growX = split.gr.X
     pruneX = split.pr.X
 
@@ -593,16 +604,33 @@ end
 
 
 """
-    Crea un'istanza di Rule con il dato antecedent, calcolando il label più frequente tra i sample coperti dall'antecedent.
-    antecedent --> antecedente della regola in questione
-    labels --> i label del dataset utilizzato per costruire la regola (istanze di CLabel)
-    uncoveredy --> vettore numerico di interi corrispondenti alle classi dei samples
-    uncoveredw --> vettore di reali con i pesi dei vari samples
-    coverage_indices --> indici dei valori che la regola ha coperto
+    build_rule(antecedent, uncovered_original_y, poslabel, coverage_indices, labels)
+
+Create a `Rule` instance using the provided `antecedent`. 
+
+The function constructs a `ConstantModel` as the consequent (prediction) based on 
+the provided `poslabel` and attaches metadata regarding the samples covered 
+by the rule.
+
+# Arguments
+- `antecedent`: The rule's antecedent/condition.
+- `uncovered_original_y`: Vector of class integers for the current dataset.
+- `poslabel`: The label to be assigned as the prediction.
+- `coverage_indices`: Indices of the samples covered by the rule.
+- `labels`: The original mapping of class integers to `CLabel` objects.
 """
-function build_rule(antecedent, uncovered_original_y, poslabel, coverage_indices, labels)
+function build_rule(
+    antecedent::LeftmostConjunctiveForm, 
+    uncovered_original_y::AbstractVector{<:UInt32}, 
+    poslabel::CLabel, 
+    coverage_indices::AbstractVector{<:Integer}, 
+    labels::AbstractVector{<:CLabel}
+)
     justcoveredy = uncovered_original_y[coverage_indices]
     predlabel = poslabel
+
+    Base.@debug "coverage indices type: $(typeof(coverage_indices))"
+    Base.@debug "labels type: $(typeof(labels))"
 
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(justcoveredy)],
@@ -684,7 +712,11 @@ function pruneantecedent(
 end
 
 
-function get_num_independent_selectors(X::AbstractLogiset, y, discretizedomain::Bool=false)::Int
+function get_num_independent_selectors(
+    X::AbstractLogiset, 
+    y::AbstractVector{<:CLabel}, 
+    discretizedomain::Bool=false
+)::Int
     alph = alphabet(X;
         discretizedomain=discretizedomain,
         y=y
@@ -697,58 +729,52 @@ end
 """
     function _r_theory_bits(rule::Rule, n_possible_conds::Int)::Int
 
-    Ritorna la TDL (Total Description Length) di una regola in forma di LeftmostConjunctiveForm per un certo dataset (X,y)
+    Returns the TDL (Total Description Length) of a Rule
 """
 function _r_theory_bits(rule::Rule, n::Int)
     # conds = unaryconditions_noneq(alph, X)        # @Nicola va richiamato? su wittgenstein sembra sia fissato ma mi puzza come cosa
     # n_old = length(conds) 
 
-    #println("\t Conds unaryconds_noneq: $n_old | Conds alphabet2conditions: $n")
-
-    k = 1 + nconnectives(rule.antecedent) # si assume che la formula di Rule sia una LeftmostConjunctiveForm
+    k = 1 + nconnectives(rule.antecedent)       # nconnectives is defined on any type <:Formula
     pr = k / n
 
     S = k * log2(1 / pr) + (n - k) * log2(1 / (1 - pr))
     K = log2(k)
     desc_length = (S + K) * 0.5
 
-    #println("n = $n | k = $k | natoms: $(natoms(rule.antecedent)) | nleaves: $(nleaves(rule.antecedent))")
     return max(desc_length, 1)
 end
 
 
-""" ritorna un'approssimazione di ln(n!) usando Stirling """
-log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.1201753 / n)
+""" returns an approximation of ln(n!) using Stirling's approximation for numerical stability and optimization """
+log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.1201753 / n)     # 0.1201753 / n is just a term that minimizes the approximation whilst reducing error
 
 
-""" ritorna un'approssimazione di ln( n choose k ) usando log2_factorial """
+""" returns an approximation of ln( n choose k ) using log2_factorial for numerical stability and optimization  """
 log2binomial(n::Integer, k::Integer)::Real = (k == 0) ? 0 : log2_factorial(n) - log2_factorial(k) - log2_factorial(n - k)
 
 
 """ In a particular binary classification problem, this function returns the number of bits to describe the dataset (X,y) 
 given the previous satisfaction/coverage mask 'prev_ruleset_satmask' of the ruleset, and a new rule added to the ruleset """
 function rs_dataset_bits(
-    X::AbstractLogiset, y,
+    X::AbstractLogiset, 
+    y::AbstractVector{<:CLabel},
     rule::Rule,
     prev_ruleset_satmask::BitVector
 )
     n_samples = ninstances(X)
 
-    rule_sat_mask = check(rule.antecedent, X)       # controlla quali sample copre la nuova regola
-    ruleset_sat_mask = prev_ruleset_satmask .| rule_sat_mask    # aggiorno la maschera dei sample coperti dalle regole
+    rule_sat_mask = check(rule.antecedent, X)       # check which samples are covered by the new rule
+    ruleset_sat_mask = prev_ruleset_satmask .| rule_sat_mask    # update the sat mask of the whole ruleset by adding samples covered by the new rule
 
-    ruleset_covered_idxs = findall(ruleset_sat_mask)
+    num_pos = count(label -> label == 1, y)
+    p = sum(ruleset_sat_mask)
 
-    pos_samples_indxs = findall(label -> label == 1, y)
-    neg_samples_indxs = findall(label -> label != 1, y)
-    num_pos = length(pos_samples_indxs)
-    
-    # TODO: considerare di calcolare tp e fp come in loss_functions.jl in FOILGain
-    p = length(ruleset_covered_idxs)
-    tp = length(intersect(ruleset_covered_idxs, pos_samples_indxs)) # num. di samples positivi coperti dalla regola 
-    fp = length(intersect(ruleset_covered_idxs, neg_samples_indxs)) # false positives
+    ruleset_covered_labels = y[ruleset_sat_mask]
+    tp = count(==(1), ruleset_covered_labels)
+    fp = count(!=(1), ruleset_covered_labels)
 
-    fn = num_pos - tp  # false negatives
+    fn = num_pos - tp       # false negatives
 
     desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
     return desc_length, ruleset_sat_mask
