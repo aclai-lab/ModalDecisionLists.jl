@@ -206,7 +206,7 @@ end
 ################### SequentialCovering - RIPPER ######################################
 ############################################################################################
 
-#
+
 # function irepstar(
 #     X::AbstractLogiset,
 #     y::AbstractVector{<:CLabel},
@@ -219,57 +219,56 @@ end
 #     significance_alpha::Union{Real,Nothing}=0.0,
 #     min_rule_coverage::Integer=1, max_rule_length::Union{Nothing,Integer}=nothing,
 #     max_rulebase_length::Union{Nothing,Integer}=nothing,
-#
+
 #     # rand_seed::Union{Nothing, Integer}=nothing, 
 #     # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
 #     rand_seed::Union{Nothing,Integer}=3,
 #     suppress_parity_warning::Bool=false,
 #     kwargs...
-# )::NamedTuple{(:rules, :label),Tuple{AbstractVector{DecisionList},<:CLabel}} where {U<:Real}
+# )::NamedTuple{(:rules, :label), Tuple{AbstractVector{DecisionList},<:CLabel}} where {U<:Real}
 #     # TODO: IREP* ritorna una lista ordinata di DecisionList con un tipo di default se nessuna delle regole si applica, 
 #     # conviene creare una struttura che encapsula questo tipo e che deriva da AbstractModel così da implementare
 #     # funzioni come apply() e info() e così via, e rendere il codice più pulito 
-#
+
 #     # TODO: scrivere tutti i check sull'input
-#
-#     # y is now an encoding of targets with integers {1, ..., n}, whereas labels[i] is the actual label value 
+ 
 #     # corresponding to the integer value in the targets in y
 #     y_int, labels = y |> maptointeger
 #     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
-#
+
 #     # indici ordinati delle classi in ordine crescente di copertura
 #     sorted_indices = sortperm(y_dist)
-#
+
 #     # tutto il codice negli if con debug = true poi è da rimuovere
 #     debug = false
-#
+
 #     result = Vector{DecisionList}[]
-#
+
 #     if debug
 #         println("labels: $labels")
-#
+
 #         println("y_int: \n$y_int\n\n")
 #         println("y_dist: \n$y_dist\n\n")
 #         println("sorted indices: \n$sorted_indices\n\n")
-#
+
 #         for i = 1:length(y_dist)
 #             num_in_class = length(findall(label -> label == i, y_int))
 #             println("Number of elements in class $i: $num_in_class")
 #         end
-#
+
 #         println(y_dist[sorted_indices])
 #     end
-#
+
 #     uncoveredX = X
 #     uncoveredy = y
 #     uncoveredw = w
-#
+
 #     # starting from the least common class index and going up to the most common, the last class
 #     # is used as the default consequent
 #     for class_idx ∈ sorted_indices[1:end-1]
 #         # Create the decision list with a call to IREP* on the data that still hasn't been classified
 #         label = labels[class_idx]
-#         # TODO: passare kwargs a irepstar multiclasse e evitare di rispecificarli tutti qua
+#         # TODO: passare kwargs a irepstar multiclasse e evitare di rispecificarli tutti qua?
 #         class_decision_list = irepstar(
 #             uncoveredX, uncoveredy, label,
 #             w = uncoveredw,
@@ -287,35 +286,33 @@ end
 #             suppress_parity_warning = suppress_parity_warning,
 #             kwargs...
 #         )
-#
+
 #         # Extract the coverage mask for the decision list just created
 #         declist_satmask = apply(class_decision_list, uncoveredX)
 #         covered_indices = findall(declist_satmask)  # indices just covered by the decision list for the label class_idx
-#
+
 #         # Remove the covered samples from the uncovered slice of the dataset
 #         uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
 #         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
 #         uncoveredy = @view uncoveredy[uncovered_slice]
 #         uncoveredw = @view uncoveredw[uncovered_slice]
-#
+
 #         # Add the decision list to the AbstractVector of decisionLists
 #         push!(result, class_decision_list)
 #     end
-#
+
 #     # la classe più numerosa nel dataset, viene predetta come default class quando 
 #     default_class_index = sorted_indices[end]
 #     default_class = labels[default_class_index]
-#
+
 #     return (
 #         criteria=result,
 #         default_class=default_class
 #     )
 # end
-#
 
 
-# TODO: aggiungere un parametro verbosity, e tenere o meno alcuni/tutti i 
-# println in base al livello di verbosity scelto?
+
 function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
@@ -329,12 +326,10 @@ function irepstar(
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Integer=1, max_rule_length::Union{Nothing,Integer}=nothing,
+    min_rule_coverage::Integer=1, 
+    max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-
-    # rand_seed::Union{Nothing, Integer}=nothing, 
-    # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
-    rand_seed::Union{Nothing,Integer}=3, 
+    rand_seed::Union{Nothing,Integer}=nothing, 
     suppress_parity_warning::Bool=false,
     kwargs...
 )::DecisionList where {U<:Real}
@@ -348,6 +343,7 @@ function irepstar(
                                                                "than one. Please provide a valid value."
 
     @assert (0 < split_ratio < 1) "split_ratio must be in range (0,1)"
+    @assert (min_rule_coverage > 0) "min_rule_coverage must be ≥ 1"
 
     if !isnothing(rand_seed)
         Random.seed!(rand_seed)
@@ -363,8 +359,10 @@ function irepstar(
     y, labels = y |> maptointeger
     poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva)
 
-    uncovered_original_y = y
+    num_instances = ninstances(X)
+    @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
 
+    uncovered_original_y = y
     y = UInt32.(y .== poslabel_idx)  # ora y è un array di {0,1}^n, dove 1 corrisponde alla classe positiva e 0 ad un'altra
 
     # samples yet to be covered by any Rule in the RuleSet
@@ -376,8 +374,7 @@ function irepstar(
     rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
-    println("STARTING IREP TRAINING")
-
+    
     rulebase = Rule[]
     while true
 
@@ -392,7 +389,7 @@ function irepstar(
         num_uncovered_pos = count(label -> label == 1, uncoveredy)    # total number of uncovered positive samples
 
         if num_uncovered_pos < min_rule_coverage
-            Base.@debug "Training converged because the number of positive samples remaining is lower than "
+            Base.@debug "Training converged because the number of positive samples remaining is lower than min_rule_coverage = $min_rule_coverage"
             break end
 
         bestantecedent = findbestantecedent(searchmethod,
@@ -628,9 +625,6 @@ function build_rule(
 )
     justcoveredy = uncovered_original_y[coverage_indices]
     predlabel = poslabel
-
-    Base.@debug "coverage indices type: $(typeof(coverage_indices))"
-    Base.@debug "labels type: $(typeof(labels))"
 
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(justcoveredy)],
