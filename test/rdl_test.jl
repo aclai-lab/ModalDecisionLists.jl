@@ -1,6 +1,6 @@
 using SoleBase: CLabel
 using DataFrames
-using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
+using SoleModels: apply, DecisionList
 using SoleData
 using MLJ
 using CategoricalArrays: CategoricalValue, CategoricalArray
@@ -16,7 +16,7 @@ using Logging
 # global_logger(debug_logger)
 
 # Load the dataset
-X,y = @load_iris
+X, y = @load_iris
 X = DataFrame(X)
 
 train_ratio = 0.7
@@ -37,20 +37,32 @@ y_train = String.(y_train)
 X_test = PropositionalLogiset(X_test)
 y_test = String.(y_test)
 
-
-target_class = "setosa"
+# Test build_rdl with different target classes
 for target_class ∈ ["setosa", "virginica", "versicolor"]
-    sole_decisionlist = irepstar(X_train, y_train, target_class, min_rule_coverage = 3)
+    println("\n" * "="^80)
+    println("Building RDL ensemble for target class: $target_class")
+    println("="^80)
+    num_models = 10
+
+    rdl_ensemble = build_rdl(
+        X_train, 
+        y_train, 
+        target_class,
+        5;
+        samples_ratio_per_model=0.8,
+        min_rule_coverage=3
+    )
+
+    # Check number of models in the ensemble
+    println("Number of decision lists in ensemble: $(nlists(rdl_ensemble))")
 
     # Check performance on training data
-    sole_outcome_on_training = apply(sole_decisionlist, X_train)              # Vector{String}
-    acc_train = binary_accuracy(y_train, sole_outcome_on_training, target_class)
-    println("Model accuracy on the training set for target class $target_class: $acc_train")
+    rdl_outcome_on_training = apply(rdl_ensemble, X_train)
+    acc_train = binary_accuracy(y_train, rdl_outcome_on_training, target_class)
+    println("RDL ensemble accuracy on the training set for target class $target_class: $acc_train")
 
-    # Check performance on test data 
-    sole_outcome_on_test = apply(sole_decisionlist, X_test)
-    acc_test = binary_accuracy(y_test, sole_outcome_on_test, target_class)
-    println("Model accuracy on the test set for label $target_class: $acc_test")
-
-    println("Decision list obtained for label $target_class: \n{$sole_decisionlist}\n\n")
+    # Check performance on test data
+    rdl_outcome_on_test = apply(rdl_ensemble, X_test)
+    acc_test = binary_accuracy(y_test, rdl_outcome_on_test, target_class)
+    println("RDL ensemble accuracy on the test set for target class $target_class: $acc_test")
 end

@@ -121,7 +121,8 @@ function sequentialcovering(
     max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     suppress_parity_warning::Bool=false,
-    kwargs...)::DecisionList where {U<:Real}
+    kwargs...
+)::DecisionList where {U<:Real}
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
@@ -337,13 +338,13 @@ function irepstar(
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
-    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
+    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "Parameter `max_infogain_ratio` must be in range [0,1], but $(maxpurity_gamma) encountered."
 
-    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
+    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter `max_rule_length` cannot be less" *
                                                                "than one. Please provide a valid value."
 
-    @assert (0 < split_ratio < 1) "split_ratio must be in range (0,1)"
-    @assert (min_rule_coverage > 0) "min_rule_coverage must be ≥ 1"
+    @assert (0 < split_ratio < 1) "Parameter `split_ratio` must be in range (0,1)"
+    @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
 
     if !isnothing(rand_seed)
         Random.seed!(rand_seed)
@@ -358,6 +359,8 @@ function irepstar(
 
     y, labels = y |> maptointeger
     poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva)
+
+    @assert !isnothing(poslabel_idx) "The dataset provided must contain at least one positive sample!"
 
     num_instances = ninstances(X)
     @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"

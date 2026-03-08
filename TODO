@@ -15,7 +15,7 @@ Loss functions e Metrics:
     ✔ Scrivere tests per le funzioni in metrics @done(26-03-06 18:38)
 
 Test IREP*:
-    ☐ Sviluppare test su dataset vari di RDatasets (yeast), guardare anche quali tipi di test hanno fatto gli altri
+    ☐ Sviluppare benchmark su dataset vari di RDatasets, guardare anche quali tipi di test hanno fatto gli altri
     ☐ Confrontare performance con quella di altri metodi (ex: quello in wittgenstein)
     ☐ Rimuovere MLJ come dependency, lasciare i test dipendenti da un environment diverso che usa anche MLJ
 

@@ -36,6 +36,11 @@ export irepstar
 export irepstar_sc
 export initialize_antecedents
 
+include("random_decision_lists.jl")
+export RandomDecisionLists
+export build_rdl
+export lists, nlists
+
 module BaseCN2
 using ModalDecisionLists: SatMask
 include("algorithms/base-cn2.jl")
