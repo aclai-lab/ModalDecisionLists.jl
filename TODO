@@ -4,7 +4,8 @@ IREP*:
     ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa)
     ✔ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity @done(26-03-06 22:07)
     ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
-    ☐ Fixare e testare la versione di IREP* multiclasse
+    ✔ Fixare e testare la versione di IREP* multiclasse @done(26-03-08 22:33)
+    ☐ Fare più test sulla versione di IREP* multiclasse, aggiungere print di debug anche lì come nel caso a classe singola
 
 Loss functions e Metrics:
     ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
@@ -17,8 +18,8 @@ Loss functions e Metrics:
 
 Test IREP*:
     ☐ Sviluppare benchmark su dataset vari di RDatasets, guardare anche quali tipi di test hanno fatto gli altri
-    ☐ Confrontare performance con quella di altri metodi (ex: quello in wittgenstein)
-    ✔ Rimuovere MLJ come dependency, lasciare i test dipendenti da un environment diverso che usa anche MLJ (?) @done(26-03-08 20:22)
+    ☐ Confrontare performance con quella di altri metodi o di altre implementazioni (ex: quello in wittgenstein)
+    ☐ Rimuovere MLJ come dependency, lasciare i test dipendenti da un environment diverso che usa anche MLJ (?)
 
 RIPPER:
     ☐ Implementare RIPPER

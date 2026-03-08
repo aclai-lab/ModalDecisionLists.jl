@@ -30,7 +30,7 @@ acc_train_history = Dict("B" => [], "O" => [])
 acc_test_history = Dict("B" => [], "O" => [])
 
 
-for j = 0 : 5
+for j = 0 : 10
     num_models = 2*j + 1
     for i = 1 : num_experiments
         train, test = partition(eachindex(y), train_ratio; shuffle=true, rng)

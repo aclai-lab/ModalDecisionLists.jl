@@ -198,8 +198,8 @@ function sequentialcovering(
         supporting_labels=[labels[x] for x in collect(uncoveredy)],
         supporting_predictions=fill(prediction, length(uncoveredy)),
     )
-    defaultconsequent = ConstantModel(prediction, info_cm)
-    return DecisionList(rulebase, defaultconsequent, info_dl)
+    default_consequent = ConstantModel(prediction, info_cm)
+    return DecisionList(rulebase, default_consequent, info_dl)
 end
 
 
@@ -208,109 +208,82 @@ end
 ############################################################################################
 
 
-# function irepstar(
-#     X::AbstractLogiset,
-#     y::AbstractVector{<:CLabel},
-#     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-#     searchmethod::SearchMethod=BeamSearch(), tdl_threshold::Int=64,
-#     split_ratio::Real=0.7, loss_function::Function=ModalDecisionLists.laplace_accuracy,
-#     max_infogain_ratio::Union{Nothing,Real}=nothing,
-#     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-#     discretizedomain::Bool=false,
-#     significance_alpha::Union{Real,Nothing}=0.0,
-#     min_rule_coverage::Integer=1, max_rule_length::Union{Nothing,Integer}=nothing,
-#     max_rulebase_length::Union{Nothing,Integer}=nothing,
-
-#     # rand_seed::Union{Nothing, Integer}=nothing, 
-#     # # Per ora ho fissato il seed in modo che mentre sviuppiamo l'algoritmo ottengo sempre gli stessi risultatui
-#     rand_seed::Union{Nothing,Integer}=3,
-#     suppress_parity_warning::Bool=false,
-#     kwargs...
-# )::NamedTuple{(:rules, :label), Tuple{AbstractVector{DecisionList},<:CLabel}} where {U<:Real}
-#     # TODO: IREP* ritorna una lista ordinata di DecisionList con un tipo di default se nessuna delle regole si applica, 
-#     # conviene creare una struttura che encapsula questo tipo e che deriva da AbstractModel così da implementare
-#     # funzioni come apply() e info() e così via, e rendere il codice più pulito 
-
-#     # TODO: scrivere tutti i check sull'input
+function irepstar(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+    kwargs...
+)::DecisionList where {U<:Real}
+    # TODO: scrivere tutti i check sull'input
  
-#     # corresponding to the integer value in the targets in y
-#     y_int, labels = y |> maptointeger
-#     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
+    
+    # corresponding to the integer value in the targets in y
+    y_int, labels = y |> maptointeger
+    y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
 
-#     # indici ordinati delle classi in ordine crescente di copertura
-#     sorted_indices = sortperm(y_dist)
+    # indici ordinati delle classi in ordine crescente di copertura
+    sorted_indices = sortperm(y_dist)
 
-#     # tutto il codice negli if con debug = true poi è da rimuovere
-#     debug = false
+    # the actual list of rules that is obtained from the various calls 
+    rules = Rule[]
 
-#     result = Vector{DecisionList}[]
+    uncoveredX = X
+    uncoveredy = y
+    uncoveredw = w
 
-#     if debug
-#         println("labels: $labels")
+    # starting from the least common class index and going up to the most common, the last class
+    # is used as the default consequent
+    for class_idx ∈ sorted_indices[1:end-1]
+        # Create the decision list with a call to IREP* on the data that still hasn't been classified
+        label = labels[class_idx]
 
-#         println("y_int: \n$y_int\n\n")
-#         println("y_dist: \n$y_dist\n\n")
-#         println("sorted indices: \n$sorted_indices\n\n")
+        class_decision_list = irepstar(
+            uncoveredX, uncoveredy, label,
+            uncoveredw;
+            kwargs...
+        )
+        declist_default_label = defaultconsequent(class_decision_list)
 
-#         for i = 1:length(y_dist)
-#             num_in_class = length(findall(label -> label == i, y_int))
-#             println("Number of elements in class $i: $num_in_class")
-#         end
+        # rules learned for this class, each has its own antecedent, support and consequent
+        class_rules = rulebase(class_decision_list)
+        append!(rules, class_rules)
+        
 
-#         println(y_dist[sorted_indices])
-#     end
+        # Extract the coverage mask for the decision list just created, and from that the indices just covered by the decision list for the label class_idx
+        declist_satmask = apply(class_decision_list, uncoveredX)
+        covered_indices = findall(x -> x != declist_default_label, declist_satmask)  
 
-#     uncoveredX = X
-#     uncoveredy = y
-#     uncoveredw = w
+        # all the samples have been covered
+        if length(covered_indices) == ninstances(uncoveredX)
+            break end
 
-#     # starting from the least common class index and going up to the most common, the last class
-#     # is used as the default consequent
-#     for class_idx ∈ sorted_indices[1:end-1]
-#         # Create the decision list with a call to IREP* on the data that still hasn't been classified
-#         label = labels[class_idx]
-#         # TODO: passare kwargs a irepstar multiclasse e evitare di rispecificarli tutti qua?
-#         class_decision_list = irepstar(
-#             uncoveredX, uncoveredy, label,
-#             w = uncoveredw,
-#             searchmethod = searchmethod,
-#             tdl_threshold = tdl_threshold,
-#             split_ratio = split_ratio,
-#             loss_function = loss_function,
-#             max_infogain_ratio = max_infogain_ratio,
-#             default_alphabet = default_alphabet,
-#             discretizedomain = discretizedomain,
-#             significance_alpha = significance_alpha,
-#             min_rule_coverage = min_rule_coverage,
-#             max_rulebase_length = max_rulebase_length,
-#             rand_seed = rand_seed,
-#             suppress_parity_warning = suppress_parity_warning,
-#             kwargs...
-#         )
+        # Remove the covered samples from the uncovered slice of the dataset
+        uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
+        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
+        uncoveredy = @view uncoveredy[uncovered_slice]
+        uncoveredw = @view uncoveredw[uncovered_slice]
+    end
 
-#         # Extract the coverage mask for the decision list just created
-#         declist_satmask = apply(class_decision_list, uncoveredX)
-#         covered_indices = findall(declist_satmask)  # indices just covered by the decision list for the label class_idx
+    # The most populated class in the dataset is predicted as default when no other previously discovered rule applies
+    default_class_index = sorted_indices[end]
+    default_class = labels[default_class_index]     # default prediction if no other rule applies
 
-#         # Remove the covered samples from the uncovered slice of the dataset
-#         uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
-#         uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
-#         uncoveredy = @view uncoveredy[uncovered_slice]
-#         uncoveredw = @view uncoveredw[uncovered_slice]
+    info_cm = (;
+        # supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        # supporting_weights=collect(justcoveredw), # TODO
+        supporting_predictions=fill(default_class, length(y)),
+    )
 
-#         # Add the decision list to the AbstractVector of decisionLists
-#         push!(result, class_decision_list)
-#     end
-
-#     # la classe più numerosa nel dataset, viene predetta come default class quando 
-#     default_class_index = sorted_indices[end]
-#     default_class = labels[default_class_index]
-
-#     return (
-#         criteria=result,
-#         default_class=default_class
-#     )
-# end
+    default_consequent = ConstantModel(default_class, info_cm)
+    
+    info_dl = (;
+        supporting_labels=y,
+        supporting_weights=w
+        # TODO: add supporting predictions?
+    )
+    
+    return DecisionList(rules, default_consequent, info_dl)
+end
 
 
 
@@ -494,15 +467,15 @@ function irepstar(
         uncovered_original_y = @view uncovered_original_y[uncovered_slice]
     end
 
-    prediction = "other"    # default prediction if no other Rule applies
+    default_prediction = "other"    # default prediction if no other Rule applies
 
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
         # supporting_weights=collect(justcoveredw), # TODO
-        supporting_predictions=fill(prediction, length(uncovered_original_y)),
+        supporting_predictions=fill(default_prediction, length(uncovered_original_y)),
     )
-    defaultconsequent = ConstantModel(prediction, info_cm)
-    return DecisionList(rulebase, defaultconsequent, info_dl)
+    default_consequent = ConstantModel(default_prediction, info_cm)
+    return DecisionList(rulebase, default_consequent, info_dl)
 end
 
 

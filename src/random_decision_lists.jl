@@ -25,7 +25,58 @@ lists(m::RandomDecisionLists) = models(m)
 nlists(m::RandomDecisionLists) = length(lists(m))
 
 
+"""
+    build_rdl(X, y, poslabel, num_models, w=default_weights(length(y)); kwargs...)::DecisionEnsemble
 
+Build a Random Decision List (RDL) ensemble classifier.
+
+This function creates an ensemble of decision lists by training multiple individual decision lists
+on random subsets of the data. Each decision list is trained using the `irepstar` algorithm on a
+randomly sampled subset of instances and features.
+
+# Arguments
+
+- `X::AbstractLogiset`: The feature matrix (dataset)
+- `y::AbstractVector{<:CLabel}`: The class labels
+- `poslabel::CLabel`: The positive label (target class for rule learning)
+- `num_models::Integer`: The number of decision lists to build in the ensemble
+- `w::Union{Nothing, AbstractVector, Symbol}`: Instance weights (default: uniform weights)
+
+# Keyword Arguments
+
+- `use_bootstrapping::Bool`: If `true` (default), sample instances with replacement; 
+  if `false`, sample without replacement
+- `samples_ratio_per_model::Real`: Fraction of instances to use per model in range [0, 1] 
+  (default: 1.0, meaning all instances)
+- `n_subfeatures_per_model::Union{Integer, Nothing}`: Number of random features to use per model;
+  if `nothing` (default), use all features
+- `aggregation_function::Union{Nothing, Base.Callable}`: Optional function for ensemble prediction
+  aggregation (default: `nothing`)
+- `rand_seed::Union{Nothing, Integer}`: Random seed for reproducibility (default: `nothing`)
+- `kwargs...`: Additional keyword arguments passed to the `irepstar` algorithm
+
+# Returns
+
+- `DecisionEnsemble`: A random decision list ensemble containing `num_models` individual 
+  decision lists
+
+# Raises
+
+- `AssertionError`: If `samples_ratio_per_model` is not in [0, 1]
+- `AssertionError`: If `num_models` ≤ 0
+- `AssertionError`: If `n_subfeatures_per_model` is not in (0, num_features]
+
+# Example
+
+```julia
+# Build an ensemble of 10 random decision lists
+# using 80% of samples and all features per model
+rdl = build_rdl(X_train, y_train, "positive_class", 10; samples_ratio_per_model=0.8)
+
+# Make predictions
+predictions = apply(rdl, X_test)
+```
+"""
 function build_rdl(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
@@ -90,5 +141,5 @@ function build_rdl(
         push!(models, model)
     end
 
-    return RandomDecisionLists(models, aggregation_function)
+    return RandomDecisionLists(models, aggregation_function)    
 end
