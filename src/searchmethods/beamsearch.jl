@@ -238,18 +238,29 @@ function init_best_antecedent(y, w, loss_function::LossFunctions.AbstractLossFun
 end
 
 # For symmetric losses
-function init_best_antecedent(y, w, loss_function::LossFunctions.SymmetricLoss; nlabels, kwargs...)
+function init_best_antecedent(
+            y, 
+            w, 
+            loss_function::LossFunctions.SymmetricLoss; 
+            nlabels, 
+            kwargs...
+        )
     antecedent = bot_antecedent(length(y))
     loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
     return antecedent, loss_val 
 end
 
 # For asymmetric losses (the "target_class" attribute must be passed)
-function init_best_antecedent(y, w, loss_function::LossFunctions.AsymmetricLoss; nlabels, target_class::Union{Integer,Nothing}=nothing, kwargs...)
-    if isnothing(target_class)
-        return error("If init_best_antecedent is called with an AsymmetricLoss function, the attribute target_class must be specified")
-    end 
-
+# NOTE: @Nicola ho tolto target_class come opzionale così non devo fare il check
+# per vedere se è stato passato.
+function init_best_antecedent(
+            y, 
+            w, 
+            loss_function::LossFunctions.AsymmetricLoss,
+            target_class::Union{Integer,Nothing}, 
+            nlabels, 
+            kwargs...
+        )
     antecedent = bot_antecedent(length(y))
     loss_val = loss_function(y, w, target_class; antecedent=antecedent, nlabels=nlabels, kwargs...)
     return antecedent, loss_val 

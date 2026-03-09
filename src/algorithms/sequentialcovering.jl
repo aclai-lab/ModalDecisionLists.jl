@@ -311,13 +311,12 @@ end
 #     )
 # end
 
-
-
 function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+
     searchmethod::SearchMethod=BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
@@ -405,22 +404,14 @@ function irepstar(
             target_class=1
         )
 
-        #           ----------- DEBUG STUFF -----------
-        # This block ONLY executes if the logger level is <= Debug
         Base.@debug begin
-            # 1. Total distribution in the current split
+            # Distribution in the current split
             tp_potential = count(==(1), split.gr.y)
             fp_potential = count(!=(1), split.gr.y)
-
-            # 2. Coverage counts (True Positives and False Positives)
-            # Here we use @views to avoid allocating a new array during the slice
+            # True Positives and False Positives
             covered_labels = @views split.gr.y[bestantecedent.covmask]
-            
             rule_tp = count(==(1), covered_labels)
             rule_fp = count(!=(1), covered_labels) 
-            
-            # Total samples covered by the rule
-            total_covered = rule_tp + rule_fp
 
             """
             Antecedent developed: $bestantecedent
@@ -428,10 +419,9 @@ function irepstar(
             Rule Performance:
             - True Positives (TP): $rule_tp
             - False Positives (FP): $rule_fp
-            - Total Covered: $total_covered
+            - Total Covered: $(length(covered_labels))
             """
         end
-        #           ----------- END OF DEBUG STUFF -----------
 
         istop(bestantecedent) && break
 
@@ -455,9 +445,15 @@ function irepstar(
         Base.@debug "Description length of the dataset given with the addition of the new rule to the ruleset: $data_new_ruleset_desc_length"
 
 
-        # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset | Ruleset), dove ΔTDL(Ruleset) = TDL(Ruleset + Rule_i) - TDL(Ruleset) = TDL(Rule_i), with TDL being the Total Description Length
-        # In other words, since every iteration adds a single Rule to the RuleSet, the description length of the ruleset increases by the description length of the rule
-        # this is why ΔTDL_ruleset is just rule_desc_length
+        # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset|Ruleset), dove ΔTDL(Ruleset) 
+        #   = TDL(Ruleset + Rule_i) - TDL(Ruleset) 
+        #   = TDL(Rule_i)
+        # with TDL being the Total Description Length
+        #
+        # Since every iteration adds a single Rule to the RuleSet, 
+        # the description length of the ruleset increases by the 
+        # description length of the rule this is why 
+        # ΔTDL_ruleset === rule_desc_length
         ΔTDL_data_given_ruleset = data_new_ruleset_desc_length - data_curr_ruleset_desc_length
         ΔTDL_ruleset = rule_desc_length
         ΔTDL = ΔTDL_ruleset + ΔTDL_data_given_ruleset
