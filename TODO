@@ -5,7 +5,7 @@ IREP*:
     ✔ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity @done(26-03-06 22:07)
     ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
     ✔ Fixare e testare la versione di IREP* multiclasse @done(26-03-08 22:33)
-    ☐ Fare più test sulla versione di IREP* multiclasse, aggiungere print di debug anche lì come nel caso a classe singola
+    ✔ Fare più test sulla versione di IREP* multiclasse, aggiungere print di debug anche lì come nel caso a classe singola @done(26-03-09 19:35)
 
 Loss functions e Metrics:
     ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
@@ -28,3 +28,5 @@ RIPPER:
 ModalDecisionForests:
     ✔ Implementare le ModalDecisionForest come stabilito in chiamata @done(26-03-08 18:00)
     ✔ Fare un test sul dataset di crab classification @done(26-03-08 20:21)
+    ☐ Scrivere esperimenti vari per confrontare Random Decision Lists con Random Decision Forests
+    ☐ Scrivere funzione per caso non binario di Random Decision Lists

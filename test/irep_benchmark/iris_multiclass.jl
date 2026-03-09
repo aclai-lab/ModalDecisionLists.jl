@@ -23,7 +23,7 @@ X = DataFrame(X)
 train_ratio = 0.7
 rng = Xoshiro(1)
 
-num_experiments = 1
+num_experiments = 100
 
 # Initialize accumulators for accuracies
 acc_train_history = []
@@ -64,8 +64,13 @@ for i = 1 : num_experiments
 end
 
 # Compute and print average accuracies
-println("\n=== Results after $num_experiments experiments (Multiclass IREP*) ===")
 avg_acc_train = mean(acc_train_history)
 avg_acc_test = mean(acc_test_history)
-println("Average training accuracy: $(round(avg_acc_train; digits=4))")
-println("Average testing accuracy: $(round(avg_acc_test; digits=4))")
+
+acc_train_interval_length = 1.96 * std(acc_train_history) / sqrt(num_experiments)
+acc_test_interval_length = 1.96 * std(acc_test_history) / sqrt(num_experiments)
+
+
+println("\n=== 95% confidence intervals after $num_experiments experiments (Multiclass IREP*) ===")
+println("Training accuracy: $(round(avg_acc_train; digits=4)) ± $(round(acc_train_interval_length, digits=4))")
+println("Testing accuracy: $(round(avg_acc_test; digits=4)) ± $(round(acc_test_interval_length, digits=4))")

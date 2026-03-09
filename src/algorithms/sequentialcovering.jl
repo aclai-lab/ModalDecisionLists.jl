@@ -211,11 +211,10 @@ end
 function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
+    w::AbstractVector{U} = default_weights(length(y));
     kwargs...
 )::DecisionList where {U<:Real}
     # TODO: scrivere tutti i check sull'input
- 
     
     # corresponding to the integer value in the targets in y
     y_int, labels = y |> maptointeger
@@ -237,12 +236,17 @@ function irepstar(
         # Create the decision list with a call to IREP* on the data that still hasn't been classified
         label = labels[class_idx]
 
+        num_positive_samples = count(x -> x == label, uncoveredy)       # number of samples with the label we're looking for in the dataset
+        if num_positive_samples == 0
+            continue end
+
+        Base.@debug "Training binary classification IREP* model for class $label"
+        
         class_decision_list = irepstar(
             uncoveredX, uncoveredy, label,
             uncoveredw;
             kwargs...
         )
-        declist_default_label = defaultconsequent(class_decision_list)
 
         # rules learned for this class, each has its own antecedent, support and consequent
         class_rules = rulebase(class_decision_list)
@@ -250,11 +254,19 @@ function irepstar(
         
 
         # Extract the coverage mask for the decision list just created, and from that the indices just covered by the decision list for the label class_idx
-        declist_satmask = apply(class_decision_list, uncoveredX)
-        covered_indices = findall(x -> x != declist_default_label, declist_satmask)  
+        declist_prediction = apply(class_decision_list, uncoveredX)
+        covered_indices = findall(x -> x == label, declist_prediction)        
+        
+        
+        Base.@debug begin
+            binary_acc = ModalDecisionLists.Metrics.binary_accuracy(uncoveredy, declist_prediction, label)
+            "Binary accuracy for target class $label: $binary_acc"
+        end
+  
 
         # all the samples have been covered
         if length(covered_indices) == ninstances(uncoveredX)
+            Base.@debug "All the samples have been covered, exiting the training loop"
             break end
 
         # Remove the covered samples from the uncovered slice of the dataset
@@ -267,6 +279,8 @@ function irepstar(
     # The most populated class in the dataset is predicted as default when no other previously discovered rule applies
     default_class_index = sorted_indices[end]
     default_class = labels[default_class_index]     # default prediction if no other rule applies
+
+    Base.@debug "Resorting to default class $default_class if no other rule applies"
 
     info_cm = (;
         # supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
@@ -291,8 +305,8 @@ function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
-    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y));
-    searchmethod::SearchMethod=BeamSearch(), 
+    w::AbstractVector{U} = default_weights(length(y));
+    searchmethod::SearchMethod = BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
     loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
@@ -345,7 +359,6 @@ function irepstar(
     uncoveredX = X
     uncoveredy = y
     uncoveredw = w
-
 
     rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
@@ -497,7 +510,7 @@ end
 function split_instances(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    w::Union{Nothing,AbstractVector{<:Real},Symbol},
+    w::AbstractVector{<:Real},
     split_ratio::Real
 )
     n = ninstances(X)
@@ -643,7 +656,7 @@ function pruneantecedent(
     antecedent::Antecedent,
     X::AbstractLogiset,
     y::Vector{UInt32},
-    w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y))
+    w::AbstractVector{U} = default_weights(length(y))
 ) where {U<:Real}
     target_class = 1
 
