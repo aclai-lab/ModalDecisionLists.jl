@@ -6,77 +6,108 @@ using MLJ
 using CategoricalArrays: CategoricalValue, CategoricalArray
 using RDatasets
 using StatsBase
+using Statistics
+using Distributions
 using Random
 using ModalDecisionLists
 using ModalDecisionLists.Metrics: binary_accuracy
-using Printf
-using Statistics
+using Logging
 
-# Create a logger and set it in debug mode
+# Create a logger to set it in debug mode
 # debug_logger = ConsoleLogger(stderr, Logging.Debug)
 # global_logger(debug_logger)
 
 # Load the dataset
-X,y = @load_iris
+X, y = @load_iris
 X = DataFrame(X)
 
-train_ratio = 0.7
-rng = Xoshiro(1)        # maybe pass a rand seed to irepstar as well?
+# folds for cross validation
+num_samples = length(y)
+num_folds = 10
+num_samples_per_fold = num_samples ÷ num_folds      # integer division
+num_kfolds_repeat = 10          # how many times we repeat kfolds
 
+unique_labels = ["setosa", "virginica", "versicolor"]
 
-# println("Training set size: ", size(X_train), " - ", size(y_train))
-# println("Test set size: ", size(X_test), " - ", size(y_test))
-# println("Training set type: ", typeof(X_train), " - ", typeof(y_train))
-# println("Test set type: ", typeof(X_test), " - ", typeof(y_test))
+# Execute repeated k-fold cross validation for each target class
+for target_class ∈ unique_labels
 
+    println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP* for target class $target_class")
+    # total accuracies for each repetition
+    train_accs = Vector{Float64}(undef, num_kfolds_repeat)
+    test_accs = Vector{Float64}(undef, num_kfolds_repeat)
 
-num_experiments = 100
+    # each execution does 1 cross validation run with 'num_folds' folds
+    for kfold_repeat = 1 : num_kfolds_repeat
+        # shuffle everything randomly
+        shuffled_indices = randperm(num_samples)
+        X_shuffled = X[shuffled_indices, :]
+        y_shuffled = y[shuffled_indices, :]
 
-target_class = "setosa"
-for target_class ∈ ["setosa", "virginica", "versicolor"]
-    train, test = partition(eachindex(y), train_ratio; shuffle=true, rng)
-    X_train, y_train = X[train, :], y[train]
-    X_test, y_test = X[test, :], y[test]
+        # history of test and training accuracies for this k-fold cross-validation execution
+        cv_train_acc_history = Vector{Float64}(undef, num_folds)
+        cv_test_acc_history = Vector{Float64}(undef, num_folds)
 
-    X_train = PropositionalLogiset(X_train)
-    y_train = String.(y_train)
+        # for each fold for 1 ... k
+        for fold_idx = 1 : num_folds
+            # Define the "test window"
+            fold_data_start = (fold_idx - 1) * num_samples_per_fold + 1
+            fold_data_end = min(fold_idx * num_samples_per_fold, num_samples)
 
-    X_test = PropositionalLogiset(X_test)
-    y_test = String.(y_test)
-    
-    # preallocate the empty vectors
-    train_accuracies = Vector{Float64}(undef, num_experiments)
-    test_accuracies = Vector{Float64}(undef, num_experiments)
+            # Extract test set using that window
+            X_test = @view X_shuffled[fold_data_start : fold_data_end, :]
+            y_test = @view y_shuffled[fold_data_start : fold_data_end]
 
+            # Extract training set (Everything before and after the Window), using (fold_data_start - 1) and (fold_data_end + 1) to avoid overlap
+            train_indices = vcat(1 : (fold_data_start - 1), (fold_data_end + 1) : num_samples)
+            
+            X_train = @view X_shuffled[train_indices, :]
+            y_train = @view y_shuffled[train_indices]
 
-    for i = 1 : num_experiments
-        sole_decisionlist = irepstar(X_train, y_train, target_class, min_rule_coverage = 3)
+            # Convert everything to a Sole PropositionalLogiset
+            X_train = PropositionalLogiset(X_train)
+            y_train = String.(y_train)
 
-        # Check performance on training data
-        sole_outcome_on_training = apply(sole_decisionlist, X_train)              # Vector{String}
-        acc_train = binary_accuracy(y_train, sole_outcome_on_training, target_class)
-        train_accuracies[i] = acc_train 
-        # println("Model accuracy on the training set for target class $target_class: $acc_train")
+            X_test = PropositionalLogiset(X_test)
+            y_test = String.(y_test)
 
-        # Check performance on test data 
-        sole_outcome_on_test = apply(sole_decisionlist, X_test)
-        acc_test = binary_accuracy(y_test, sole_outcome_on_test, target_class)
-        test_accuracies[i] = acc_test
-        # println("Model accuracy on the test set for label $target_class: $acc_test")
+            sole_decisionlist = irepstar(X_train, y_train, target_class, min_rule_coverage = 3)
 
-        # println("Decision list obtained for label $target_class: \n{$sole_decisionlist}\n\n")
+            # Check performance on training data
+            sole_outcome_on_training = apply(sole_decisionlist, X_train)
+            acc_train = binary_accuracy(y_train, sole_outcome_on_training, target_class)
+            cv_train_acc_history[fold_idx] = acc_train
+
+            # Check performance on test data
+            sole_outcome_on_test = apply(sole_decisionlist, X_test)
+            acc_test = binary_accuracy(y_test, sole_outcome_on_test, target_class)
+            cv_test_acc_history[fold_idx] = acc_test
+        end
+
+        # Compute average accuracies
+        avg_fold_acc_train = mean(cv_train_acc_history)
+        avg_fold_acc_test = mean(cv_test_acc_history)
+
+        train_accs[kfold_repeat] = avg_fold_acc_train
+        test_accs[kfold_repeat] = avg_fold_acc_test
     end
 
+    avg_acc_train = mean(train_accs)
+    avg_acc_test = mean(test_accs)
 
-    train_acc_mean = mean(train_accuracies)
-    train_acc_std = std(train_accuracies)
-    train_accuracy_interval_length = 1.96 * train_acc_std / sqrt(num_experiments)
+    train_stderr = std(train_accs) / sqrt(num_kfolds_repeat)
+    test_stderr = std(test_accs) / sqrt(num_kfolds_repeat)
 
-    test_acc_mean = mean(test_accuracies)
-    test_acc_std = std(test_accuracies)
-    test_accuracy_interval_length = 1.96 * test_acc_std / sqrt(num_experiments)
+    # compute t distribution parameter based on degrees of freedom
+    td = TDist(num_kfolds_repeat - 1)
+    train_margin = quantile(td, 0.975) * train_stderr
+    test_margin = quantile(td, 0.975) * test_stderr
 
-    println("\n=== Results for 95% confidence intervals after $num_experiments experiments ===")
-    @printf("accuracy on training set for target class %s: %.3f ± %.3f\n", target_class, train_acc_mean, train_accuracy_interval_length)
-    @printf("accuracy on test set for target class %s: %.3f ± %.3f\n\n", target_class, test_acc_mean, test_accuracy_interval_length)
+    # compute confidence interval margins
+    acc_train_interval_length = train_margin * train_stderr
+    acc_test_interval_length = test_margin * test_stderr    
+
+    println("\t=== 95% confidence intervals for target class $target_class (IREP*) ===")
+    println("\t\tTraining accuracy: $(round(avg_acc_train; digits=4)) ± $(round(acc_train_interval_length, digits=4))")
+    println("\t\tTesting accuracy: $(round(avg_acc_test; digits=4)) ± $(round(acc_test_interval_length, digits=4))")
 end

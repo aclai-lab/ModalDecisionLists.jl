@@ -238,7 +238,13 @@ function init_best_antecedent(y, w, loss_function::LossFunctions.AbstractLossFun
 end
 
 # For symmetric losses
-function init_best_antecedent(y, w, loss_function::LossFunctions.SymmetricLoss; nlabels, kwargs...)
+function init_best_antecedent(
+    y, 
+    w, 
+    loss_function::LossFunctions.SymmetricLoss; 
+    nlabels, 
+    kwargs...
+)
     antecedent = bot_antecedent(length(y))
     loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
     return antecedent, loss_val 
