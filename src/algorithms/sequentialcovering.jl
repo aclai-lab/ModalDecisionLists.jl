@@ -362,6 +362,10 @@ function irepstar(
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
     
+    # DEBUG
+    curr_TDL = get_initial_dataset_bits(y)
+    curr_min_TDL = curr_TDL
+    
     rulebase = Rule[]
     while true
 
@@ -444,16 +448,21 @@ function irepstar(
         ΔTDL_data_given_ruleset = data_new_ruleset_desc_length - data_curr_ruleset_desc_length
         ΔTDL_ruleset = rule_desc_length
         ΔTDL = ΔTDL_ruleset + ΔTDL_data_given_ruleset
+        curr_TDL += ΔTDL
 
         Base.@debug begin
             printed_diff = isinf(data_curr_ruleset_desc_length) ? rule_desc_length + data_new_ruleset_desc_length : ΔTDL
             "Difference in Total Description Length: $printed_diff"
         end
 
-        if ΔTDL > tdl_threshold
+        # Stopping condition + curr_min_TDL update condition
+        if curr_TDL > curr_min_TDL + tdl_threshold
             pop!(rulebase)
             break
+        elseif curr_TDL < curr_min_TDL
+            curr_min_TDL = curr_TDL
         end
+
 
         data_curr_ruleset_desc_length = data_new_ruleset_desc_length
 
@@ -650,21 +659,21 @@ end
 function pruneantecedent(
     antecedent::Antecedent,
     X::AbstractLogiset,
-    y::Vector{UInt32},
+    y::AbstractVector{UInt32},
     w::AbstractVector{U} = default_weights(length(y))
 ) where {U<:Real}
     target_class = 1
 
-    # 1. Costruzione delle maschere positive/negative rispetto alla classe target
+    # 1. Build the positive/negative masks with respect to the target class
     posmask = y .== target_class
     negmask = .!posmask
 
-    # 2. Inizializzazione del miglior antecedente (best rule)
+    # 2. Initialization of the best antecedent (best rule) 
     _best_formula = antecedent.formula
     _best_covmask = check(_best_formula, X)
     _best_score = -1.0   # valore minimo possibile per (p - n)/(p + n)
 
-    # 3. Valuta tutte le versioni potate della formula
+    # 3. Evaluate all possible pruned versions of the formula 
     for pformula in generate_pruned_formulas(antecedent)
 
         p_covmask = check(pformula, X)
@@ -692,7 +701,7 @@ end
 
 function get_num_independent_selectors(
     X::AbstractLogiset, 
-    y::AbstractVector{<:CLabel}, 
+    y::AbstractVector{<:UInt32}, 
     discretizedomain::Bool=false
 )::Int
     alph = alphabet(X;
@@ -736,7 +745,7 @@ log2binomial(n::Integer, k::Integer)::Real = (k == 0) ? 0 : log2_factorial(n) - 
 given the previous satisfaction/coverage mask 'prev_ruleset_satmask' of the ruleset, and a new rule added to the ruleset """
 function rs_dataset_bits(
     X::AbstractLogiset, 
-    y::AbstractVector{<:CLabel},
+    y::AbstractVector{<:UInt32},
     rule::Rule,
     prev_ruleset_satmask::BitVector
 )
@@ -746,7 +755,7 @@ function rs_dataset_bits(
     ruleset_sat_mask = prev_ruleset_satmask .| rule_sat_mask    # update the sat mask of the whole ruleset by adding samples covered by the new rule
 
     num_pos = count(label -> label == 1, y)
-    p = sum(ruleset_sat_mask)
+    p = sum(ruleset_sat_mask)                   # number of samples covered by the ruleset
 
     ruleset_covered_labels = y[ruleset_sat_mask]
     tp = count(==(1), ruleset_covered_labels)
@@ -756,4 +765,19 @@ function rs_dataset_bits(
 
     desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
     return desc_length, ruleset_sat_mask
+end
+
+""" In a binary classification problem, this function returns the number of bits required to describe a dataset with labels y, such that
+yᵢ ∈ {0,1}, given the initial default rule ⊥ that assigns the negative class 0 to every sample."""
+function get_initial_dataset_bits(
+    y::AbstractVector{<:UInt32}
+)
+    # the default classification "other" is a negative classification, which assigns 0 (false) to every sample.
+    # The number of true positives and false positives will be 0, the number of false negatives will be the number of true samples
+    # the number of true negatives will be the number of negative samples
+    # tp = fp = 0; tn = n, fn = p 
+    n_samples = length(y)
+    n_positive_samples = count(x -> x == 1, y)
+    
+    return log2binomial(n_samples, n_positive_samples)
 end
