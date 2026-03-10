@@ -21,6 +21,9 @@ using Logging
 X, y = @load_iris
 X = DataFrame(X)
 
+
+rng = Xoshiro(42)
+
 # folds for cross validation
 num_samples = length(y)
 num_folds = 10
@@ -37,7 +40,7 @@ test_accs = Vector{Float64}(undef, num_kfolds_repeat)
 # each execution does 1 cross validation run with 'num_folds' folds
 for kfold_repeat = 1 : num_kfolds_repeat
     # shuffle everything randomly
-    shuffled_indices = randperm(num_samples)
+    shuffled_indices = randperm(rng, num_samples)
     X_shuffled = X[shuffled_indices, :]
     y_shuffled = y[shuffled_indices, :]
 
@@ -69,7 +72,7 @@ for kfold_repeat = 1 : num_kfolds_repeat
         y_test = String.(y_test)
 
         # Test multiclass irepstar
-        sole_decisionlist = irepstar(X_train, y_train, min_rule_coverage = 3)
+        sole_decisionlist = irepstar(X_train, y_train, min_rule_coverage = 3; rng = rng)
 
         # Check performance on training data
         sole_outcome_on_training = apply(sole_decisionlist, X_train)

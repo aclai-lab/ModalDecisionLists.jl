@@ -21,6 +21,8 @@ using Logging
 X, y = @load_iris
 X = DataFrame(X)
 
+rng = Xoshiro(42)
+
 # folds for cross validation
 num_samples = length(y)
 num_folds = 10
@@ -40,7 +42,7 @@ for target_class ∈ unique_labels
     # each execution does 1 cross validation run with 'num_folds' folds
     for kfold_repeat = 1 : num_kfolds_repeat
         # shuffle everything randomly
-        shuffled_indices = randperm(num_samples)
+        shuffled_indices = randperm(rng, num_samples)
         X_shuffled = X[shuffled_indices, :]
         y_shuffled = y[shuffled_indices, :]
 
@@ -71,7 +73,7 @@ for target_class ∈ unique_labels
             X_test = PropositionalLogiset(X_test)
             y_test = String.(y_test)
 
-            sole_decisionlist = irepstar(X_train, y_train, target_class, min_rule_coverage = 3)
+            sole_decisionlist = irepstar(X_train, y_train, target_class, min_rule_coverage = 3; rng = rng)
 
             # Check performance on training data
             sole_outcome_on_training = apply(sole_decisionlist, X_train)

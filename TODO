@@ -17,7 +17,8 @@ Loss functions e Metrics:
     ✔ Scrivere tests per le funzioni in metrics @done(26-03-06 18:38)
 
 Test IREP*:
-    ☐ Controllare che, dato uno stesso rand_seed, venga effettivamente ritornato lo stesso risultato.
+    ✔ Rimpiazzare rand_seed con un oggetto rng così come è standard in Julia @done(26-03-10 15:36)
+    ✔ Testare che la riproducibilità di irep* funzioni davvero @done(26-03-10 15:36)
     ☐ Sviluppare benchmark su dataset vari di RDatasets, guardare anche quali tipi di test hanno fatto gli altri @started(26-03-10 14:55)
         ✔ Iris @done(26-03-10 14:55)
         ✔ Crab classification @done(26-03-10 14:55)
@@ -33,7 +34,9 @@ ModalDecisionForests:
     ✔ Implementare le ModalDecisionForest come stabilito in chiamata @done(26-03-08 18:00)
     ✔ Fare un test sul dataset di crab classification @done(26-03-08 20:21)
     ✔ Implementare repeated cross validation nei test di rdl e irep? @started(26-03-10 12:32) @done(26-03-10 14:44) @lasted(2h12m2s)
+    ✔ Testare la riproducibilità di RandomDecisionLists, assicurarsi che i risultati siano deterministici @done(26-03-10 15:55)
     ☐ Scrivere esperimenti vari per confrontare Random Decision Lists con Random Decision Forests e con modello misto tra alberi e Random Decision Lists
+        --> in realtà le random forest si potrebbero fare separatamente, se si usa lo stesso dataset non serve necessariamente usare un altro script
     ☐ Scrivere funzione per caso non binario di Random Decision Lists
 
 

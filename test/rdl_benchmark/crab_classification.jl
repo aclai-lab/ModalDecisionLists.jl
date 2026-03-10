@@ -21,6 +21,8 @@ using Logging
 X, y = @load_crabs
 X = DataFrame(X)
 
+rng = Xoshiro(42)
+
 # folds for cross validation
 num_samples = length(y)
 num_folds = 10
@@ -42,7 +44,7 @@ for num_models ∈ [1, 21, 61, 121]
     # each execution does 1 cross validation run with 'num_folds' folds
     for kfold_repeat = 1 : num_kfolds_repeat
         # shuffle everything randomly
-        shuffled_indices = randperm(num_samples)
+        shuffled_indices = randperm(rng, num_samples)
         X_shuffled = X[shuffled_indices, :]
         y_shuffled = y[shuffled_indices, :]
 
@@ -88,8 +90,9 @@ for num_models ∈ [1, 21, 61, 121]
                     
                     # rdl arguments
                     use_bootstrapping = use_bootstrapping,
-                    samples_ratio_per_model=samples_ratio_per_model,
-                    n_subfeatures_per_model=n_subfeatures_per_model,
+                    samples_ratio_per_model = samples_ratio_per_model,
+                    n_subfeatures_per_model = n_subfeatures_per_model,
+                    rng = rng;
                     
                     # kwargs passed directly to irep*
                     min_rule_coverage=3

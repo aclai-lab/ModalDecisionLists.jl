@@ -317,8 +317,10 @@ function irepstar(
     min_rule_coverage::Integer=1, 
     max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
-    rand_seed::Union{Nothing,Integer}=nothing, 
+
+    rng::AbstractRNG = Random.default_rng(),
     suppress_parity_warning::Bool=false,
+
     kwargs...
 )::DecisionList where {U<:Real}
 
@@ -332,10 +334,6 @@ function irepstar(
 
     @assert (0 < split_ratio < 1) "Parameter `split_ratio` must be in range (0,1)"
     @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
-
-    if !isnothing(rand_seed)
-        Random.seed!(rand_seed)
-    end
 
     # in Parameters.jl
     searchmethod = reconstruct(searchmethod, kwargs)
@@ -372,7 +370,7 @@ function irepstar(
             break
         end
 
-        split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio)
+        split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio, rng)
         split === nothing && break
 
         num_uncovered_pos = count(label -> label == 1, uncoveredy)    # total number of uncovered positive samples
@@ -394,15 +392,12 @@ function irepstar(
             target_class=1
         )
 
-        #           ----------- DEBUG STUFF -----------
-        # This block ONLY executes if the logger level is <= Debug
         Base.@debug begin
             # 1. Total distribution in the current split
             tp_potential = count(==(1), split.gr.y)
             fp_potential = count(!=(1), split.gr.y)
 
             # 2. Coverage counts (True Positives and False Positives)
-            # Here we use @views to avoid allocating a new array during the slice
             covered_labels = @views split.gr.y[bestantecedent.covmask]
             
             rule_tp = count(==(1), covered_labels)
@@ -420,7 +415,6 @@ function irepstar(
             - Total Covered: $total_covered
             """
         end
-        #           ----------- END OF DEBUG STUFF -----------
 
         istop(bestantecedent) && break
 
@@ -511,7 +505,8 @@ function split_instances(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector{<:Real},
-    split_ratio::Real
+    split_ratio::Real,
+    rng::AbstractRNG = Random.default_rng()
 )
     n = ninstances(X)
     ngrow = round(Integer, n * split_ratio)
@@ -521,15 +516,15 @@ function split_instances(
         return nothing
     end
 
-    permindxs = randperm(n)
+    permindxs = randperm(rng, n)
     growindxs = permindxs[1:ngrow]
     prunindxs = permindxs[ngrow+1:end]
 
-    growX = slicedataset(X, growindxs)
+    growX = slicedataset(X, growindxs, return_view = true)
     growy = y[growindxs]
     groww = w[growindxs]
 
-    prunX = slicedataset(X, prunindxs)
+    prunX = slicedataset(X, prunindxs, return_view = true)
     pruny = y[prunindxs]
     prunw = w[prunindxs]
 
@@ -676,12 +671,12 @@ function pruneantecedent(
 
         p = sum(w[posmask .& p_covmask]) # Sum of True positives weight values
         n = sum(w[negmask .& p_covmask]) # Sum of False positives weight values
-        # evita divisioni per zero o regole vuote
+        # avoid division by zero or empty rules
         if p + n == 0
             continue
         end
 
-        # v* (RIPPER pruning criterion)
+        # v* (IREP* pruning criterion)
         score = (p - n) / (p + n)
 
         if score > _best_score

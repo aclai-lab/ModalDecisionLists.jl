@@ -89,7 +89,7 @@ function build_rdl(
     n_subfeatures_per_model::Union{Integer, Nothing} = nothing,
 
     aggregation_function::Union{Nothing, Base.Callable} = nothing,
-    rand_seed::Union{Nothing,Integer} = nothing,
+    rng::AbstractRNG = Random.default_rng(),
     
     kwargs...
 )::DecisionEnsemble where {U<:Real}
@@ -111,33 +111,26 @@ function build_rdl(
 
     models = DecisionList[]
 
-    if !isnothing(rand_seed)
-        Random.seed!(rand_seed)
-    end
-
     # TODO: parallelization?
     for i = 1 : num_models
         # Extract 'n_samples_per_model' random integers in [1, num_samples] (with or without replacement depending on use_bootstrapping)
         if use_bootstrapping
-            model_sample_indices = rand(1:num_samples, n_samples_per_model)    # this allows for sampling with replacement
+            model_sample_indices = rand(rng, 1:num_samples, n_samples_per_model)    # this allows for sampling with replacement
         else
-            permutated_indices = randperm(num_samples)
+            permutated_indices = randperm(rng, num_samples)
             model_sample_indices = permutated_indices[1:n_samples_per_model] 
         end
 
         # Extract 'n_subfeatures_per_model' features randomly 
-        model_feature_indices = shuffle(all_feats)[1 : n_subfeatures_per_model]
+        model_feature_indices = shuffle(rng, all_feats)[1 : n_subfeatures_per_model]
 
         # use those indices to extract a dataset from X
-        # X_model = slicedataset(X, model_sample_indices; return_view = true)        # select samples
-        # X_model = Tables.subset(X_model, :, sub_feats)                              # select features
-        X_model = X[model_sample_indices, model_feature_indices]            # select both features and indices
-
-
+        X_model = X[model_sample_indices, model_feature_indices]            # select sampled features and instances
         y_model = @view y[model_sample_indices]
         w_model = (w isa AbstractVector) ? @view(w[model_sample_indices]) : w      # w might be nothing
 
-        model = irepstar(X_model, y_model, poslabel, w_model; rand_seed=rand_seed, kwargs...) 
+        # Train the model
+        model = irepstar(X_model, y_model, poslabel, w_model; rng = rng, kwargs...) 
         push!(models, model)
     end
 
