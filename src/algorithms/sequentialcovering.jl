@@ -966,7 +966,10 @@ function ripperk(
             curr_ruleset[i] = best_rule 
             curr_tdl = competing_TDLs[best_tdl_idx]
             chosen_rule_coverage_indices = competing_rules_coverage_indices[best_tdl_idx]
+            ruleset_masks[:, i] .= false
+            ruleset_masks[chosen_rule_coverage_indices, i] .= true
 
+            
             Base.@debug begin
                 """=========== Rule optimization #$i ===========
                 Total description lengths for competing rules (original, grown, revised): $(round.(competing_TDLs, digits=3))
