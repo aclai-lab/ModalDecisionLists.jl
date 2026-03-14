@@ -89,6 +89,7 @@ function (::FOILGain)(
     fp1 = 0.0; fp0 = 0.0;
     t = 0.0;
 
+    # Manually loop through all samples and check for true/false positivies and true/false negatives for each class
     for i = 1 : n_samples
         # if sample is covered by first antecedent
         if antecedent.covmask[i]

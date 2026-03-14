@@ -290,10 +290,12 @@ function findbestantecedent(
     discretizedomain::Bool,
     significance_alpha::Real,
     min_rule_coverage::Integer;
-    nlabels::Integer,
-    max_rule_length::Union{Integer,Nothing},
 
+    nlabels::Integer,
+    max_rule_length::Union{Integer,Nothing} = nothing,
     target_class::Union{Integer,Nothing} = nothing,  # this is passed down to the loss function
+    starting_antecedent::Union{Nothing, Antecedent} = nothing,
+
     kwargs...
 )::Antecedent
 
@@ -301,7 +303,12 @@ function findbestantecedent(
 
     # Inizializza il migliore antecedente come formula ⊤ 
     # (sempre vera, copre tutte le istanze)
-    best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
+    if isnothing(starting_antecedent)
+        best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
+    else
+        best = starting_antecedent
+        best_loss = loss_function(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+    end
 
     newcandidates = Antecedent[]
     while true

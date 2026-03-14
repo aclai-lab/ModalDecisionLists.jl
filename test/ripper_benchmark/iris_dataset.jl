@@ -35,7 +35,7 @@ unique_labels = ["setosa", "virginica", "versicolor"]
 # Execute repeated k-fold cross validation for each target class
 for target_class ∈ unique_labels
 
-    println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP* for target class $target_class")
+    println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RIPPER for target class $target_class")
     # total accuracies for each repetition
     train_accs = Vector{Float64}(undef, num_kfolds_repeat)
     test_accs = Vector{Float64}(undef, num_kfolds_repeat)
@@ -74,7 +74,7 @@ for target_class ∈ unique_labels
             X_test = PropositionalLogiset(X_test)
             y_test = String.(y_test)
 
-            sole_decisionlist = irepstar(X_train, y_train, target_class, min_rule_coverage = 3; 
+            sole_decisionlist = ripperk(X_train, y_train, target_class, min_rule_coverage = 3; 
                                         rng = rng, loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy())
 
             # Check performance on training data

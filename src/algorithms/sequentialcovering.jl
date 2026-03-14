@@ -8,7 +8,7 @@ import SoleData: ScalarCondition, PropositionalLogiset, AbstractAlphabet, UnionA
 import SoleData: alphabet, test_operator, isordered, polarity, atoms
 using SoleModels
 using SoleModels: DecisionList, Rule, ConstantModel
-using SoleModels: default_weights, balanced_weights, bestguess
+using SoleModels: default_weights, balanced_weights, bestguess, checkantecedent, rulebase
 using DataFrames
 using StatsBase: mode, countmap, counts, Weights
 using FillArrays
@@ -126,7 +126,7 @@ function sequentialcovering(
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
-    @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(maxpurity_gamma) encountered."
+    @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(max_infogain_ratio) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
@@ -153,7 +153,8 @@ function sequentialcovering(
             default_alphabet,
             discretizedomain,
             significance_alpha,
-            min_rule_coverage; max_rule_length=max_rule_length,
+            min_rule_coverage; 
+            max_rule_length=max_rule_length,
             nlabels=length(labels)
         )
 
@@ -208,6 +209,9 @@ end
 ############################################################################################
 
 
+
+
+
 function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
@@ -215,7 +219,10 @@ function irepstar(
     kwargs...
 )::DecisionList where {U<:Real}
     # TODO: scrivere tutti i check sull'input
+    @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
+    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     
+
     # corresponding to the integer value in the targets in y
     y_int, labels = y |> maptointeger
     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
@@ -306,6 +313,7 @@ function irepstar(
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
     w::AbstractVector{U} = default_weights(length(y));
+
     searchmethod::SearchMethod = BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
@@ -327,7 +335,7 @@ function irepstar(
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
-    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "Parameter `max_infogain_ratio` must be in range [0,1], but $(maxpurity_gamma) encountered."
+    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "Parameter `max_infogain_ratio` must be in range [0,1], but $(max_infogain_ratio) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter `max_rule_length` cannot be less" *
                                                                "than one. Please provide a valid value."
@@ -347,11 +355,10 @@ function irepstar(
 
     @assert !isnothing(poslabel_idx) "The dataset provided must contain at least one positive sample!"
 
-    num_instances = ninstances(X)
     @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
 
     uncovered_original_y = y
-    y = UInt32.(y .== poslabel_idx)  # ora y è un array di {0,1}^n, dove 1 corrisponde alla classe positiva e 0 ad un'altra
+    y = UInt32.(y .== poslabel_idx) # convert y to an array of {0,1}, with 1 being the target class and 0 being anything else
 
     # samples yet to be covered by any Rule in the RuleSet
     uncoveredX = X
@@ -391,7 +398,8 @@ function irepstar(
             default_alphabet,
             discretizedomain,
             significance_alpha,
-            min_rule_coverage; max_rule_length=max_rule_length,
+            min_rule_coverage; 
+            max_rule_length=max_rule_length,
             nlabels=2,
             target_class=1
         )
@@ -501,8 +509,9 @@ end
 
     Returns a Named Tuple with 
         gr = NamedTuple ( X = growX, y = growy, w = groww ),
-        pr = NamedTuple ( X = prunX, y = pruny ),
-        gr_inds = growindxs
+        pr = NamedTuple ( X = prunX, y = pruny, w = prunw ),
+        gr_inds = growindxs,
+        pr_inds = prunindxs,
         permutation = perm_indices 
     Where permutation is a random permutation of numbers from 1 to n (size of X passed as an argument), such that the first
     first ngrow = round(n * split_ratio) indices of permutation are used for the growth set, whilst the others for the
@@ -529,10 +538,12 @@ function split_instances(
     growindxs = permindxs[1:ngrow]
     prunindxs = permindxs[ngrow+1:end]
 
+    # TODO: considera adding @view in growy and groww
     growX = slicedataset(X, growindxs, return_view = true)
     growy = y[growindxs]
     groww = w[growindxs]
 
+    # TODO: considera adding @view in pruny and prunw
     prunX = slicedataset(X, prunindxs, return_view = true)
     pruny = y[prunindxs]
     prunw = w[prunindxs]
@@ -611,7 +622,7 @@ by the rule.
 """
 function build_rule(
     antecedent::LeftmostConjunctiveForm, 
-    uncovered_original_y::AbstractVector{<:UInt32}, 
+    uncovered_original_y::AbstractVector, 
     poslabel::CLabel, 
     coverage_indices::AbstractVector{<:Integer}, 
     labels::AbstractVector{<:CLabel}
@@ -670,23 +681,21 @@ function pruneantecedent(
 
     # 2. Initialization of the best antecedent (best rule) 
     _best_formula = antecedent.formula
-    _best_covmask = check(_best_formula, X)
-    _best_score = -1.0   # valore minimo possibile per (p - n)/(p + n)
+    _best_covmask = nothing
+    _best_score = -Inf              # this makes sure that at least one formula will be selected as _best_formula in the loop
+    
 
-    # 3. Evaluate all possible pruned versions of the formula 
+    # 3. Evaluate all possible pruned versions of the formula, including the original formula itself
     for pformula in generate_pruned_formulas(antecedent)
 
         p_covmask = check(pformula, X)
 
         p = sum(w[posmask .& p_covmask]) # Sum of True positives weight values
         n = sum(w[negmask .& p_covmask]) # Sum of False positives weight values
-        # avoid division by zero or empty rules
-        if p + n == 0
-            continue
-        end
+
 
         # v* (IREP* pruning criterion)
-        score = (p - n) / (p + n)
+        score = (p + n != 0) ? (p - n) / (p + n) : -1.0     # -1 is the lowest possible value of (p-n)/(p+n)
 
         if score > _best_score
             _best_formula = pformula
@@ -742,6 +751,28 @@ log2binomial(n::Integer, k::Integer)::Real = (k == 0) ? 0 : log2_factorial(n) - 
 
 
 """ In a particular binary classification problem, this function returns the number of bits to describe the dataset (X,y) 
+given a ruleset with the satisfaction mask "ruleset_satmask" """
+function rs_dataset_bits(
+    y::AbstractVector{<:UInt32},
+    ruleset_satmask::BitVector
+)
+    n_samples = length(y)
+    num_pos = count(label -> label == 1, y)
+    p = sum(ruleset_satmask)                   # number of samples covered by the ruleset
+
+    ruleset_covered_labels = y[ruleset_satmask]
+    tp = count(==(1), ruleset_covered_labels)
+    fp = count(!=(1), ruleset_covered_labels)
+
+    fn = num_pos - tp       # false negatives
+
+    desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
+    return desc_length
+end
+
+
+
+""" In a particular binary classification problem, this function returns the number of bits to describe the dataset (X,y) 
 given the previous satisfaction/coverage mask 'prev_ruleset_satmask' of the ruleset, and a new rule added to the ruleset """
 function rs_dataset_bits(
     X::AbstractLogiset, 
@@ -749,22 +780,10 @@ function rs_dataset_bits(
     rule::Rule,
     prev_ruleset_satmask::BitVector
 )
-    n_samples = ninstances(X)
-
     rule_sat_mask = check(rule.antecedent, X)       # check which samples are covered by the new rule
     ruleset_sat_mask = prev_ruleset_satmask .| rule_sat_mask    # update the sat mask of the whole ruleset by adding samples covered by the new rule
 
-    num_pos = count(label -> label == 1, y)
-    p = sum(ruleset_sat_mask)                   # number of samples covered by the ruleset
-
-    ruleset_covered_labels = y[ruleset_sat_mask]
-    tp = count(==(1), ruleset_covered_labels)
-    fp = count(!=(1), ruleset_covered_labels)
-
-    fn = num_pos - tp       # false negatives
-
-    desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
-    return desc_length, ruleset_sat_mask
+    return rs_dataset_bits(y, ruleset_sat_mask), ruleset_sat_mask
 end
 
 """ In a binary classification problem, this function returns the number of bits required to describe a dataset with labels y, such that
@@ -780,4 +799,459 @@ function get_initial_dataset_bits(
     n_positive_samples = count(x -> x == 1, y)
     
     return log2binomial(n_samples, n_positive_samples)
+end
+
+
+
+
+
+
+############################################################################################
+################### RIPPERk - Binary Classification #######################################
+############################################################################################
+
+
+
+
+
+
+
+function ripperk(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    poslabel::CLabel,
+    w::AbstractVector{U} = default_weights(length(y));
+    
+    max_k::Integer = 1,
+
+    searchmethod::SearchMethod = BeamSearch(), 
+    tdl_threshold::Int=64,
+    split_ratio::Real=0.7, 
+    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+    max_infogain_ratio::Union{Nothing,Real}=nothing,
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    discretizedomain::Bool=false,
+    significance_alpha::Union{Real,Nothing}=0.0,
+    min_rule_coverage::Integer=1, 
+    max_rule_length::Union{Nothing,Integer}=nothing,
+    max_rulebase_length::Union{Nothing,Integer}=nothing,
+
+    rng::AbstractRNG = Random.default_rng(),
+    suppress_parity_warning::Bool=false,
+
+
+    kwargs...
+)::DecisionList where {U<:Real}
+
+    num_samples = ninstances(X)
+
+    @assert max_k > 0 "Parameter `max_k` must be > 0"
+    @assert length(y) == num_samples "The sizes of the training data X and of the labels y do not match."
+
+    Base.@debug "Starting RIPPERk optimization with max_k=$max_k iterations"
+
+    # Phase 1: Learn initial ruleset using IREP*
+    
+    info_dl = (;
+        supporting_labels=y,
+    )
+
+
+    uncovered_original_y_labels = y
+    y, labels = y |> maptointeger
+    poslabel_idx = findfirst(x -> x == poslabel, labels)
+
+    uncovered_original_y = y
+    y = UInt32.(y .== poslabel_idx)  # convert y to an array of {0,1}, with 1 being the target class and 0 being anything else
+
+    uncoveredX = X
+    uncoveredy = y
+    uncoveredw = w
+
+
+    # Create the intiial ruleset, keeping it only as a vector of rules
+    Base.@debug "Creating initial ruleset through call to IREP*"
+    curr_ruleset = irepstar(X, uncovered_original_y_labels, poslabel, w; 
+                            searchmethod = searchmethod,
+                            tdl_threshold = tdl_threshold,
+                            split_ratio = split_ratio, 
+                            loss_function = loss_function,
+                            max_infogain_ratio = max_infogain_ratio,
+                            default_alphabet = default_alphabet,
+                            discretizedomain = discretizedomain,
+                            significance_alpha = significance_alpha,
+                            min_rule_coverage = min_rule_coverage,
+                            max_rule_length = max_rule_length,
+                            max_rulebase_length = max_rulebase_length,
+                            rng = rng, 
+                            suppress_parity_warning = suppress_parity_warning,
+                            kwargs...)
+
+        
+    curr_ruleset = rulebase(curr_ruleset)
+
+    
+    
+    
+    for ripper_iteration = 1 : max_k
+        num_selectors = get_num_independent_selectors(uncoveredX, uncoveredy, discretizedomain)       # TODO: put this inside the loop?
+        ruleset_masks = _precalculate_rules_satmasks(uncoveredX, curr_ruleset)
+        
+        # Calculate initial TDL 
+        curr_tdl = _calculate_TDL(uncoveredy, curr_ruleset, num_selectors, ruleset_masks)
+        optimized_ruleset_satmask = falses( ninstances(uncoveredX) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+        
+        # TODO: Put all of this in a function optimize_ruleset?
+        # Check optimization for each rule
+        for (i, rule) ∈ enumerate(curr_ruleset)
+            original_rule_satmask = ruleset_masks[:, i]         # cache the satmask of the current rule
+            original_rule_covered_indices = findall(x -> x == 1, original_rule_satmask)
+            default_dataset_satmask = merge_ruleset_satmasks(ruleset_masks, i)      # satmask of the dataset if 'rule' was not a part of it
+
+            # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
+            split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio, rng)
+            split === nothing && break
+            
+
+            # Consider newly grown rule as a variant to rule
+            # grow a new rule and prune it, 
+            args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
+            rule_grown, rule_grown_covered_indices = _grow_and_prune_rule(
+                searchmethod, split, uncovered_original_y, poslabel, 
+                labels, default_dataset_satmask, args; 
+                nlabels = 2, max_rule_length = max_rule_length,
+                target_class = 1
+            )
+            if rule_grown === nothing
+                rule_grown = rule
+                rule_grown_covered_indices = original_rule_covered_indices
+            end
+
+            # substitute the new rule's sat mask in place of the i-th rule, and use the resulting sat matrix to calculate the TDL of the entire ruleset
+            ruleset_masks[:, i] .= false                       
+            ruleset_masks[rule_grown_covered_indices, i] .= true
+            curr_ruleset[i] = rule_grown
+            rule_grown_tdl = _calculate_TDL(uncoveredy, curr_ruleset, num_selectors, ruleset_masks)
+
+
+
+            # refine a new rule starting from 'rule' and prune it, do the same as before
+            rule_revised, rule_revised_covered_indices = _revise_and_prune_rule(
+                searchmethod, split, uncovered_original_y, poslabel, 
+                labels, default_dataset_satmask, 
+                rule, original_rule_satmask, args; 
+                nlabels = 2, max_rule_length = max_rule_length,
+                target_class = 1
+            )
+            if rule_revised === nothing
+                rule_revised = rule
+                rule_revised_covered_indices = original_rule_covered_indices
+            end
+
+            ruleset_masks[:, i] .= false                       
+            ruleset_masks[rule_revised_covered_indices, i] .= true
+            curr_ruleset[i] = rule_revised
+            rule_revised_tdl = _calculate_TDL(uncoveredy, curr_ruleset, num_selectors, ruleset_masks)
+
+            # Select best rule amongst the three
+            competing_TDLs = (curr_tdl, rule_grown_tdl, rule_revised_tdl)
+            competing_rules = (rule, rule_grown, rule_revised)
+            competing_rules_coverage_indices = (original_rule_covered_indices, rule_grown_covered_indices, rule_revised_covered_indices)
+
+            # Extract best rule
+            best_tdl_idx = argmin(competing_TDLs)
+            best_rule = competing_rules[best_tdl_idx]
+
+            # Replace current rule with the best one
+            curr_ruleset[i] = best_rule 
+            curr_tdl = competing_TDLs[best_tdl_idx]
+            chosen_rule_coverage_indices = competing_rules_coverage_indices[best_tdl_idx]
+
+            Base.@debug begin
+                """=========== Rule optimization #$i ===========
+                Total description lengths for competing rules (original, grown, revised): $(round.(competing_TDLs, digits=3))
+                Best rule: $best_rule
+                Best rule index: $best_tdl_idx
+                original rule's covered indices: $original_rule_covered_indices"""
+            end
+
+            optimized_ruleset_satmask[chosen_rule_coverage_indices] .= true
+
+        end     # ruleset optimization completed 
+
+        # Calculate indices covered and not covered by the ruleset
+        covered_indices = findall(x -> x == 1, optimized_ruleset_satmask)
+        uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
+        
+        Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
+        
+        # Only keep the remaining uncovered samples
+        if length(uncovered_slice) == 0
+            break end
+
+        uncoveredX = slicedataset(uncoveredX, uncovered_slice, return_view = true)
+        uncoveredy = @view uncoveredy[uncovered_slice]
+        uncoveredw = @view uncoveredw[uncovered_slice]
+        uncovered_original_y = @view uncovered_original_y[uncovered_slice]
+        uncovered_original_y_labels = @view uncovered_original_y_labels[uncovered_slice]
+
+        # Check for stopping condition if no new rule can be made with such few samples. This also handles the case where no positive samples are remaining
+        num_pos_samples_remaining = count(x -> x == 1, uncoveredy)
+        if num_pos_samples_remaining < min_rule_coverage
+            Base.@debug "RIPPER training stopped after iteration $ripper_iteration because the number of positive samples remaining was smaller than min_rule_coverage"
+            break
+        end
+
+        # Call IREP* again to get the residual ruleset
+        residual_ruleset = irepstar(uncoveredX, uncovered_original_y_labels, poslabel, uncoveredw; 
+                            searchmethod = searchmethod,
+                            tdl_threshold = tdl_threshold,
+                            split_ratio = split_ratio, 
+                            loss_function = loss_function,
+                            max_infogain_ratio = max_infogain_ratio,
+                            default_alphabet = default_alphabet,
+                            discretizedomain = discretizedomain,
+                            significance_alpha = significance_alpha,
+                            min_rule_coverage = min_rule_coverage,
+                            max_rule_length = max_rule_length,
+                            max_rulebase_length = max_rulebase_length,
+                            rng = rng, 
+                            suppress_parity_warning = suppress_parity_warning,
+                            kwargs...)
+
+        # Append the residual ruleset to 
+        residual_ruleset = rulebase(residual_ruleset)
+        append!(curr_ruleset, residual_ruleset)
+    end
+
+    default_prediction = "other"    # default prediction if no other Rule applies
+
+    info_cm = (;
+        supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        # supporting_weights=collect(justcoveredw), # TODO
+        supporting_predictions=fill(default_prediction, length(uncovered_original_y)),
+    )
+    default_consequent = ConstantModel(default_prediction, info_cm)
+
+    Base.@debug "RIPPERk optimization complete"
+    return DecisionList(curr_ruleset, default_consequent, info_dl)
+end
+
+
+
+"""
+    _precalculate_rules_satmasks(X::AbstractLogiset, rules::AbstractVector{<:Rule})
+
+Precompute satisfaction masks for all rules across all samples.
+
+Creates a BitMatrix where each column contains the satisfaction mask for one rule,
+representing which samples are covered by that rule. This precomputation can improve
+performance when evaluating multiple rules repeatedly.
+Since bit-wise operations between different masks are common, it's more efficient
+to store a single rule's coverage mask in a column rather than in a row, so that
+two rules' coverage masks are adjacent in memory bit-by-bit.
+
+# Arguments
+- `X::AbstractLogiset`: The dataset to evaluate rules on.
+- `rules::AbstractVector{<:Rule}`: A vector of rules to precompute masks for.
+
+# Returns
+A `BitMatrix` of size `(num_samples × num_rules)` where each column `i` contains
+the satisfaction mask for rule `i`.
+"""
+function _precalculate_rules_satmasks(
+    X::AbstractLogiset,
+    rules::AbstractVector{<:Rule},
+)::BitMatrix
+    # A matrix of size (num_samples x num_rules). The i-th column is the i-th rule's sat mask
+    n_rules = length(rules)
+    num_samples = ninstances(X)
+    ruleset_masks = BitMatrix(falses(num_samples, n_rules))
+    
+    for rule_idx = 1 : n_rules
+        rule = rules[rule_idx]
+    
+        rule_satmask = checkantecedent(rule, X)
+        ruleset_masks[:, rule_idx] = rule_satmask
+    end
+
+    return ruleset_masks
+end
+
+
+"""
+    _calculate_ruleset_length(X, y, rules)
+
+Calculate the total description length of a ruleset and of some data given that ruleset.
+"""
+function _calculate_TDL(
+    y::AbstractVector{<:UInt32},
+    rules::AbstractVector{<:Rule},
+    num_possible_selectors::Int,
+    ruleset_masks::BitMatrix
+)::Real
+    # Calculate Description length of the ruleset itself, ignoring data (TDL(Ruleset)), we also use the loop to calculate the satmask of the ruleset
+    num_samples = length(y)
+    ruleset_satmask = zeros(Bool, num_samples)
+
+    ruleset_dl = 0.0
+    for (i, rule) ∈ enumerate(rules)
+        ruleset_dl += _r_theory_bits(rule, num_possible_selectors)
+        
+        rule_satmask = @view ruleset_masks[:, i]
+        ruleset_satmask = ruleset_satmask .| rule_satmask
+    end
+
+    # Calculate description length of the data, given the ruleset
+    data_dl_given_ruleset = rs_dataset_bits(y, ruleset_satmask)
+
+    return ruleset_dl + data_dl_given_ruleset
+end
+
+
+""" Given a dataset (X,y), a fixed ruleset with a coverage mask 'ruleset_mask' and an antecedent 'ant', this function prunes 'ant' using
+reduced error pruning over a "joint coverage hypothesis" given by (ruleset(x) v ant(x)). In other words, this prunes ant
+in order to maximize the accuracy if ant were to be added to the ruleset.  """
+function reduced_error_prune_rule(
+    X::AbstractLogiset,
+    y::AbstractVector{<:UInt32},
+    w::AbstractVector,
+    ruleset_mask::BitVector,
+    ant::Antecedent
+)
+
+    # Build positive/negative masks with respect to the target class
+    target_mask = (y .== 1)
+
+    _best_formula = ant.formula
+    _best_covmask = nothing
+    _best_errors_sum = Inf
+
+    # Evaluate all pruned versions of the formula, including the original formula itself
+    for pformula ∈ generate_pruned_formulas(ant)
+        p_covmask = check(pformula, X)
+        total_ruleset_covmask = ruleset_mask .| p_covmask           # satmask of the ruleset if we were to add the rule with antecedent formula "pformula" to the ruleset
+
+        errors_mask = (total_ruleset_covmask .!= target_mask)       # 1 where the formula's coverage and the actual {0,1} label differ
+        weighted_errors_sum = sum(errors_mask .& w)                 # extract corresponding weights and sum
+
+        # TODO: would "weighted_errors_sum = sum(w[ total_ruleset_covmask .!= target_mask ]) be faster? It might avoid summing tons of zeros
+        
+        if weighted_errors_sum < _best_errors_sum
+            _best_formula = pformula
+            _best_covmask = p_covmask
+            _best_errors_sum = weighted_errors_sum
+        end
+
+    end
+
+    return _best_formula, _best_covmask
+
+end
+
+
+""" Grows a rule, and then prunes it (using Reduced Error Pruning), in order to minimize the error of an entire ruleset over
+a set of pruning samples (obtained from the split.pr attribute).
+# Returns
+The grown rule and the indices of the samples it covers.  """
+function _grow_and_prune_rule(
+    sm::SearchMethod,
+    split::NamedTuple,
+    uncovered_original_y::AbstractVector,
+    poslabel::CLabel,
+    labels::AbstractVector{<:CLabel},
+    default_dataset_satmask::BitVector,
+    args;
+    kwargs...
+)
+    # Growing
+    bestantecedent = findbestantecedent(sm, split.gr.X, split.gr.y, split.gr.w, args...; kwargs...)
+    if istop(bestantecedent)
+        return nothing, nothing
+    end
+
+    # PRUNING
+    rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, bestantecedent, uncovered_original_y, poslabel, labels)
+    return rule, coverage_indices
+end
+
+""" Revises a rule 'starting_rule' with coverage mask 'starting_rule_satmask', and then prunes it (using Reduced Error Pruning), in order to minimize the error of an entire ruleset over
+a set of pruning samples (obtained from the split.pr attribute).
+# Returns
+The revised rule and the indices of the samples it covers. """
+function _revise_and_prune_rule(
+    sm::SearchMethod,
+    split::NamedTuple,
+    uncovered_original_y::AbstractVector,
+    poslabel::CLabel,
+    labels::AbstractVector{<:CLabel},
+    default_dataset_satmask::BitVector,
+
+    starting_rule::Rule,
+    starting_rule_satmask::BitVector,
+    
+    args;
+    kwargs...
+)
+    # extract the coverage mask of the rule over the data from which the rule is to be grown
+    antecedent_mask_over_grow_data = starting_rule_satmask[split.gr_inds]
+
+    # println("antecedent_mask_over_grow_data: $antecedent_mask_over_grow_data")
+    # println("typeof(antecedent_mask_over_grow_data): $(typeof(antecedent_mask_over_grow_data))")
+
+    rule_ant = Antecedent(starting_rule.antecedent, antecedent_mask_over_grow_data)
+
+    revised_antecedent = findbestantecedent(sm, split.gr.X, split.gr.y, split.gr.w, args...; starting_antecedent = rule_ant, kwargs...)
+    if istop(revised_antecedent)
+        return nothing, nothing
+    end
+
+    # PRUNING
+    rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, revised_antecedent, uncovered_original_y, poslabel, labels)
+    return rule, coverage_indices
+end
+
+
+""" Given an antecedent, a split, and a coverage mask of a ruleset (without the antecedent), this function uses the data from the pruning section of the split
+to prune antecedent (through Reduced Error Pruning), in order to minimize the error of the entire ruleset over the pruning data """
+function _prune_rule_over_dataset(
+    split::NamedTuple,
+    default_dataset_satmask::BitVector,
+    antecedent::Antecedent,
+    uncovered_original_y::AbstractVector,
+
+    poslabel::CLabel,
+    labels::AbstractVector{<:CLabel}
+)
+    pruning_default_dataset_satmask = default_dataset_satmask[split.pr_inds]
+    pruned_ant, pruned_ant_covmask = reduced_error_prune_rule(split.pr.X, split.pr.y, split.pr.w, pruning_default_dataset_satmask, antecedent)
+    
+    coverage_indices = compute_global_coverage(pruned_ant, split, pruned_ant_covmask)
+    
+    # Transform Antecedent -> Rule
+    rule = build_rule(pruned_ant, uncovered_original_y, poslabel, coverage_indices, labels)
+
+    return rule, coverage_indices
+end
+
+
+""" Given the BitMatrix where each column is a satmask over a dataset for a certain rule, this function computes 
+the total satmask for entire ruleset over the same dataset, excluding the result from excluded_rule_idx (if it's not nothing)"""
+function merge_ruleset_satmasks(
+    ruleset_satmasks::BitMatrix,
+    excluded_rule_idx::Union{Nothing, Integer}
+)
+    num_samples = size(ruleset_satmasks, 1)     # num_samples = num_rows(ruleset_satmasks)
+    num_rules = size(ruleset_satmasks, 2)        # num_rules = num_cols(ruleset_satmasks)
+    ruleset_satmask::BitVector = falses(num_samples)
+
+    for i = 1 : num_rules
+        if !isnothing(excluded_rule_idx) && i == excluded_rule_idx
+            continue end
+
+        rule_satmask = @view ruleset_satmasks[:, i]
+        ruleset_satmask = ruleset_satmask .| rule_satmask
+    end
+
+    return ruleset_satmask
 end
