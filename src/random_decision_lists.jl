@@ -90,6 +90,7 @@ function build_rdl(
 
     aggregation_function::Union{Nothing, Base.Callable} = nothing,
     rng::AbstractRNG = Random.default_rng(),
+    model_wrapper::Base.Callable = irepstar,
     
     kwargs...
 )::DecisionEnsemble where {U<:Real}
@@ -130,7 +131,8 @@ function build_rdl(
         w_model = (w isa AbstractVector) ? @view(w[model_sample_indices]) : w      # w might be nothing
 
         # Train the model
-        model = irepstar(X_model, y_model, poslabel, w_model; rng = rng, kwargs...) 
+        # model = irepstar(X_model, y_model, poslabel, w_model; rng = rng, kwargs...) 
+        model = model_wrapper(X_model, y_model, poslabel, w_model; rng = rng, kwargs...)
         push!(models, model)
     end
 

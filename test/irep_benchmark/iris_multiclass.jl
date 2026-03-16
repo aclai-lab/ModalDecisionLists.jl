@@ -13,6 +13,8 @@ using ModalDecisionLists
 using ModalDecisionLists.Metrics: binary_accuracy
 using Logging
 
+include("../cv_utilities.jl")
+
 # Create a logger to set it in debug mode
 # debug_logger = ConsoleLogger(stderr, Logging.Debug)
 # global_logger(debug_logger)
@@ -21,8 +23,8 @@ using Logging
 X, y = @load_iris
 X = DataFrame(X)
 
-
 rng = Xoshiro(42)
+# rng = Random.default_rng()
 
 # folds for cross validation
 num_samples = length(y)
@@ -30,84 +32,39 @@ num_folds = 10
 num_samples_per_fold = num_samples ÷ num_folds      # integer division
 num_kfolds_repeat = 10          # how many times we repeat kfolds
 
-# Execute repeated k-fold cross validation for multiclass classification
-println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on Multiclass IREP*")
+function model_wrapper(X, y, rng; kwargs...)
+    args_dict = Dict(kwargs)
+    loss_function = pop!(args_dict, :loss_function)
+    min_rule_coverage = pop!(args_dict, :min_rule_coverage)
 
-# total accuracies for each repetition
-train_accs = Vector{Float64}(undef, num_kfolds_repeat)
-test_accs = Vector{Float64}(undef, num_kfolds_repeat)
-
-# each execution does 1 cross validation run with 'num_folds' folds
-for kfold_repeat = 1 : num_kfolds_repeat
-    # shuffle everything randomly
-    shuffled_indices = randperm(rng, num_samples)
-    X_shuffled = X[shuffled_indices, :]
-    y_shuffled = y[shuffled_indices, :]
-
-    # history of test and training accuracies for this k-fold cross-validation execution
-    cv_train_acc_history = Vector{Float64}(undef, num_folds)
-    cv_test_acc_history = Vector{Float64}(undef, num_folds)
-
-    # for each fold for 1 ... k
-    for fold_idx = 1 : num_folds
-        # Define the "test window"
-        fold_data_start = (fold_idx - 1) * num_samples_per_fold + 1
-        fold_data_end = min(fold_idx * num_samples_per_fold, num_samples)
-
-        # Extract test set using that window
-        X_test = @view X_shuffled[fold_data_start : fold_data_end, :]
-        y_test = @view y_shuffled[fold_data_start : fold_data_end]
-
-        # Extract training set (Everything before and after the Window), using (fold_data_start - 1) and (fold_data_end + 1) to avoid overlap
-        train_indices = vcat(1 : (fold_data_start - 1), (fold_data_end + 1) : num_samples)
-        
-        X_train = @view X_shuffled[train_indices, :]
-        y_train = @view y_shuffled[train_indices]
-
-        # Convert everything to a Sole PropositionalLogiset
-        X_train = PropositionalLogiset(X_train)
-        y_train = String.(y_train)
-
-        X_test = PropositionalLogiset(X_test)
-        y_test = String.(y_test)
-
-        # Test multiclass irepstar
-        sole_decisionlist = irepstar(X_train, y_train, min_rule_coverage = 3; rng = rng)
-
-        # Check performance on training data
-        sole_outcome_on_training = apply(sole_decisionlist, X_train)
-        acc_train = mean(sole_outcome_on_training .== y_train)
-        cv_train_acc_history[fold_idx] = acc_train
-
-        # Check performance on test data 
-        sole_outcome_on_test = apply(sole_decisionlist, X_test)
-        acc_test = mean(sole_outcome_on_test .== y_test)
-        cv_test_acc_history[fold_idx] = acc_test
-    end
-
-    # Compute average accuracies
-    avg_fold_acc_train = mean(cv_train_acc_history)
-    avg_fold_acc_test = mean(cv_test_acc_history)
-
-    train_accs[kfold_repeat] = avg_fold_acc_train
-    test_accs[kfold_repeat] = avg_fold_acc_test
+    irepstar(X, y; rng = rng, loss_function = loss_function, min_rule_coverage = min_rule_coverage, args_dict...)
 end
 
-avg_acc_train = mean(train_accs)
-avg_acc_test = mean(test_accs)
+function metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
+    model_train_preds = apply(model, X_train)
+    model_test_preds = apply(model, X_test)
 
-train_stderr = std(train_accs) / sqrt(num_kfolds_repeat)
-test_stderr = std(test_accs) / sqrt(num_kfolds_repeat)
+    return Dict(
+        :train_accuracy => mean(model_train_preds .== y_train),
+        :test_accuracy => mean(model_test_preds .== y_test)
+    )
+end
 
-# compute t distribution parameter based on degrees of freedom
-td = TDist(num_kfolds_repeat - 1)
-train_margin = quantile(td, 0.975) * train_stderr
-test_margin = quantile(td, 0.975) * test_stderr
+# Execute repeated k-fold cross validation for each target class
+println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RIPPER")
 
-# compute confidence interval margins
-acc_train_interval_length = train_margin * train_stderr
-acc_test_interval_length = test_margin * test_stderr    
 
-println("\t=== 95% confidence intervals (Multiclass IREP*) ===")
-println("\t\tTraining accuracy: $(round(avg_acc_train; digits=4)) ± $(round(acc_train_interval_length, digits=4))")
-println("\t\tTesting accuracy: $(round(avg_acc_test; digits=4)) ± $(round(acc_test_interval_length, digits=4))")
+results = repeated_cv(
+    model_wrapper, metrics_wrapper,
+    X, y; 
+    rng = rng, 
+    num_folds = num_folds, 
+    num_repeats = num_kfolds_repeat, 
+    loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+    min_rule_coverage = 3
+)
+
+
+println("\t=== 95% confidence intervals ===")
+println("\t\tTraining accuracy: $(round(results[:train_accuracy].mean; digits=4)) ± $(round(results[:train_accuracy].margin, digits=4))")
+println("\t\tTesting accuracy: $(round(results[:test_accuracy].mean; digits=4)) ± $(round(results[:test_accuracy].margin, digits=4))")

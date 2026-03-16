@@ -1,7 +1,7 @@
 IREP*: 
     ✔ Ripulire codice @started(26-03-06 22:07) @done(26-03-06 22:23) @lasted(16m59s)
     ☐ Chiedersi se il numero totale delle condizioni non equivalenti n, in _r_theory_bits deve essere richiamato oppure no
-    ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa)
+    ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa) per ottimizzazione 
     ✔ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity @done(26-03-06 22:07)
     ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
     ✔ Fixare e testare la versione di IREP* multiclasse @done(26-03-08 22:33)
@@ -28,19 +28,27 @@ Test IREP*:
     ☐ Confrontare performance con quella di altri metodi o di altre implementazioni (ex: quello in wittgenstein)
 
 RIPPER:
-    ☐ Implementare RIPPER
+    ✔ Implementare RIPPER @done(26-03-15 15:27)
+    ✔ Testare la riproducibilità dei risultati di RIPPER @done(26-03-15 17:14)
+    ☐ Pensare a se sono possibili ulteriori ottimizzazioni per risparmiare delle operazioni
 
+Pulizia codice RIPPER/IREP*:
+    ☐ Creare una struct ausiliaria "TrainingState" per gestire automaticamente le operazioni ripetute su uncoveredX, uncoveredy e così via
 
-ModalDecisionForests:
+RandomDecisionForests:
     ✔ Implementare le ModalDecisionForest come stabilito in chiamata @done(26-03-08 18:00)
     ✔ Fare un test sul dataset di crab classification @done(26-03-08 20:21)
     ✔ Implementare repeated cross validation nei test di rdl e irep? @started(26-03-10 12:32) @done(26-03-10 14:44) @lasted(2h12m2s)
     ✔ Testare la riproducibilità di RandomDecisionLists, assicurarsi che i risultati siano deterministici @done(26-03-10 15:55)
+    ✔ Far passare la funzione con cui addestrare il modello di base come parametro a build_rdl @done(26-03-15 17:25)
+        --> Automaticamente darebbe la possibilità di creare un modello misto, con subsampling di samples e features come random forest, ma unendo sia decision lists sia decision trees
+    
+Test RandomDecisionForests:
     ☐ Scrivere esperimenti vari per confrontare Random Decision Lists con Random Decision Forests e con modello misto tra alberi e Random Decision Lists
         --> in realtà le random forest si potrebbero fare separatamente, se si usa lo stesso dataset non serve necessariamente usare un altro script
     ☐ Scrivere funzione per caso non binario di Random Decision Lists
 
 
 Later:
-    ☐ Considerare la possibilità di introdurre delle funzioni astratte per fare k-fold cross validation e repeated cross validation, magari da mettere in SoleModels?
+    ✔ Considerare la possibilità di introdurre delle funzioni astratte per fare k-fold cross validation e repeated cross validation, magari da mettere in SoleModels? @done(26-03-15 17:14)
     ☐ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni gold in repeated cross validation

@@ -369,7 +369,6 @@ function irepstar(
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
     
-    # DEBUG
     curr_TDL = get_initial_dataset_bits(y)
     curr_min_TDL = curr_TDL
     
@@ -650,10 +649,10 @@ end
 """
     generate_pruned_rules(rule::LeftmostConjunctiveForm)
 
-Genera tutte le versioni "potate" (prefissi) della regola `rule`,
-in ordine decrescente di lunghezza (dalla regola completa al suo atomo più semplice).
+Generates all the pruned versions of the rule `rule`, obtained from all the prefixes of its antecedent,
+and returns them as a list of Formulas in order of decreasing length (startin from the complete rule down to its first atom).
 
-Utile per la fase di pruning di RIPPER.
+This is used in the pruning phase in RIPPER
 """
 
 # TODO: @Nicola: specificare un ulteriore parametro per il pruning: 
@@ -850,7 +849,6 @@ function ripperk(
 
     Base.@debug "Starting RIPPERk optimization with max_k=$max_k iterations"
 
-    # Phase 1: Learn initial ruleset using IREP*
     
     info_dl = (;
         supporting_labels=y,
@@ -869,7 +867,7 @@ function ripperk(
     uncoveredw = w
 
 
-    # Create the intiial ruleset, keeping it only as a vector of rules
+    # Create the initial ruleset, keeping it only as a vector of rules
     Base.@debug "Creating initial ruleset through call to IREP*"
     curr_ruleset = irepstar(X, uncovered_original_y_labels, poslabel, w; 
                             searchmethod = searchmethod,
@@ -892,9 +890,10 @@ function ripperk(
 
     
     
+    # This cannot possibly be inside the loop, otherwise the description length of a rule would change based on the ripper_iteration, it just doesn't make sense
+    num_selectors = get_num_independent_selectors(X, y, discretizedomain)       
     
     for ripper_iteration = 1 : max_k
-        num_selectors = get_num_independent_selectors(uncoveredX, uncoveredy, discretizedomain)       # TODO: put this inside the loop?
         ruleset_masks = _precalculate_rules_satmasks(uncoveredX, curr_ruleset)
         
         # Calculate initial TDL 
