@@ -20,7 +20,6 @@ using Random
 ################### SequentialCovering - DecisionList ######################################
 ############################################################################################
 # * `unorderedstrategy::Bool`: TODO @Edo explain
-# * `unorderedstrategy::Bool`: TODO @Edo explain
 """
     function sequentialcovering(
         X::AbstractLogiset,
@@ -205,7 +204,7 @@ end
 
 
 ############################################################################################
-################### SequentialCovering - RIPPER ######################################
+################### SequentialCovering - IREP* ######################################
 ############################################################################################
 
 
@@ -233,9 +232,7 @@ function irepstar(
     # the actual list of rules that is obtained from the various calls 
     rules = Rule[]
 
-    uncoveredX = X
-    uncoveredy = y
-    uncoveredw = w
+    uncovered = TrainingState(X, y, w)
 
     # starting from the least common class index and going up to the most common, the last class
     # is used as the default consequent
@@ -243,15 +240,15 @@ function irepstar(
         # Create the decision list with a call to IREP* on the data that still hasn't been classified
         label = labels[class_idx]
 
-        num_positive_samples = count(x -> x == label, uncoveredy)       # number of samples with the label we're looking for in the dataset
+        num_positive_samples = count(x -> x == label, uncovered.y)       # number of samples with the label we're looking for in the dataset
         if num_positive_samples == 0
             continue end
 
         Base.@debug "Training binary classification IREP* model for class $label"
         
         class_decision_list = irepstar(
-            uncoveredX, uncoveredy, label,
-            uncoveredw;
+            uncovered.X, uncovered.y, label,
+            uncovered.w;
             kwargs...
         )
 
@@ -261,26 +258,24 @@ function irepstar(
         
 
         # Extract the coverage mask for the decision list just created, and from that the indices just covered by the decision list for the label class_idx
-        declist_prediction = apply(class_decision_list, uncoveredX)
+        declist_prediction = apply(class_decision_list, uncovered.X)
         covered_indices = findall(x -> x == label, declist_prediction)        
         
         
         Base.@debug begin
-            binary_acc = ModalDecisionLists.Metrics.binary_accuracy(uncoveredy, declist_prediction, label)
+            binary_acc = ModalDecisionLists.Metrics.binary_accuracy(uncovered.y, declist_prediction, label)
             "Binary accuracy for target class $label: $binary_acc"
         end
   
 
         # all the samples have been covered
-        if length(covered_indices) == ninstances(uncoveredX)
+        if length(covered_indices) == ninstances(uncovered.X)
             Base.@debug "All the samples have been covered, exiting the training loop"
             break end
 
         # Remove the covered samples from the uncovered slice of the dataset
-        uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
-        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
-        uncoveredy = @view uncoveredy[uncovered_slice]
-        uncoveredw = @view uncoveredw[uncovered_slice]
+        uncovered_slice = setdiff(1:ninstances(uncovered.X), covered_indices)
+        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
     end
 
     # The most populated class in the dataset is predicted as default when no other previously discovered rule applies
@@ -361,9 +356,7 @@ function irepstar(
     y = UInt32.(y .== poslabel_idx) # convert y to an array of {0,1}, with 1 being the target class and 0 being anything else
 
     # samples yet to be covered by any Rule in the RuleSet
-    uncoveredX = X
-    uncoveredy = y
-    uncoveredw = w
+    uncovered = TrainingState(X, y, w, uncovered_original_y)
 
     rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
@@ -380,17 +373,17 @@ function irepstar(
             break
         end
 
-        split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio, rng)
+        split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng)
         split === nothing && break
 
-        num_uncovered_pos = count(label -> label == 1, uncoveredy)    # total number of uncovered positive samples
+        num_uncovered_pos = count(label -> label == 1, uncovered.y)    # total number of uncovered positive samples
 
         if num_uncovered_pos < min_rule_coverage
             Base.@debug "Training converged because the number of positive samples remaining is lower than min_rule_coverage = $min_rule_coverage"
             break end
 
         bestantecedent = findbestantecedent(searchmethod,
-            split.gr...,
+            growth_X(split), growth_y(split), growth_w(split),
             #
             loss_function,
             max_infogain_ratio,
@@ -430,11 +423,11 @@ function irepstar(
         istop(bestantecedent) && break
 
         # PRUNING
-        bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split.pr...)
+        bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, prune_X(split), prune_y(split), prune_w(split))
 
         # Create the new Rule as an instance of "Rule" from SoleModels
         coverage_indices = compute_global_coverage(bestantecedent, split, bestantecedent_prune_cov)
-        rule = build_rule(bestantecedent, uncovered_original_y, poslabel, coverage_indices, labels)
+        rule = build_rule(bestantecedent, uncovered.original_y, poslabel, coverage_indices, labels)
 
 
         # Calculate the description length of the new Rule
@@ -474,7 +467,7 @@ function irepstar(
         data_curr_ruleset_desc_length = data_new_ruleset_desc_length
 
         # Calculate the indices that remain uncovered after the new rule has been added to the RuleSet
-        uncovered_slice = setdiff(1:ninstances(uncoveredX), coverage_indices)
+        uncovered_slice = setdiff(1:ninstances(uncovered.X), coverage_indices)
         
         # Stop if the entire dataset has been covered, otherwise slicedataset would throw an error
         if length(uncovered_slice) == 0
@@ -484,77 +477,20 @@ function irepstar(
         Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
 
 
-        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
-        uncoveredy = @view uncoveredy[uncovered_slice]
-        uncoveredw = @view uncoveredw[uncovered_slice]
-        uncovered_original_y = @view uncovered_original_y[uncovered_slice]
+        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
     end
 
     default_prediction = "other"    # default prediction if no other Rule applies
 
     info_cm = (;
-        supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        supporting_labels=[labels[x] for x in collect(uncovered.original_y)],
         # supporting_weights=collect(justcoveredw), # TODO
-        supporting_predictions=fill(default_prediction, length(uncovered_original_y)),
+        supporting_predictions=fill(default_prediction, length(uncovered.original_y)),
     )
     default_consequent = ConstantModel(default_prediction, info_cm)
     return DecisionList(rulebase, default_consequent, info_dl)
 end
 
-
-"""
-    Splits the dataset (X,y) with weights w into one part (growX, growy, grow_w) and another (pruneX, pruney) and
-    saves the indices of the two datasets in growindxs and pruneindxs.
-
-    Returns a Named Tuple with 
-        gr = NamedTuple ( X = growX, y = growy, w = groww ),
-        pr = NamedTuple ( X = prunX, y = pruny, w = prunw ),
-        gr_inds = growindxs,
-        pr_inds = prunindxs,
-        permutation = perm_indices 
-    Where permutation is a random permutation of numbers from 1 to n (size of X passed as an argument), such that the first
-    first ngrow = round(n * split_ratio) indices of permutation are used for the growth set, whilst the others for the
-    pruning set.
-    growindxs and prunindxs are the indices of the samples in X selected for the growth set and the
-    pruning set, respectively.
-"""
-function split_instances(
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    w::AbstractVector{<:Real},
-    split_ratio::Real,
-    rng::AbstractRNG = Random.default_rng()
-)
-    n = ninstances(X)
-    ngrow = round(Integer, n * split_ratio)
-
-    # return nothing if the split would put all the data either in the grow category or in the prune category
-    if ngrow == 0 || n - ngrow == 0
-        return nothing
-    end
-
-    permindxs = randperm(rng, n)
-    growindxs = permindxs[1:ngrow]
-    prunindxs = permindxs[ngrow+1:end]
-
-    # TODO: considera adding @view in growy and groww
-    growX = slicedataset(X, growindxs, return_view = true)
-    growy = y[growindxs]
-    groww = w[growindxs]
-
-    # TODO: considera adding @view in pruny and prunw
-    prunX = slicedataset(X, prunindxs, return_view = true)
-    pruny = y[prunindxs]
-    prunw = w[prunindxs]
-
-    return (
-        gr=(X=growX, y=growy, w=groww),
-        pr=(X=prunX, y=pruny, w=prunw),
-        gr_inds=growindxs,
-        pr_inds=prunindxs,
-        permutation=permindxs
-    )
-end
 
 
 """
@@ -580,16 +516,15 @@ grow and prune datasets.
 """
 function compute_global_coverage(
     antecedent::LeftmostConjunctiveForm,
-    split::NamedTuple,
+    split::DataSplit,
     bestantecedent_prune_cov::Union{Nothing, Vector{<:Bool}, BitVector}
 )
-    growX = split.gr.X
-    pruneX = split.pr.X
+    growX = growth_X(split)
+    pruneX = prune_X(split)
 
     grow_mask = check(antecedent, growX)
     grow_cov_local = findall(grow_mask)
-    grow_cov_global = split.gr_inds[grow_cov_local]
-
+    grow_cov_global = grow_indices(split)[grow_cov_local]
 
     if bestantecedent_prune_cov === nothing
         prune_mask = check(antecedent, pruneX)
@@ -597,7 +532,7 @@ function compute_global_coverage(
         prune_mask = bestantecedent_prune_cov
     end
     prune_cov_local = findall(prune_mask)
-    prune_cov_global = split.pr_inds[prune_cov_local]
+    prune_cov_global = prune_indices(split)[prune_cov_local]
 
     return vcat(grow_cov_global, prune_cov_global)
 end
@@ -862,14 +797,11 @@ function ripperk(
     uncovered_original_y = y
     y = UInt32.(y .== poslabel_idx)  # convert y to an array of {0,1}, with 1 being the target class and 0 being anything else
 
-    uncoveredX = X
-    uncoveredy = y
-    uncoveredw = w
-
+    uncovered = TrainingState(X, y, w, uncovered_original_y, uncovered_original_y_labels)
 
     # Create the initial ruleset, keeping it only as a vector of rules
     Base.@debug "Creating initial ruleset through call to IREP*"
-    curr_ruleset = irepstar(X, uncovered_original_y_labels, poslabel, w; 
+    curr_ruleset = irepstar(uncovered.X, uncovered.original_y_labels, poslabel, uncovered.w; 
                             searchmethod = searchmethod,
                             tdl_threshold = tdl_threshold,
                             split_ratio = split_ratio, 
@@ -894,11 +826,11 @@ function ripperk(
     num_selectors = get_num_independent_selectors(X, y, discretizedomain)       
     
     for ripper_iteration = 1 : max_k
-        ruleset_masks = _precalculate_rules_satmasks(uncoveredX, curr_ruleset)
+        ruleset_masks = _precalculate_rules_satmasks(uncovered.X, curr_ruleset)
         
         # Calculate initial TDL 
-        curr_tdl = _calculate_TDL(uncoveredy, curr_ruleset, num_selectors, ruleset_masks)
-        optimized_ruleset_satmask = falses( ninstances(uncoveredX) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+        curr_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
+        optimized_ruleset_satmask = falses( ninstances(uncovered.X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
         
         # TODO: Put all of this in a function optimize_ruleset?
         # Check optimization for each rule
@@ -908,7 +840,7 @@ function ripperk(
             default_dataset_satmask = merge_ruleset_satmasks(ruleset_masks, i)      # satmask of the dataset if 'rule' was not a part of it
 
             # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
-            split = split_instances(uncoveredX, uncoveredy, uncoveredw, split_ratio, rng)
+            split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng)
             split === nothing && break
             
 
@@ -930,7 +862,7 @@ function ripperk(
             ruleset_masks[:, i] .= false                       
             ruleset_masks[rule_grown_covered_indices, i] .= true
             curr_ruleset[i] = rule_grown
-            rule_grown_tdl = _calculate_TDL(uncoveredy, curr_ruleset, num_selectors, ruleset_masks)
+            rule_grown_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
 
 
 
@@ -950,7 +882,7 @@ function ripperk(
             ruleset_masks[:, i] .= false                       
             ruleset_masks[rule_revised_covered_indices, i] .= true
             curr_ruleset[i] = rule_revised
-            rule_revised_tdl = _calculate_TDL(uncoveredy, curr_ruleset, num_selectors, ruleset_masks)
+            rule_revised_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
 
             # Select best rule amongst the three
             competing_TDLs = (curr_tdl, rule_grown_tdl, rule_revised_tdl)
@@ -983,7 +915,7 @@ function ripperk(
 
         # Calculate indices covered and not covered by the ruleset
         covered_indices = findall(x -> x == 1, optimized_ruleset_satmask)
-        uncovered_slice = setdiff(1:ninstances(uncoveredX), covered_indices)
+        uncovered_slice = setdiff(1:ninstances(uncovered.X), covered_indices)
         
         Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
         
@@ -991,21 +923,17 @@ function ripperk(
         if length(uncovered_slice) == 0
             break end
 
-        uncoveredX = slicedataset(uncoveredX, uncovered_slice, return_view = true)
-        uncoveredy = @view uncoveredy[uncovered_slice]
-        uncoveredw = @view uncoveredw[uncovered_slice]
-        uncovered_original_y = @view uncovered_original_y[uncovered_slice]
-        uncovered_original_y_labels = @view uncovered_original_y_labels[uncovered_slice]
+        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
 
         # Check for stopping condition if no new rule can be made with such few samples. This also handles the case where no positive samples are remaining
-        num_pos_samples_remaining = count(x -> x == 1, uncoveredy)
+        num_pos_samples_remaining = count(x -> x == 1, uncovered.y)
         if num_pos_samples_remaining < min_rule_coverage
             Base.@debug "RIPPER training stopped after iteration $ripper_iteration because the number of positive samples remaining was smaller than min_rule_coverage"
             break
         end
 
         # Call IREP* again to get the residual ruleset
-        residual_ruleset = irepstar(uncoveredX, uncovered_original_y_labels, poslabel, uncoveredw; 
+        residual_ruleset = irepstar(uncovered.X, uncovered.original_y_labels, poslabel, uncovered.w; 
                             searchmethod = searchmethod,
                             tdl_threshold = tdl_threshold,
                             split_ratio = split_ratio, 
@@ -1029,9 +957,9 @@ function ripperk(
     default_prediction = "other"    # default prediction if no other Rule applies
 
     info_cm = (;
-        supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        supporting_labels=[labels[x] for x in collect(uncovered.original_y)],
         # supporting_weights=collect(justcoveredw), # TODO
-        supporting_predictions=fill(default_prediction, length(uncovered_original_y)),
+        supporting_predictions=fill(default_prediction, length(uncovered.original_y)),
     )
     default_consequent = ConstantModel(default_prediction, info_cm)
 
@@ -1158,7 +1086,7 @@ a set of pruning samples (obtained from the split.pr attribute).
 The grown rule and the indices of the samples it covers.  """
 function _grow_and_prune_rule(
     sm::SearchMethod,
-    split::NamedTuple,
+    split::DataSplit,
     uncovered_original_y::AbstractVector,
     poslabel::CLabel,
     labels::AbstractVector{<:CLabel},
@@ -1167,10 +1095,8 @@ function _grow_and_prune_rule(
     kwargs...
 )
     # Growing
-    bestantecedent = findbestantecedent(sm, split.gr.X, split.gr.y, split.gr.w, args...; kwargs...)
-    if istop(bestantecedent)
-        return nothing, nothing
-    end
+    bestantecedent = findbestantecedent(sm, growth_X(split), growth_y(split), growth_w(split), args...; kwargs...)
+    istop(bestantecedent) && return nothing, nothing
 
     # PRUNING
     rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, bestantecedent, uncovered_original_y, poslabel, labels)
@@ -1183,7 +1109,7 @@ a set of pruning samples (obtained from the split.pr attribute).
 The revised rule and the indices of the samples it covers. """
 function _revise_and_prune_rule(
     sm::SearchMethod,
-    split::NamedTuple,
+    split::DataSplit,
     uncovered_original_y::AbstractVector,
     poslabel::CLabel,
     labels::AbstractVector{<:CLabel},
@@ -1196,17 +1122,12 @@ function _revise_and_prune_rule(
     kwargs...
 )
     # extract the coverage mask of the rule over the data from which the rule is to be grown
-    antecedent_mask_over_grow_data = starting_rule_satmask[split.gr_inds]
-
-    # println("antecedent_mask_over_grow_data: $antecedent_mask_over_grow_data")
-    # println("typeof(antecedent_mask_over_grow_data): $(typeof(antecedent_mask_over_grow_data))")
+    antecedent_mask_over_grow_data = starting_rule_satmask[grow_indices(split)]
 
     rule_ant = Antecedent(starting_rule.antecedent, antecedent_mask_over_grow_data)
 
-    revised_antecedent = findbestantecedent(sm, split.gr.X, split.gr.y, split.gr.w, args...; starting_antecedent = rule_ant, kwargs...)
-    if istop(revised_antecedent)
-        return nothing, nothing
-    end
+    revised_antecedent = findbestantecedent(sm, growth_X(split), growth_y(split), growth_w(split), args...; starting_antecedent = rule_ant, kwargs...)
+    istop(revised_antecedent) && return nothing, nothing
 
     # PRUNING
     rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, revised_antecedent, uncovered_original_y, poslabel, labels)
@@ -1217,7 +1138,7 @@ end
 """ Given an antecedent, a split, and a coverage mask of a ruleset (without the antecedent), this function uses the data from the pruning section of the split
 to prune antecedent (through Reduced Error Pruning), in order to minimize the error of the entire ruleset over the pruning data """
 function _prune_rule_over_dataset(
-    split::NamedTuple,
+    split::DataSplit,
     default_dataset_satmask::BitVector,
     antecedent::Antecedent,
     uncovered_original_y::AbstractVector,
@@ -1225,8 +1146,8 @@ function _prune_rule_over_dataset(
     poslabel::CLabel,
     labels::AbstractVector{<:CLabel}
 )
-    pruning_default_dataset_satmask = default_dataset_satmask[split.pr_inds]
-    pruned_ant, pruned_ant_covmask = reduced_error_prune_rule(split.pr.X, split.pr.y, split.pr.w, pruning_default_dataset_satmask, antecedent)
+    pruning_default_dataset_satmask = default_dataset_satmask[prune_indices(split)]
+    pruned_ant, pruned_ant_covmask = reduced_error_prune_rule(prune_X(split), prune_y(split), prune_w(split), pruning_default_dataset_satmask, antecedent)
     
     coverage_indices = compute_global_coverage(pruned_ant, split, pruned_ant_covmask)
     

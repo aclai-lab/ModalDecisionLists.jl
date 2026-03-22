@@ -6,6 +6,8 @@ IREP*:
     ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
     ✔ Fixare e testare la versione di IREP* multiclasse @done(26-03-08 22:33)
     ✔ Fare più test sulla versione di IREP* multiclasse, aggiungere print di debug anche lì come nel caso a classe singola @done(26-03-09 19:35)
+    ☐ Il calcolo della description length in IREP* dovrebbe usare i pesi per determinare quanto costa descrivere ogni sample?
+        -> bisognerebbe assicurarsi che i pesi siano normalizzati
 
 Loss functions e Metrics:
     ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
@@ -33,7 +35,11 @@ RIPPER:
     ☐ Pensare a se sono possibili ulteriori ottimizzazioni per risparmiare delle operazioni
 
 Pulizia codice RIPPER/IREP*:
-    ☐ Creare una struct ausiliaria "TrainingState" per gestire automaticamente le operazioni ripetute su uncoveredX, uncoveredy e così via
+    ✔ Creare una struct ausiliaria "TrainingState" per gestire automaticamente le operazioni ripetute su uncoveredX, uncoveredy e così via @done(26-03-22 22:42)
+    ✔ Creare una struct ausiliaria "DataSplit" per gestire lo splitting dei dati nella parte di growth e di pruning @done(26-03-22 22:43)
+    ☐ Considerare la reintroduzione di InstanceSet? A quel punto TrainingState e DataSplit potrebbero usare InstanceSet a loro volta
+    ☐ Spostare alcune funzioni relative allo splitting in core.jl?
+    ☐ Considerare la possibilità di modificare sliceinstances e TrainingSet in modo da usare una selezione ripetuta degli indici attivi nel dataset, in modo da non dover aggiungere progressivamente campi opzionali come original_y e original_y_labes: forse si può fare tutto con un semplice mapping (i-esimo indice attivo --> corrispondente indice nel dataset inziale)?
 
 RandomDecisionForests:
     ✔ Implementare le ModalDecisionForest come stabilito in chiamata @done(26-03-08 18:00)

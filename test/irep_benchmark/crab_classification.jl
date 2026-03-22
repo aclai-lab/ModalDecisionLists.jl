@@ -57,7 +57,7 @@ end
 unique_labels = unique(y)
 
 # Execute repeated k-fold cross validation for each target class
-println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RIPPER")
+println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
 for target_class ∈ unique_labels
 
     results = repeated_cv(
