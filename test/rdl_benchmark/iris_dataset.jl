@@ -41,7 +41,7 @@ function model_wrapper(X, y, rng; kwargs...)
         rng = rng,
         model_wrapper = ripperk,
 
-        # kwargs passed directly to irep*
+        # kwargs passed directly to model_wrapper
         min_rule_coverage=3
     )
 
@@ -49,15 +49,15 @@ function model_wrapper(X, y, rng; kwargs...)
 end
 
 function metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
-    args_dict = Dict(kwargs)
-    target_class = pop!(args_dict, :target_class)
-
     model_train_preds = apply(model, X_train)
     model_test_preds = apply(model, X_test)
 
+    train_accuracy = mean(model_train_preds .== y_train)
+    test_accuracy = mean(model_test_preds .== y_test)
+
     return Dict(
-        :train_accuracy => binary_accuracy(y_train, model_train_preds, target_class),
-        :test_accuracy => binary_accuracy(y_test, model_test_preds, target_class)
+        :train_accuracy => train_accuracy,
+        :test_accuracy => test_accuracy
     )
 end
 
@@ -71,7 +71,6 @@ rng = Xoshiro(42)
 # folds for cross validation
 num_samples = length(y)
 num_folds = 10
-num_samples_per_fold = num_samples ÷ num_folds      # integer division
 num_kfolds_repeat = 10          # how many times we repeat kfolds
 
 unique_labels = unique(y)
@@ -91,7 +90,6 @@ for num_models ∈ [1, 5, 11, 21]
             num_repeats = num_kfolds_repeat, 
             
             # number of models
-            target_class = target_class,
             num_models = num_models
         )
 

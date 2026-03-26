@@ -187,3 +187,21 @@ function preprocess_inputdata(
     end
     return Xy[:, 1:(end-1)], Xy[:, end]
 end
+
+
+
+"""
+    safe_reconstruct(obj, kwargs)
+
+Reconstruct a model object using filtered keyword arguments.
+This is essentially the same as `reconstruct` from Parameters.jl, but it does not throw an error if kwargs contains a field
+that is not part of `obj`'s struct definition.
+"""
+function safe_reconstruct(obj, kwargs)
+    # Set of valid field names for the object
+    valid_keys = fieldnames(typeof(obj))
+
+    # Filter the keys to only keep the ones that are actually parameters of the object's type before calling reconstruct
+    to_apply = (; [k => v for (k, v) in kwargs if k in valid_keys]...)
+    return reconstruct(obj, to_apply)
+end

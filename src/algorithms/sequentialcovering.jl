@@ -130,7 +130,7 @@ function sequentialcovering(
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
 
-    searchmethod = reconstruct(searchmethod, kwargs)
+    searchmethod = safe_reconstruct(searchmethod, kwargs)
 
     info_dl = (;
         supporting_labels=y,
@@ -339,7 +339,7 @@ function irepstar(
     @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
 
     # in Parameters.jl
-    searchmethod = reconstruct(searchmethod, kwargs)
+    searchmethod = safe_reconstruct(searchmethod, kwargs)
 
     info_dl = (;
         supporting_labels=y,
@@ -745,7 +745,95 @@ end
 ############################################################################################
 
 
+function ripperk(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector{U} = default_weights(length(y));
+    kwargs...
+)::DecisionList where {U<:Real}
+    # TODO: scrivere tutti i check sull'input
+    @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
+    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+    
 
+    # corresponding to the integer value in the targets in y
+    y_int, labels = y |> maptointeger
+    y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
+
+    # indici ordinati delle classi in ordine crescente di copertura
+    sorted_indices = sortperm(y_dist)
+
+    # the actual list of rules that is obtained from the various calls 
+    rules = Rule[]
+
+    uncovered = TrainingState(X, y, w)
+
+    # starting from the least common class index and going up to the most common, the last class
+    # is used as the default consequent
+    for class_idx ∈ sorted_indices[1:end-1]
+        # Create the decision list with a call to IREP* on the data that still hasn't been classified
+        label = labels[class_idx]
+
+        num_positive_samples = count(x -> x == label, uncovered.y)       # number of samples with the label we're looking for in the dataset
+        if num_positive_samples == 0
+            continue end
+
+        Base.@debug "Training binary classification IREP* model for class $label"
+        
+        class_decision_list = ripperk(
+            uncovered.X, uncovered.y, label,
+            uncovered.w;
+            kwargs...
+        )
+
+        # rules learned for this class, each has its own antecedent, support and consequent
+        class_rules = rulebase(class_decision_list)
+        append!(rules, class_rules)
+        
+
+        # Extract the coverage mask for the decision list just created, and from that the indices just covered by the decision list for the label class_idx
+        declist_prediction = apply(class_decision_list, uncovered.X)
+        covered_indices = findall(x -> x == label, declist_prediction)        
+        
+        
+        Base.@debug begin
+            binary_acc = ModalDecisionLists.Metrics.binary_accuracy(uncovered.y, declist_prediction, label)
+            "Binary accuracy for target class $label: $binary_acc"
+        end
+  
+
+        # all the samples have been covered
+        if length(covered_indices) == ninstances(uncovered.X)
+            Base.@debug "All the samples have been covered, exiting the training loop"
+            break end
+
+        # Remove the covered samples from the uncovered slice of the dataset
+        uncovered_slice = setdiff(1:ninstances(uncovered.X), covered_indices)
+        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
+    end
+
+    # The most populated class in the dataset is predicted as default when no other previously discovered rule applies
+    default_class_index = sorted_indices[end]
+    default_class = labels[default_class_index]     # default prediction if no other rule applies
+
+    Base.@debug "Resorting to default class $default_class if no other rule applies"
+
+    info_cm = (;
+        # supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        # supporting_weights=collect(justcoveredw), # TODO
+        supporting_predictions=fill(default_class, length(y)),
+    )
+
+    default_consequent = ConstantModel(default_class, info_cm)
+    
+    info_dl = (;
+        supporting_labels=y,
+        supporting_weights=w
+        # TODO: add supporting predictions?
+    )
+    
+    return DecisionList(rules, default_consequent, info_dl)
+end
 
 
 
@@ -784,7 +872,8 @@ function ripperk(
 
     Base.@debug "Starting RIPPERk optimization with max_k=$max_k iterations"
 
-    
+    searchmethod = safe_reconstruct(searchmethod, kwargs)
+
     info_dl = (;
         supporting_labels=y,
     )
@@ -821,7 +910,6 @@ function ripperk(
     curr_ruleset = rulebase(curr_ruleset)
 
     
-    
     # This cannot possibly be inside the loop, otherwise the description length of a rule would change based on the ripper_iteration, it just doesn't make sense
     num_selectors = get_num_independent_selectors(X, y, discretizedomain)       
     
@@ -831,87 +919,14 @@ function ripperk(
         # Calculate initial TDL 
         curr_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
         optimized_ruleset_satmask = falses( ninstances(uncovered.X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+        args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
         
-        # TODO: Put all of this in a function optimize_ruleset?
-        # Check optimization for each rule
-        for (i, rule) ∈ enumerate(curr_ruleset)
-            original_rule_satmask = ruleset_masks[:, i]         # cache the satmask of the current rule
-            original_rule_covered_indices = findall(x -> x == 1, original_rule_satmask)
-            default_dataset_satmask = merge_ruleset_satmasks(ruleset_masks, i)      # satmask of the dataset if 'rule' was not a part of it
+        optimized_ruleset_satmask = _optimize_ruleset!(
+            ruleset_masks, curr_ruleset, uncovered,
+            labels, poslabel, args, curr_tdl, searchmethod, num_selectors, 
+            split_ratio, rng, max_rule_length 
+        )
 
-            # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
-            split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng)
-            split === nothing && break
-            
-
-            # Consider newly grown rule as a variant to rule
-            # grow a new rule and prune it, 
-            args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
-            rule_grown, rule_grown_covered_indices = _grow_and_prune_rule(
-                searchmethod, split, uncovered_original_y, poslabel, 
-                labels, default_dataset_satmask, args; 
-                nlabels = 2, max_rule_length = max_rule_length,
-                target_class = 1
-            )
-            if rule_grown === nothing
-                rule_grown = rule
-                rule_grown_covered_indices = original_rule_covered_indices
-            end
-
-            # substitute the new rule's sat mask in place of the i-th rule, and use the resulting sat matrix to calculate the TDL of the entire ruleset
-            ruleset_masks[:, i] .= false                       
-            ruleset_masks[rule_grown_covered_indices, i] .= true
-            curr_ruleset[i] = rule_grown
-            rule_grown_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
-
-
-
-            # refine a new rule starting from 'rule' and prune it, do the same as before
-            rule_revised, rule_revised_covered_indices = _revise_and_prune_rule(
-                searchmethod, split, uncovered_original_y, poslabel, 
-                labels, default_dataset_satmask, 
-                rule, original_rule_satmask, args; 
-                nlabels = 2, max_rule_length = max_rule_length,
-                target_class = 1
-            )
-            if rule_revised === nothing
-                rule_revised = rule
-                rule_revised_covered_indices = original_rule_covered_indices
-            end
-
-            ruleset_masks[:, i] .= false                       
-            ruleset_masks[rule_revised_covered_indices, i] .= true
-            curr_ruleset[i] = rule_revised
-            rule_revised_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
-
-            # Select best rule amongst the three
-            competing_TDLs = (curr_tdl, rule_grown_tdl, rule_revised_tdl)
-            competing_rules = (rule, rule_grown, rule_revised)
-            competing_rules_coverage_indices = (original_rule_covered_indices, rule_grown_covered_indices, rule_revised_covered_indices)
-
-            # Extract best rule
-            best_tdl_idx = argmin(competing_TDLs)
-            best_rule = competing_rules[best_tdl_idx]
-
-            # Replace current rule with the best one
-            curr_ruleset[i] = best_rule 
-            curr_tdl = competing_TDLs[best_tdl_idx]
-            chosen_rule_coverage_indices = competing_rules_coverage_indices[best_tdl_idx]
-            ruleset_masks[:, i] .= false
-            ruleset_masks[chosen_rule_coverage_indices, i] .= true
-
-            
-            Base.@debug begin
-                """=========== Rule optimization #$i ===========
-                Total description lengths for competing rules (original, grown, revised): $(round.(competing_TDLs, digits=3))
-                Best rule: $best_rule
-                Best rule index: $best_tdl_idx
-                original rule's covered indices: $original_rule_covered_indices"""
-            end
-
-            optimized_ruleset_satmask[chosen_rule_coverage_indices] .= true
-
-        end     # ruleset optimization completed 
 
         # Calculate indices covered and not covered by the ruleset
         covered_indices = findall(x -> x == 1, optimized_ruleset_satmask)
@@ -969,6 +984,111 @@ end
 
 
 
+
+function _optimize_ruleset!(
+    ruleset_masks::BitMatrix,
+    curr_ruleset::AbstractVector{<:Rule},
+    uncovered::TrainingState,
+    labels::AbstractVector{<:CLabel},
+    poslabel::CLabel,
+    args::Tuple,
+    curr_tdl::Real,
+    
+    searchmethod::SearchMethod,
+    num_selectors::Integer,
+    split_ratio::Real,
+    rng::AbstractRNG,
+    max_rule_length::Union{Nothing, Integer}
+)
+
+    optimized_ruleset_satmask = falses( ninstances(uncovered.X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+
+
+    for (i, rule) ∈ enumerate(curr_ruleset)
+        original_rule_satmask = ruleset_masks[:, i]         # cache the satmask of the current rule
+        original_rule_covered_indices = findall(x -> x == 1, original_rule_satmask)
+        default_dataset_satmask = merge_ruleset_satmasks(ruleset_masks, i)      # satmask of the dataset if 'rule' was not a part of it
+
+        # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
+        split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng)
+        split === nothing && break
+        
+
+        # Consider newly grown rule as a variant to rule
+        # grow a new rule and prune it, 
+        # args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
+        rule_grown, rule_grown_covered_indices = _grow_and_prune_rule(
+            searchmethod, split, uncovered.original_y, poslabel, 
+            labels, default_dataset_satmask, args; 
+            nlabels = 2, max_rule_length = max_rule_length,
+            target_class = 1
+        )
+        if rule_grown === nothing
+            rule_grown = rule
+            rule_grown_covered_indices = original_rule_covered_indices
+        end
+
+        # substitute the new rule's sat mask in place of the i-th rule, and use the resulting sat matrix to calculate the TDL of the entire ruleset
+        ruleset_masks[:, i] .= false                       
+        ruleset_masks[rule_grown_covered_indices, i] .= true
+        curr_ruleset[i] = rule_grown
+        rule_grown_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
+
+
+
+        # refine a new rule starting from 'rule' and prune it, do the same as before
+        rule_revised, rule_revised_covered_indices = _revise_and_prune_rule(
+            searchmethod, split, uncovered.original_y, poslabel, 
+            labels, default_dataset_satmask, 
+            rule, original_rule_satmask, args; 
+            nlabels = 2, max_rule_length = max_rule_length,
+            target_class = 1
+        )
+        if rule_revised === nothing
+            rule_revised = rule
+            rule_revised_covered_indices = original_rule_covered_indices
+        end
+
+        ruleset_masks[:, i] .= false                       
+        ruleset_masks[rule_revised_covered_indices, i] .= true
+        curr_ruleset[i] = rule_revised
+        rule_revised_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
+
+        # Select best rule amongst the three
+        competing_TDLs = (curr_tdl, rule_grown_tdl, rule_revised_tdl)
+        competing_rules = (rule, rule_grown, rule_revised)
+        competing_rules_coverage_indices = (original_rule_covered_indices, rule_grown_covered_indices, rule_revised_covered_indices)
+
+        # Extract best rule
+        best_tdl_idx = argmin(competing_TDLs)
+        best_rule = competing_rules[best_tdl_idx]
+
+        # Replace current rule with the best one
+        curr_ruleset[i] = best_rule 
+        curr_tdl = competing_TDLs[best_tdl_idx]
+        chosen_rule_coverage_indices = competing_rules_coverage_indices[best_tdl_idx]
+        ruleset_masks[:, i] .= false
+        ruleset_masks[chosen_rule_coverage_indices, i] .= true
+
+        
+        Base.@debug begin
+            """=========== Rule optimization #$i ===========
+            Total description lengths for competing rules (original, grown, revised): $(round.(competing_TDLs, digits=3))
+            Best rule: $best_rule
+            Best rule index: $best_tdl_idx
+            original rule's covered indices: $original_rule_covered_indices"""
+        end
+
+        optimized_ruleset_satmask[chosen_rule_coverage_indices] .= true
+
+    end     # ruleset optimization completed 
+
+    return optimized_ruleset_satmask
+end
+
+
+
+
 """
     _precalculate_rules_satmasks(X::AbstractLogiset, rules::AbstractVector{<:Rule})
 
@@ -1022,7 +1142,7 @@ function _calculate_TDL(
 )::Real
     # Calculate Description length of the ruleset itself, ignoring data (TDL(Ruleset)), we also use the loop to calculate the satmask of the ruleset
     num_samples = length(y)
-    ruleset_satmask = zeros(Bool, num_samples)
+    ruleset_satmask = falses(num_samples)
 
     ruleset_dl = 0.0
     for (i, rule) ∈ enumerate(rules)

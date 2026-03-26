@@ -1,6 +1,6 @@
 IREP*: 
     ✔ Ripulire codice @started(26-03-06 22:07) @done(26-03-06 22:23) @lasted(16m59s)
-    ☐ Chiedersi se il numero totale delle condizioni non equivalenti n, in _r_theory_bits deve essere richiamato oppure no
+    ✔ Chiedersi se il numero totale delle condizioni non equivalenti n, in _r_theory_bits deve essere richiamato oppure no @done(26-03-26 18:38)
     ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa) per ottimizzazione 
     ✔ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity @done(26-03-06 22:07)
     ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
@@ -32,6 +32,7 @@ Test IREP*:
 RIPPER:
     ✔ Implementare RIPPER @done(26-03-15 15:27)
     ✔ Testare la riproducibilità dei risultati di RIPPER @done(26-03-15 17:14)
+    ✔ Implementare il caso non binario @done(26-03-26 18:38)
     ☐ Pensare a se sono possibili ulteriori ottimizzazioni per risparmiare delle operazioni
 
 Pulizia codice RIPPER/IREP*:
@@ -48,13 +49,23 @@ RandomDecisionForests:
     ✔ Testare la riproducibilità di RandomDecisionLists, assicurarsi che i risultati siano deterministici @done(26-03-10 15:55)
     ✔ Far passare la funzione con cui addestrare il modello di base come parametro a build_rdl @done(26-03-15 17:25)
         --> Automaticamente darebbe la possibilità di creare un modello misto, con subsampling di samples e features come random forest, ma unendo sia decision lists sia decision trees
+    ✔ Scrivere funzione per caso non binario di Random Decision Lists @done(26-03-26 18:38)
     
 Test RandomDecisionForests:
-    ☐ Scrivere esperimenti vari per confrontare Random Decision Lists con Random Decision Forests e con modello misto tra alberi e Random Decision Lists
-        --> in realtà le random forest si potrebbero fare separatamente, se si usa lo stesso dataset non serve necessariamente usare un altro script
-    ☐ Scrivere funzione per caso non binario di Random Decision Lists
+        --> mi servirà per fare i confronti con Random Forests, che sono agnostiche rispetto al tipo di classe
+    ✔ Scrivere template esperimenti vari per confrontare Random Decision Lists con Random Decision Forests e con modello misto tra alberi e Random Decision Lists @done(26-03-26 18:38)
+        ✔ Crab classification @done(26-03-26 18:38)
+        ☐ Iris dataset
+        ☐ Altri dataset?
 
 
 Later:
     ✔ Considerare la possibilità di introdurre delle funzioni astratte per fare k-fold cross validation e repeated cross validation, magari da mettere in SoleModels? @done(26-03-15 17:14)
-    ☐ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni gold in repeated cross validation
+    ☐ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni fold in repeated cross validation
+
+
+
+
+NOTA: la funzione build_rdl è in realtà completamente agnostica rispetto al modello: si può usare con dei DecisionTrees per implementare le random forests, con le decision lists per le
+random lists, o con una variante mista di entrambe. Non mi serve creare alcuna altra funzione, basta gestire tutto nella logica di model_wrapper
+    --> questo introduce anche un supporto nativo in SoleModels alle DecisionForests?

@@ -5,25 +5,6 @@ using SoleBase: CLabel
 using SoleData: AbstractLogiset
 using Tables
 
-const RandomDecisionLists{O, A, W} = DecisionEnsemble{O, <:DecisionList, A, W} 
-
-function RandomDecisionLists(
-    lists::Vector{<:DecisionList}, 
-    aggregation::Union{Nothing, Base.Callable},
-    info::NamedTuple = (;),
-)
-    return DecisionEnsemble(
-            lists, 
-            aggregation, 
-            nothing, # weights
-            info        # TODO: merge with (type="RandomDecisionList")?
-        )
-end
-
-
-lists(m::RandomDecisionLists) = models(m)
-nlists(m::RandomDecisionLists) = length(lists(m))
-
 
 """
     build_rdl(X, y, poslabel, num_models, w=default_weights(length(y)); kwargs...)::DecisionEnsemble
@@ -80,7 +61,6 @@ predictions = apply(rdl, X_test)
 function build_rdl(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    poslabel::CLabel,
     num_models::Integer,
     w::Union{Nothing, AbstractVector{U}, Symbol} = default_weights(length(y));
     
@@ -110,10 +90,10 @@ function build_rdl(
     all_feats = Tables.columnnames(Tables.columns(X))                   # list of feature names 
     n_samples_per_model = round(Integer, ninstances(X) * samples_ratio_per_model)
 
-    models = DecisionList[]
+    models = AbstractModel[]
 
     # TODO: parallelization?
-    for i = 1 : num_models
+    for model_num = 1 : num_models
         # Extract 'n_samples_per_model' random integers in [1, num_samples] (with or without replacement depending on use_bootstrapping)
         if use_bootstrapping
             model_sample_indices = rand(rng, 1:num_samples, n_samples_per_model)    # this allows for sampling with replacement
@@ -123,18 +103,28 @@ function build_rdl(
         end
 
         # Extract 'n_subfeatures_per_model' features randomly 
-        model_feature_indices = shuffle(rng, all_feats)[1 : n_subfeatures_per_model]
-
+        # TODO: Remove this after testing
+        if n_subfeatures_per_model != num_features
+           model_feature_names = shuffle(rng, all_feats)[1 : n_subfeatures_per_model]
+        else
+        	model_feature_names = all_feats
+        end
+        
         # use those indices to extract a dataset from X
-        X_model = X[model_sample_indices, model_feature_indices]            # select sampled features and instances
+        X_model = X[model_sample_indices, model_feature_names]            # select sampled features and instances
         y_model = @view y[model_sample_indices]
         w_model = (w isa AbstractVector) ? @view(w[model_sample_indices]) : w      # w might be nothing
 
         # Train the model
-        # model = irepstar(X_model, y_model, poslabel, w_model; rng = rng, kwargs...) 
-        model = model_wrapper(X_model, y_model, poslabel, w_model; rng = rng, kwargs...)
+        model = model_wrapper(X_model, y_model, w_model; 
+                                rng = rng, 
+                                iteration = model_num, 
+                                num_models = num_models, 
+                                kwargs...)
         push!(models, model)
     end
 
-    return RandomDecisionLists(models, aggregation_function)    
+    info::NamedTuple = (;)
+
+    return DecisionEnsemble(models, aggregation_function, nothing, info)    
 end

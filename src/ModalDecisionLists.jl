@@ -37,7 +37,6 @@ export initialize_antecedents
 export ripperk
 
 include("random_decision_lists.jl")
-export RandomDecisionLists
 export build_rdl
 export lists, nlists
 

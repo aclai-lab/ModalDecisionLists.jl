@@ -55,6 +55,7 @@ function repeated_cv(
     num_folds = 10, 
     num_repeats = 10, 
     rng = Random.default_rng(), 
+    use_views::Bool = true,
     kwargs...
 )
     num_samples = length(y)
@@ -81,11 +82,11 @@ function repeated_cv(
             train_idx = vcat(1:(start_i-1), (end_i+1):num_samples)
 
             # Data Preparation (Views for efficiency)
-            X_train_raw = @view X_shf[train_idx, :]
-            y_train = String.(@view y_shf[train_idx])
+            X_train_raw = use_views  ?  @view(X_shf[train_idx, :])  :  X_shf[train_idx, :]
+            y_train = String.(  use_views ? @view(y_shf[train_idx]) : y_shf[train_idx]  )
 
-            X_test_raw  = @view X_shf[test_idx, :]
-            y_test  = String.(@view y_shf[test_idx])
+            X_test_raw  = use_views  ?  @view(X_shf[test_idx, :])  :  X_shf[test_idx, :]
+            y_test  = String.(use_views  ?  @view(y_shf[test_idx])  :  y_shf[test_idx])
 
             # Convert to Sole format
             X_train = PropositionalLogiset(X_train_raw)
