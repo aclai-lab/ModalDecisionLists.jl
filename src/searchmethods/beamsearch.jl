@@ -142,11 +142,6 @@ function initialize_antecedents(
 end # TODO: Spostare in core.jl, non ha nulla di specifico che abbia a che fare con beamsearch
 
 
-""" Returns an AbstractVector{Antecedent} like the one passed as arguments, but 
-    filtering out any antecedent whose covmask is identically null.
-"""
-prune_noncovering(antecedents::AbstractVector{Antecedent}) = [a for a in antecedents if any(a.covmask)]
-
 """
     specializeantecedents(
         antecedents::Vector{Tuple{RuleAntecbedent,SatMask}},
@@ -156,7 +151,7 @@ prune_noncovering(antecedents::AbstractVector{Antecedent}) = [a for a in anteced
 
 Specialize rule *antecedents*.
 """
-function specializeantecedents(
+ function specializeantecedents(
     sm::SearchMethod,
     antecedents::AbstractVector{Antecedent},
     X::AbstractLogiset,
@@ -165,36 +160,46 @@ function specializeantecedents(
     max_rule_length::Union{Nothing,Integer}=nothing,
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-
 )::Vector{Antecedent}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "alphabet must be finite"
 
     if isempty(antecedents)
-        return initialize_antecedents(sm, X,y; discretizedomain, default_alphabet)
-    else
-        specializedants = Antecedent[]
-        # specialize every antecedent independently
-        for antecedent in antecedents
-            # Find a set of conjunctible conditions
-            conjconds = newconditions(sm, X, y, antecedent; 
-                    discretizedomain=discretizedomain, 
-                    default_alphabet=default_alphabet)
+        return initialize_antecedents(sm, X, y; discretizedomain, default_alphabet)
+    end
 
-            isempty(conjconds) && continue
-            # concatenate antecedent and the newly generated conditions
-            new_ants = [
-                let
-                    new_formula = deepcopy(antecedent.formula)
-                    pushconjunct!(new_formula, atom)
-                    Antecedent(new_formula, antecedent.covmask .& mask)
-                end
-                for (atom, mask) in conjconds
-            ]
-            append!(specializedants, new_ants)
+    specializedants = Antecedent[]
+    # pre-allocate based on an assumption of branching factor: we can assume an average of two specializations for each current antecedent
+    sizehint!(specializedants, length(antecedents) * 2)
+
+    for antecedent ∈ antecedents
+        conjconds = newconditions(sm, X, y, antecedent; 
+                                 discretizedomain=discretizedomain, 
+                                 default_alphabet=default_alphabet)
+
+        isempty(conjconds) && continue
+
+        # pull out the existing conjuncts only once per antecedent
+        old_conjuncts = children(antecedent.formula)
+
+        for (atom, mask) ∈ conjconds
+            # calculate mask first to avoid unnecessary object creation
+            new_mask = antecedent.covmask .& mask
+            
+            # only build the formula if the rule actually covers something
+            if any(new_mask)
+                # create a new list of conjuncts by copying the old one and adding the new atom.
+                new_conjuncts = vcat(old_conjuncts, atom)
+                
+                # reconstruct the formula without deepcopying the atoms themselves
+                new_formula = LeftmostConjunctiveForm(new_conjuncts)
+                
+                push!(specializedants, Antecedent(new_formula, new_mask))
+            end
         end
     end
-    return prune_noncovering(specializedants)
+    
+    return specializedants
 end
 
 

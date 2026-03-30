@@ -67,8 +67,8 @@ function repeated_cv(
     for r in 1:num_repeats
         # Shuffle indices for this repetition
         shuffled_indices = randperm(rng, num_samples)
-        X_shf = X[shuffled_indices, :]
-        y_shf = y[shuffled_indices]
+        X_shf = use_views ? @view(X[shuffled_indices, :]) : X[shuffled_indices, :]
+        y_shf = use_views ? @view(y[shuffled_indices]) : y[shuffled_indices]
 
         # Temporary storage for fold results to average them for this repetition
         fold_metrics = Dict{Symbol, Vector{Float64}}()
@@ -83,10 +83,10 @@ function repeated_cv(
 
             # Data Preparation (Views for efficiency)
             X_train_raw = use_views  ?  @view(X_shf[train_idx, :])  :  X_shf[train_idx, :]
-            y_train = String.(  use_views ? @view(y_shf[train_idx]) : y_shf[train_idx]  )
+            y_train = string.(  use_views ? @view(y_shf[train_idx]) : y_shf[train_idx]  )
 
             X_test_raw  = use_views  ?  @view(X_shf[test_idx, :])  :  X_shf[test_idx, :]
-            y_test  = String.(use_views  ?  @view(y_shf[test_idx])  :  y_shf[test_idx])
+            y_test  = string.(use_views  ?  @view(y_shf[test_idx])  :  y_shf[test_idx])
 
             # Convert to Sole format
             X_train = PropositionalLogiset(X_train_raw)

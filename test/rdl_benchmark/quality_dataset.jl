@@ -5,12 +5,13 @@ using SoleModels
 using SoleData
 using MLJ
 using CategoricalArrays: CategoricalValue, CategoricalArray
-using RDatasets
 using StatsBase
 using Statistics
 using Distributions
 using Random
 using ModalDecisionLists
+using ModalDecisionLists: preprocess_inputdata
+using CSV
 
 include("../cv_utilities.jl")
 include("test_functions.jl")
@@ -21,8 +22,13 @@ include("test_functions.jl")
 
 
 # Load the dataset
-X, y = @load_crabs
+table = CSV.read("test/datasets/wine_quality.csv", DataFrame)
+y = table[:, :quality] |> CategoricalArray
+X = select(table, Not([:Id, :quality]));
+
+X, y = preprocess_inputdata(X,y)
 X = DataFrame(X)
+
 
 # rng = Xoshiro(42)
 rng = Random.default_rng()
@@ -35,11 +41,11 @@ num_kfolds_repeat = 10          # how many times we repeat kfolds
 unique_labels = unique(y)
 
 # Execute repeated k-fold cross validation for each model to be tested 
-for num_models ∈ [5, 11, 15]
+for num_models ∈ [11]
 
     println("Repeating experiments through k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RDL with $num_models models")
 
-    for lists_perc ∈ [0.0, 0.5, 1.0]
+    for lists_perc ∈ [0.0, 1.0]
 
         num_lists = round(Integer, num_models * lists_perc)
 
@@ -51,11 +57,12 @@ for num_models ∈ [5, 11, 15]
             rng = rng, 
             num_folds = num_folds, 
             num_repeats = num_kfolds_repeat, 
-            
+
             # number of models
             num_models = num_models,
             num_lists = num_lists,
-            beam_width = 15
+            beam_width = 10,
+            suppress_parity_warning = true
         )
 
         println("\t\t=== 95% confidence intervals ===")
@@ -66,6 +73,7 @@ for num_models ∈ [5, 11, 15]
 
 
 end
+
 
 X_p = PropositionalLogiset(X)
 model_lists = rdl_model_wrapper(X_p, string.(y), rng; 
@@ -79,5 +87,6 @@ model_trees = rdl_model_wrapper(X_p, string.(y), rng;
 
 println("\n\nLists model: \n$model_lists")
 println("\n\nTrees model: \n$model_trees")
+
 
 

@@ -7,7 +7,7 @@ using Tables
 
 
 """
-    build_rdl(X, y, poslabel, num_models, w=default_weights(length(y)); kwargs...)::DecisionEnsemble
+    build_ensemble(X, y, poslabel, num_models, w=default_weights(length(y)); kwargs...)::DecisionEnsemble
 
 Build a Random Decision List (RDL) ensemble classifier.
 
@@ -52,13 +52,13 @@ randomly sampled subset of instances and features.
 ```julia
 # Build an ensemble of 10 random decision lists
 # using 80% of samples and all features per model
-rdl = build_rdl(X_train, y_train, "positive_class", 10; samples_ratio_per_model=0.8)
+rdl = build_ensemble(X_train, y_train, "positive_class", 10; samples_ratio_per_model=0.8)
 
 # Make predictions
 predictions = apply(rdl, X_test)
 ```
 """
-function build_rdl(
+function build_ensemble(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     num_models::Integer,
@@ -90,25 +90,21 @@ function build_rdl(
     all_feats = Tables.columnnames(Tables.columns(X))                   # list of feature names 
     n_samples_per_model = round(Integer, ninstances(X) * samples_ratio_per_model)
 
-    models = AbstractModel[]
+    models = Vector{AbstractModel}(undef, num_models)
 
-    # TODO: parallelization?
-    for model_num = 1 : num_models
+    Threads.@threads for model_num = 1 : num_models
+		local_rng = copy(rng)
+
         # Extract 'n_samples_per_model' random integers in [1, num_samples] (with or without replacement depending on use_bootstrapping)
         if use_bootstrapping
-            model_sample_indices = rand(rng, 1:num_samples, n_samples_per_model)    # this allows for sampling with replacement
+            model_sample_indices = rand(local_rng, 1:num_samples, n_samples_per_model)    # this allows for sampling with replacement
         else
-            permutated_indices = randperm(rng, num_samples)
+            permutated_indices = randperm(local_rng, num_samples)
             model_sample_indices = permutated_indices[1:n_samples_per_model] 
         end
 
         # Extract 'n_subfeatures_per_model' features randomly 
-        # TODO: Remove this after testing
-        if n_subfeatures_per_model != num_features
-           model_feature_names = shuffle(rng, all_feats)[1 : n_subfeatures_per_model]
-        else
-        	model_feature_names = all_feats
-        end
+		model_feature_names = shuffle(local_rng, all_feats)[1 : n_subfeatures_per_model]
         
         # use those indices to extract a dataset from X
         X_model = X[model_sample_indices, model_feature_names]            # select sampled features and instances
@@ -121,8 +117,9 @@ function build_rdl(
                                 iteration = model_num, 
                                 num_models = num_models, 
                                 kwargs...)
-        push!(models, model)
-    end
+		
+		models[model_num] = model
+	end
 
     info::NamedTuple = (;)
 

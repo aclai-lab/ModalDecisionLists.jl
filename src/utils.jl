@@ -203,5 +203,5 @@ function safe_reconstruct(obj, kwargs)
 
     # Filter the keys to only keep the ones that are actually parameters of the object's type before calling reconstruct
     to_apply = (; [k => v for (k, v) in kwargs if k in valid_keys]...)
-    return reconstruct(obj, to_apply)
+    return reconstruct(obj; to_apply...)
 end

@@ -55,17 +55,13 @@ Test RandomDecisionForests:
         --> mi servirà per fare i confronti con Random Forests, che sono agnostiche rispetto al tipo di classe
     ✔ Scrivere template esperimenti vari per confrontare Random Decision Lists con Random Decision Forests e con modello misto tra alberi e Random Decision Lists @done(26-03-26 18:38)
         ✔ Crab classification @done(26-03-26 18:38)
-        ☐ Iris dataset
-        ☐ Altri dataset?
+        ✔ Iris dataset @done(26-03-30 15:07)
+        ✔ Biopsy @done(26-03-30 15:07)
+        ✔ Wine quality @done(26-03-30 15:08)
+        ☐ Altri?
 
+    ✔ Cambiare "build_rdl" in "build_ensemble" @done(26-03-30 13:55)
 
 Later:
     ✔ Considerare la possibilità di introdurre delle funzioni astratte per fare k-fold cross validation e repeated cross validation, magari da mettere in SoleModels? @done(26-03-15 17:14)
-    ☐ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni fold in repeated cross validation
-
-
-
-
-NOTA: la funzione build_rdl è in realtà completamente agnostica rispetto al modello: si può usare con dei DecisionTrees per implementare le random forests, con le decision lists per le
-random lists, o con una variante mista di entrambe. Non mi serve creare alcuna altra funzione, basta gestire tutto nella logica di model_wrapper
-    --> questo introduce anche un supporto nativo in SoleModels alle DecisionForests?
+    ✔ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni fold in repeated cross validation @done(26-03-30 15:15)

@@ -36,9 +36,8 @@ export irepstar
 export initialize_antecedents
 export ripperk
 
-include("random_decision_lists.jl")
-export build_rdl
-export lists, nlists
+include("ensemble_learning.jl")
+export build_ensemble
 
 module BaseCN2
 using ModalDecisionLists: SatMask
