@@ -87,7 +87,7 @@ function build_ensemble(
     end 
 
     num_samples = ninstances(X)
-    all_feats = Tables.columnnames(Tables.columns(X))                   # list of feature names 
+    all_feats = collect(Tables.columnnames(Tables.columns(X)))                   # list of feature names 
     n_samples_per_model = round(Integer, ninstances(X) * samples_ratio_per_model)
 
     models = Vector{AbstractModel}(undef, num_models)
@@ -105,7 +105,7 @@ function build_ensemble(
 
         # Extract 'n_subfeatures_per_model' features randomly 
 		model_feature_names = shuffle(local_rng, all_feats)[1 : n_subfeatures_per_model]
-        
+
         # use those indices to extract a dataset from X
         X_model = X[model_sample_indices, model_feature_names]            # select sampled features and instances
         y_model = @view y[model_sample_indices]
@@ -125,3 +125,7 @@ function build_ensemble(
 
     return DecisionEnsemble(models, aggregation_function, nothing, info)    
 end
+
+
+atoms(m::DecisionList) = vcat(map(atoms, rulebase(m))..., atoms(defaultconsequent(m)))
+natoms(m::DecisionList) = sum(map(natoms, rulebase(m))..., natoms(defaultconsequent(m)))
