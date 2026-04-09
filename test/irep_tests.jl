@@ -48,7 +48,11 @@ y_test = String.(y_test)
 
 # check if the algorithm gives the same result given the same seed and conditions
 global_logger(std_logger)
+rng_snapshot = copy(rng)
 list1 = irepstar(X_train, y_train, target_class; rng = rng)
+
+# reapply the original rng state to the "rng" object
+copy!(rng, rng_snapshot)
 list2 = irepstar(X_train, y_train, target_class, rng = rng)
 
 @test string(list1) == string(list2)    

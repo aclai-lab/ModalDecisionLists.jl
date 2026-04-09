@@ -31,10 +31,9 @@ See also
 [`RandSearch`](@ref),
 [`specializeantecedents`](@ref).
 """
-@kwdef mutable struct BeamSearch <: SearchMethod
-    # conjuncts_generation_method::AbstractGenerator=AtomGenerator()
-    conjuncts_generation_method::AbstractGenerator=AtomGenerator()
-    beam_width::Integer=3
+mutable struct BeamSearch <: SearchMethod
+    conjuncts_generation_method
+    beam_width::Integer
 end
 
 

@@ -111,7 +111,7 @@ function sequentialcovering(
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
     searchmethod::SearchMethod=BeamSearch(), 
     # loss_function::Function=ModalDecisionLists.Metrics.entropy,
-    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.Entropy(),
+    loss_function::ModalDecisionLists.LossFunctions.SymmetricLoss = ModalDecisionLists.LossFunctions.Entropy(),
     max_infogain_ratio::Real=1.0, 
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
@@ -217,7 +217,6 @@ function irepstar(
     w::AbstractVector{U} = default_weights(length(y));
     kwargs...
 )::DecisionList where {U<:Real}
-    # TODO: scrivere tutti i check sull'input
     @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     
@@ -350,7 +349,8 @@ function irepstar(
 
     @assert !isnothing(poslabel_idx) "The dataset provided must contain at least one positive sample!"
 
-    @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
+    num_instances = ninstances(X)
+    @assert length(y) == num_instances "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
 
     uncovered_original_y = y
     y = UInt32.(y .== poslabel_idx) # convert y to an array of {0,1}, with 1 being the target class and 0 being anything else
@@ -358,7 +358,7 @@ function irepstar(
     # samples yet to be covered by any Rule in the RuleSet
     uncovered = TrainingState(X, y, w, uncovered_original_y)
 
-    rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
+    rulebase_sat_mask = falses(num_instances)   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = Inf
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
     
@@ -398,11 +398,11 @@ function irepstar(
 
         Base.@debug begin
             # 1. Total distribution in the current split
-            tp_potential = count(==(1), split.gr.y)
-            fp_potential = count(!=(1), split.gr.y)
+            tp_potential = count(==(1), growth_y(split))
+            fp_potential = count(!=(1), growth_y(split))
 
             # 2. Coverage counts (True Positives and False Positives)
-            covered_labels = @views split.gr.y[bestantecedent.covmask]
+            covered_labels = @views growth_y(split)[bestantecedent.covmask]
             
             rule_tp = count(==(1), covered_labels)
             rule_fp = count(!=(1), covered_labels) 

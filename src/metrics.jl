@@ -45,7 +45,8 @@ binary_accuracy(y, y_pred, "cat")  # Returns 0.75, because 3 predictions are rig
 function binary_accuracy(
     y::AbstractVector{<:String},
     y_pred::AbstractVector{<:String},
-    target_class::String
+    target_class::String;
+    kwargs...
 )
 
     @assert length(y_pred) == length(y) "The two vectors y and y_pred in accuracy should have the same length"

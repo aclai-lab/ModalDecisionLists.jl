@@ -32,7 +32,7 @@ function (::GiniImpurity)(
     y::AbstractVector{<:Integer},
     w::AbstractVector{<:Real} = default_weights(length(y))
 )
-    return gini_impurity(y, w)                      
+    return Metrics.gini_impurity(y, w)                      
 end
 
 struct Entropy <: SymmetricLoss end
@@ -42,7 +42,7 @@ function (::Entropy)(
     w::AbstractVector{<:Real}=default_weights(length(y));
     kwargs...
 )
-    return entropy(y, w; kwargs...)                 
+    return Metrics.entropy(y, w; kwargs...)                 
 end
 
 
@@ -54,7 +54,7 @@ function (::LaplaceMetric)(
     nlabels::Integer,
     kwargs...
 )
-    return laplace_metric(y, w; nlabels, kwargs...)         
+    return Metrics.laplace_metric(y, w; nlabels, kwargs...)         
 end
 
 #####################################################
