@@ -215,6 +215,7 @@ function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector{U} = default_weights(length(y));
+    featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing,
     kwargs...
 )::DecisionList where {U<:Real}
     # TODO: scrivere tutti i check sull'input
@@ -293,6 +294,7 @@ function irepstar(
     default_consequent = ConstantModel(default_class, info_cm)
     
     info_dl = (;
+        featurenames,
         supporting_labels=y,
         supporting_weights=w
         # TODO: add supporting predictions?
@@ -342,6 +344,7 @@ function irepstar(
     searchmethod = safe_reconstruct(searchmethod, kwargs)
 
     info_dl = (;
+        featurenames = names(X.tabulardataset),
         supporting_labels=y,
     )
 

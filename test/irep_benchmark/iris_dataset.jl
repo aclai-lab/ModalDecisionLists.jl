@@ -56,12 +56,14 @@ end
 
 unique_labels = ["setosa", "virginica", "versicolor"]
 
+results=[]
+
 # Execute repeated k-fold cross validation for each target class
 println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
 for target_class ∈ unique_labels
 
 
-    results = repeated_cv(
+    push!(results,repeated_cv(
         model_wrapper, metrics_wrapper,
         X, y; 
         rng = rng, 
@@ -70,10 +72,8 @@ for target_class ∈ unique_labels
         target_class = target_class,
         loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
         min_rule_coverage = 3
-    )
+    ))
 
 
-    println("\t=== 95% confidence intervals for target class $target_class ===")
-    println("\t\tTraining accuracy: $(round(results[:train_accuracy].mean; digits=4)) ± $(round(results[:train_accuracy].margin, digits=4))")
-    println("\t\tTesting accuracy: $(round(results[:test_accuracy].mean; digits=4)) ± $(round(results[:test_accuracy].margin, digits=4))")
+
 end

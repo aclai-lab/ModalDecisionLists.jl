@@ -31,19 +31,21 @@ See also
 [`RandSearch`](@ref),
 [`specializeantecedents`](@ref).
 """
-@kwdef mutable struct BeamSearch <: SearchMethod
+mutable struct BeamSearch <: SearchMethod
     # conjuncts_generation_method::AbstractGenerator=AtomGenerator()
-    conjuncts_generation_method::AbstractGenerator=AtomGenerator()
-    beam_width::Integer=3
-end
+    conjuncts_generation_method::AbstractGenerator
+    beam_width::Integer
 
-
-function BeamSearch(; conjuncts_generation_method::AbstractGenerator=AtomGenerator(), beam_width::Integer=3)
-    if beam_width < 1
-        throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
+    function BeamSearch(conjuncts_generation_method::AbstractGenerator=AtomGenerator(), beam_width::Integer=3)
+        if beam_width < 1
+            throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
+        end
+        new(conjuncts_generation_method, beam_width)
     end
-    return BeamSearch(conjuncts_generation_method, beam_width)
 end
+
+
+
 
 """
     function filteralphabetoptimized(
@@ -107,7 +109,8 @@ function newconditions(
     selectedalphabet = begin
         # make sure to create the alphabet automatically if default_alphabet is null
         _alphabet = isnothing(default_alphabet) ? 
-            alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
+            # alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
+            alphabet(_X; discretizedomain, y=_y) :
             default_alphabet
 
         UnionAlphabet([_alphabet])   # return is cleaner
@@ -134,7 +137,8 @@ function initialize_antecedents(
 )::Vector{Antecedent}
 
     _alphabet = isnothing(default_alphabet) ?
-        alphabet(X; discretizedomain, y, sortingmode = :generalfirst) : 
+        # alphabet(X; discretizedomain, y, sortingmode = :generalfirst) :
+        alphabet(X; discretizedomain, y) : 
             default_alphabet
 
     conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)
