@@ -63,6 +63,8 @@ function build_ensemble(
     y::AbstractVector{<:CLabel},
     num_models::Integer,
     w::Union{Nothing, AbstractVector{U}, Symbol} = default_weights(length(y));
+
+    featurenames::Union{Nothing,Vector{Symbol}}=nothing,
     
     use_bootstrapping::Bool = true,
     samples_ratio_per_model::Real = 1.0,
@@ -113,6 +115,7 @@ function build_ensemble(
 
         # Train the model
         model = model_wrapper(X_model, y_model, w_model; 
+                                featurenames,
                                 rng = rng, 
                                 iteration = model_num, 
                                 num_models = num_models, 
@@ -121,7 +124,7 @@ function build_ensemble(
 		models[model_num] = model
 	end
 
-    info::NamedTuple = (;)
+    info::NamedTuple = (;featurenames, supporting_labels=y)
 
     return DecisionEnsemble(models, aggregation_function, nothing, info)    
 end
