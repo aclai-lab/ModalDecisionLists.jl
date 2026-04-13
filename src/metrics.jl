@@ -43,9 +43,9 @@ binary_accuracy(y, y_pred, "cat")  # Returns 0.75, because 3 predictions are rig
 ```
 """
 function binary_accuracy(
-    y::AbstractVector{<:String},
-    y_pred::AbstractVector{<:String},
-    target_class::String;
+    y::AbstractVector{<:CLabel},
+    y_pred::AbstractVector{<:CLabel},
+    target_class::CLabel;
     kwargs...
 )
 
@@ -87,26 +87,24 @@ end
 
 
 function entropy(
-    y::AbstractVector{<:UInt32},
+    y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
     nlabels::Union{Integer, Nothing} = nothing,
     kwargs...
 )
-    isempty(y) && return Inf
+    # handle empty input
+    length(y) == 0 && return 0.0
 
-    if isnothing(nlabels)
-        nlabels = maximum(y)
-    elseif nlabels <= 0
-        throw(ArgumentError("`nlabels` must be ≥ 1, got $nlabels"))
-    end
+    counts = countmap(y, weights(w))
 
-    # extract the labels' distribution, remove zero frequency elements and handle edge case in which all labels are in the same class
-    distribution, _ = count_labels_distribution(y, nlabels, Weights(w))
-    filter!(!iszero, distribution)
-    length(distribution) == 1 && return 0.0
+    distribution = collect(values(counts))
+    
+    length(distribution) <= 1 && return 0.0
 
-    prob = distribution ./ sum(distribution)
-    e = -sum(prob .* log2.(prob))
+    total_w = sum(distribution)
+
+    probs = distribution ./ total_w
+    e = -sum(probs .* log2.(probs))
     return e
 end
 

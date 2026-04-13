@@ -1,7 +1,7 @@
 name = "ModalDecisionLists"
 uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8"
 version = "0.1.0"
-authors = ["Giovanni PAGLIARINI", "Edoardo PONSANESI"]
+authors = ["Giovanni PAGLIARINI", "Edoardo PONSANESI", "Nicola TROMBINI"]
 
 [deps]
 CategoricalArrays = "324d7699-5711-5eae-9e2f-1d82baa6b597"

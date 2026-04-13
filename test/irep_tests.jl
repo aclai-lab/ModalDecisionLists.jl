@@ -55,4 +55,6 @@ list1 = irepstar(X_train, y_train, target_class; rng = rng)
 copy!(rng, rng_snapshot)
 list2 = irepstar(X_train, y_train, target_class, rng = rng)
 
+println("Generated list: \n$list1")
+
 @test string(list1) == string(list2)    

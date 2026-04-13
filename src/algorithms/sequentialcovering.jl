@@ -110,7 +110,6 @@ function sequentialcovering(
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
     searchmethod::SearchMethod=BeamSearch(), 
-    # loss_function::Function=ModalDecisionLists.Metrics.entropy,
     loss_function::ModalDecisionLists.LossFunctions.SymmetricLoss = ModalDecisionLists.LossFunctions.Entropy(),
     max_infogain_ratio::Real=1.0, 
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
@@ -130,6 +129,10 @@ function sequentialcovering(
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
 
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty training set")
+
     searchmethod = safe_reconstruct(searchmethod, kwargs)
 
     info_dl = (;
@@ -137,15 +140,13 @@ function sequentialcovering(
     )
 
     y, labels = y |> maptointeger
-    uncoveredX = X
-    uncoveredy = y
-    uncoveredw = w
+    uncovered = TrainingState(X, y, w)
 
-    rulebase = Rule[]       # Il rulebase effettivo
+    rule_base = Rule[]       # the resulting rulebase
     while true
 
         # bestantecedent_coverage è un array di 0 e 1 con 1 negli indici i dove la regola trovata copre il sample xi (in unconveredX)
-        bestantecedent = findbestantecedent(searchmethod, uncoveredX, uncoveredy, uncoveredw,
+        bestantecedent = findbestantecedent(searchmethod, uncovered.X, uncovered.y, uncovered.w,
             #
             loss_function,
             max_infogain_ratio,
@@ -156,50 +157,48 @@ function sequentialcovering(
             max_rule_length=max_rule_length,
             nlabels=length(labels)
         )
-
+        
         istop(bestantecedent) && break
 
         rule = begin
-            justcoveredy = uncoveredy[bestantecedent.covmask]
-            justcoveredw = uncoveredw[bestantecedent.covmask]
+            justcoveredy = uncovered.y[bestantecedent.covmask]
+            justcoveredw = uncovered.w[bestantecedent.covmask]
             # indice della classe associata alla regola
             predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
 
             info_cm = (;
-                supporting_labels=[labels[x] for x in collect(justcoveredy)],       # array con i labels dei sample appena coperti dalla regola creata
-                supporting_predictions=fill(predlabel, length(justcoveredy)),       # array dove per ogni sample appena coperto c'è il label che la nuova regola gli assegna 
+                supporting_labels=[labels[x] for x in collect(justcoveredy)],       # array with the labels of the samples just covered by the newly created rule 
+                supporting_predictions=fill(predlabel, length(justcoveredy)),       # labels assigned to each sample by the new rule 
             )
             consequent = ConstantModel(predlabel, info_cm)
 
-            # info della struct regola appena trovata
+            # info field in the instance of the new 'struct Rule'
             info_r = (;
-                supporting_labels=[labels[x] for x in collect(uncoveredy)],
+                supporting_labels=[labels[x] for x in collect(uncovered.y)],
             )
             Rule(bestantecedent.formula, consequent, info_r)
         end
 
-        push!(rulebase, rule)
+        push!(rule_base, rule)
 
-        # indici dei samples non ancora coperti dalla nuova regola (e quindi da nessun'altra)
+        # bitvector marking the samples yet to be covered by any rule
         uncovered_slice = (!).(bestantecedent.covmask)
 
-        # da SoleData
-        uncoveredX = slicedataset(uncoveredX, uncovered_slice; return_view=true)
-        uncoveredy = @view uncoveredy[uncovered_slice]
-        uncoveredw = @view uncoveredw[uncovered_slice]
+        # update uncovered portion of the dataset
+        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
 
-        if !isnothing(max_rulebase_length) && length(rulebase) > (max_rulebase_length - 1)
+        if !isnothing(max_rulebase_length) && length(rule_base) > (max_rulebase_length - 1)
             break
         end
     end
-    prediction = SoleModels.bestguess(uncoveredy; suppress_parity_warning=suppress_parity_warning)
+    prediction = SoleModels.bestguess(uncovered.y; suppress_parity_warning=suppress_parity_warning)
     prediction = labels[prediction]
     info_cm = (;
-        supporting_labels=[labels[x] for x in collect(uncoveredy)],
-        supporting_predictions=fill(prediction, length(uncoveredy)),
+        supporting_labels=[labels[x] for x in collect(uncovered.y)],
+        supporting_predictions=fill(prediction, length(uncovered.y)),
     )
     default_consequent = ConstantModel(prediction, info_cm)
-    return DecisionList(rulebase, default_consequent, info_dl)
+    return DecisionList(rule_base, default_consequent, info_dl)
 end
 
 
@@ -217,7 +216,9 @@ function irepstar(
     w::AbstractVector{U} = default_weights(length(y));
     kwargs...
 )::DecisionList where {U<:Real}
-    @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty training set")
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     
 
@@ -336,6 +337,10 @@ function irepstar(
 
     @assert (0 < split_ratio < 1) "Parameter `split_ratio` must be in range (0,1)"
     @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
+
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty training set")
 
     # in Parameters.jl
     searchmethod = safe_reconstruct(searchmethod, kwargs)
@@ -752,7 +757,9 @@ function ripperk(
     kwargs...
 )::DecisionList where {U<:Real}
     # TODO: scrivere tutti i check sull'input
-    @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty training set")
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     
 
@@ -865,10 +872,22 @@ function ripperk(
     kwargs...
 )::DecisionList where {U<:Real}
 
-    num_samples = ninstances(X)
-
     @assert max_k > 0 "Parameter `max_k` must be > 0"
-    @assert length(y) == num_samples "The sizes of the training data X and of the labels y do not match."
+
+    !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be > 0"
+
+    @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "Parameter `max_infogain_ratio` must be in range [0,1], but $(max_infogain_ratio) encountered."
+
+    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter `max_rule_length` cannot be less" *
+                                                               "than one. Please provide a valid value."
+
+    @assert (0 < split_ratio < 1) "Parameter `split_ratio` must be in range (0,1)"
+    @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
+
+    !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+    !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+    (ninstances(X) == 0) && error("Empty training set")
 
     Base.@debug "Starting RIPPERk optimization with max_k=$max_k iterations"
 
@@ -946,6 +965,11 @@ function ripperk(
             Base.@debug "RIPPER training stopped after iteration $ripper_iteration because the number of positive samples remaining was smaller than min_rule_coverage"
             break
         end
+
+        # Check how many new rules the current ruleset allows based on max_rulebase_length  
+        num_rules_allowed_left = (isnothing(max_rulebase_length)) ? nothing : max_rulebase_length - length(curr_ruleset)
+        if !isnothing(num_rules_allowed_left) && num_rules_allowed_left <= 0
+            break end
 
         # Call IREP* again to get the residual ruleset
         residual_ruleset = irepstar(uncovered.X, uncovered.original_y_labels, poslabel, uncovered.w; 

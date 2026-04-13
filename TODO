@@ -65,3 +65,7 @@ Test RandomDecisionForests:
 Later:
     ✔ Considerare la possibilità di introdurre delle funzioni astratte per fare k-fold cross validation e repeated cross validation, magari da mettere in SoleModels? @done(26-03-15 17:14)
     ✔ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni fold in repeated cross validation @done(26-03-30 15:15)
+
+
+ALtro:
+    ✔ Sistemare sequentialcovering di base, per qualche motivo quando testato su iris ritorna una lista vuota, findbestantecedent ritorna \top @done(26-04-13 13:09)

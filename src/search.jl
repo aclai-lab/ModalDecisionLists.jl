@@ -52,8 +52,10 @@ function sortantecedents(
     antslossfnctn = map(a ->  loss_function(y, w; antecedent=a, kwargs...) , antecedents)
 
     if !isnothing(max_infogain_ratio)
-        # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting at the end faster
-        minloss = (1-max_infogain_ratio) * loss_function(y, w; kwargs...)
+        # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting at the end faster 
+        # and removes antecedents that may be overfitting
+        bot_ant = bot_antecedent(length(y))
+        minloss = (1-max_infogain_ratio) * loss_function(y, w; antecedent = bot_ant, kwargs...)
 
         # Keep only the indices corresponding antecedents whose loss is ≥ min_loss
         indices = [ind for (ind, loss) in enumerate(antslossfnctn) if loss ≥ minloss]
@@ -86,7 +88,7 @@ function sortantecedents(
     significance_alpha::Union{Real,Nothing};
     target_class::Union{Integer, Nothing},
     kwargs...
-)::Tuple{AbstractVector,<:Real}     # TODO: Dispatching in base a tipo loss_function
+)::Tuple{AbstractVector,<:Real}
     isempty(antecedents) && return [], Inf
 
     # If 'min_rule_coverage' is defined, this filters out from antecedents any antecedent whose covmasks covers less than 'min_rule_coverage' samples 
@@ -101,15 +103,17 @@ function sortantecedents(
     # loss function values for each antecedent
     antslossfnctn = map(a ->  loss_function(y, w, target_class; antecedent=a, kwargs...) , antecedents)
 
-    # if !isnothing(max_infogain_ratio)
-    #     # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting at the end faster
-    #     minloss = (1-max_infogain_ratio) * loss_function(y, w, target_class; kwargs...)
+    if !isnothing(max_infogain_ratio)
+        # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting at the end faster 
+        # and removes antecedents that may be overfitting
+        bot_ant = bot_antecedent(length(y))
+        minloss = (1-max_infogain_ratio) * loss_function(y, w, target_class; antecedent = bot_ant, kwargs...)
 
-    #     # Keep only the indices corresponding antecedents whose loss is ≥ min_loss
-    #     indices = [ind for (ind, loss) in enumerate(antslossfnctn) if loss ≥ minloss]
+        # Keep only the indices corresponding antecedents whose loss is ≥ min_loss
+        indices = [ind for (ind, loss) in enumerate(antslossfnctn) if loss ≥ minloss]
 
-    #     isempty(indices) && return [], Inf
-    # end
+        isempty(indices) && return [], Inf
+    end
 
     # Extract the indices (with respect to antslossfnctn) of the 'beam_width' best antecedents (with lowest loss)
     valid_indices = partialsortperm(antslossfnctn[indices], 1:min(beam_width, length(indices)))

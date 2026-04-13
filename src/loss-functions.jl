@@ -6,7 +6,7 @@ using SoleModels
 using FillArrays
 using StatsBase
 using Distributions
-using ..ModalDecisionLists: Antecedent
+using ..ModalDecisionLists: Antecedent, extract_covered_labels
 using ..Metrics
 
 ############################################################################################
@@ -30,9 +30,16 @@ struct GiniImpurity <: SymmetricLoss end
 
 function (::GiniImpurity)(
     y::AbstractVector{<:Integer},
-    w::AbstractVector{<:Real} = default_weights(length(y))
+    w::AbstractVector{<:Real} = default_weights(length(y));
+    antecedent::Union{Antecedent, Nothing} = nothing,
+    kwargs...
 )
-    return Metrics.gini_impurity(y, w)                      
+    y_covered, w_covered =  if !isnothing(antecedent)
+        extract_covered_labels(antecedent, y, w)
+    else 
+        y, w
+    end
+    return Metrics.gini_impurity(y_covered, w_covered)                      
 end
 
 struct Entropy <: SymmetricLoss end
@@ -40,9 +47,16 @@ struct Entropy <: SymmetricLoss end
 function (::Entropy)(
     y::AbstractVector{<:Integer},
     w::AbstractVector{<:Real}=default_weights(length(y));
+    antecedent::Union{Antecedent, Nothing} = nothing,
     kwargs...
-)
-    return Metrics.entropy(y, w; kwargs...)                 
+)   
+    y_covered, w_covered =  if !isnothing(antecedent)
+        extract_covered_labels(antecedent, y, w)
+    else 
+        y, w
+    end
+
+    return Metrics.entropy(y_covered, w_covered; kwargs...)
 end
 
 
@@ -51,10 +65,17 @@ struct LaplaceMetric <: SymmetricLoss end
 function (::LaplaceMetric)(
     y::AbstractVector{<:UInt32},
     w::AbstractVector{<:Real}=default_weights(length(y));
+    antecedent::Union{Antecedent, Nothing} = nothing,
     nlabels::Integer,
     kwargs...
 )
-    return Metrics.laplace_metric(y, w; nlabels, kwargs...)         
+    y_covered, w_covered =  if !isnothing(antecedent)
+        extract_covered_labels(antecedent, y, w)
+    else 
+        y, w
+    end
+
+    return Metrics.laplace_metric(y_covered, w_covered; nlabels, kwargs...)         
 end
 
 #####################################################
@@ -77,7 +98,7 @@ function (::FOILGain)(
     if isnothing(prev_antecedent) && isnothing(antecedent)
         throw(ArgumentError("`antecedent`and `prev_antecedent` cannot both be nothing")) end
 
-    # If there is no previous antecedent, we return 0.
+    # If there is no antecedent or previous antecedent we can't compare anything, we return 0 as there is no information gain to possibly be calculated.
     if isnothing(prev_antecedent) || isnothing(antecedent)
         return 0 end
 
@@ -118,6 +139,10 @@ function (::FOILGain)(
     prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0;       # make sure division by zero does not occurr
     prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0;
 
+    # handle edge cases which would cause the return type fo be NaN (ex: Inf - Inf or 0 * Inf)
+    t == 0 && return 0.0
+    (prec_curr == 0 && prec_prev == 0) && return 0.0
+
     return -t * ( log2(prec_curr) - log2(prec_prev) );             
 end
 
@@ -133,7 +158,10 @@ function (::LaplaceAccuracy)(
     nlabels::Integer,
     kwargs...
 )
-    # 1 dove y è pari a terget_class, 0 altrimenti
+    # no antecedent means no accuracy
+    isnothing(antecedent) && return 0.0
+
+    # 1 where y is equal to target_class, 0 otherwise
     target_vector = (y .== target_class)
 
     # tp = true positive, fp = false positive

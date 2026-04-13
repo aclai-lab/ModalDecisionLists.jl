@@ -32,7 +32,7 @@ See also
 [`specializeantecedents`](@ref).
 """
 mutable struct BeamSearch <: SearchMethod
-    conjuncts_generation_method
+    conjuncts_generation_method::AbstractGenerator
     beam_width::Integer
 end
 
@@ -106,7 +106,7 @@ function newconditions(
     selectedalphabet = begin
         # make sure to create the alphabet automatically if default_alphabet is null
         _alphabet = isnothing(default_alphabet) ? 
-            alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
+            alphabet(X, sorted = false; discretizedomain, y, truerfirst = false) : 
             default_alphabet
 
         UnionAlphabet([_alphabet])   # return is cleaner
@@ -133,7 +133,7 @@ function initialize_antecedents(
 )::Vector{Antecedent}
 
     _alphabet = isnothing(default_alphabet) ?
-        alphabet(X; discretizedomain, y, sortingmode = :generalfirst) : 
+        alphabet(X, sorted = false; discretizedomain, y, truerfirst = false) : 
             default_alphabet
 
     conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)
@@ -184,7 +184,7 @@ Specialize rule *antecedents*.
         for (atom, mask) ∈ conjconds
             # calculate mask first to avoid unnecessary object creation
             new_mask = antecedent.covmask .& mask
-            
+
             # only build the formula if the rule actually covers something
             if any(new_mask)
                 # create a new list of conjuncts by copying the old one and adding the new atom.
@@ -242,13 +242,7 @@ function init_best_antecedent(y, w, loss_function::LossFunctions.AbstractLossFun
 end
 
 # For symmetric losses
-function init_best_antecedent(
-    y, 
-    w, 
-    loss_function::LossFunctions.SymmetricLoss; 
-    nlabels, 
-    kwargs...
-)
+function init_best_antecedent(y, w, loss_function::LossFunctions.SymmetricLoss; nlabels, kwargs...)
     antecedent = bot_antecedent(length(y))
     loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
     return antecedent, loss_val 
@@ -309,9 +303,14 @@ function findbestantecedent(
     # (sempre vera, copre tutte le istanze)
     if isnothing(starting_antecedent)
         best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
+        # println(best_loss)
     else
         best = starting_antecedent
-        best_loss = loss_function(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        if isa(loss_function, LossFunctions.AsymmetricLoss)
+            best_loss = loss_function(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        else
+            best_loss = loss_function(y, w; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        end
     end
 
     newcandidates = Antecedent[]
@@ -325,7 +324,7 @@ function findbestantecedent(
                                             max_rule_length,
                                             discretizedomain,
                                             default_alphabet)
-        
+
         # @show newcandidates
         # readline()
         # Sort new candidates

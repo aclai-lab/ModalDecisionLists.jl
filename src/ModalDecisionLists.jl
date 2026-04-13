@@ -36,9 +36,6 @@ export irepstar
 export initialize_antecedents
 export ripperk
 
-include("ensemble_learning.jl")
-export build_ensemble
-
 module BaseCN2
 using ModalDecisionLists: SatMask
 include("algorithms/base-cn2.jl")
