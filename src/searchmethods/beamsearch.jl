@@ -106,7 +106,7 @@ function newconditions(
     selectedalphabet = begin
         # make sure to create the alphabet automatically if default_alphabet is null
         _alphabet = isnothing(default_alphabet) ? 
-            alphabet(X, sorted = false; discretizedomain, y, truerfirst = false) : 
+            alphabet(X, sorted = false; discretizedomain, y, truerfirst = false, test_operators = [<, ≥]) : 
             default_alphabet
 
         UnionAlphabet([_alphabet])   # return is cleaner
@@ -133,7 +133,7 @@ function initialize_antecedents(
 )::Vector{Antecedent}
 
     _alphabet = isnothing(default_alphabet) ?
-        alphabet(X, sorted = false; discretizedomain, y, truerfirst = false) : 
+        alphabet(X, sorted = false; discretizedomain, y, truerfirst = false, test_operators = [<, ≥]) : 
             default_alphabet
 
     conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)

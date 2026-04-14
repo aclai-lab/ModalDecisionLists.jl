@@ -41,6 +41,8 @@ Pulizia codice RIPPER/IREP*:
     ☐ Considerare la reintroduzione di InstanceSet? A quel punto TrainingState e DataSplit potrebbero usare InstanceSet a loro volta
     ☐ Spostare alcune funzioni relative allo splitting in core.jl?
     ☐ Considerare la possibilità di modificare sliceinstances e TrainingSet in modo da usare una selezione ripetuta degli indici attivi nel dataset, in modo da non dover aggiungere progressivamente campi opzionali come original_y e original_y_labes: forse si può fare tutto con un semplice mapping (i-esimo indice attivo --> corrispondente indice nel dataset inziale)?
+    ☐ Sistemare max_rulebase_length in RIPPERk multiclasse
+    ☐ Aggiungere ProgressMeter per printing durante RIPPERk, IREP* e magari anche sequentialcovering
 
 RandomDecisionForests:
     ✔ Implementare le ModalDecisionForest come stabilito in chiamata @done(26-03-08 18:00)
