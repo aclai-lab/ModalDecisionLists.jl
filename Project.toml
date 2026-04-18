@@ -1,6 +1,6 @@
 name = "ModalDecisionLists"
 uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Giovanni PAGLIARINI", "Edoardo PONSANESI"]
 
 [deps]
