@@ -44,11 +44,8 @@ using ModalDecisionLists: SatMask
 include("algorithms/base-cn2.jl")
 end
 
-export ExtendedSequentialCovering
-export OrderedCN2Learner
-# export build_cn2
-
-# MLJ Interface
+export ExtendedSequentialCovering, OrderedCN2Learner
+export DecisionListClassifier, RandomDecisionListClassifier
 include("interfaces/MLJ.jl")
 
 
