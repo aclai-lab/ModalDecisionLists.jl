@@ -110,7 +110,7 @@ function build_ensemble(
 
         # use those indices to extract a dataset from X
         X_model = X[model_sample_indices, model_feature_names]            # select sampled features and instances
-        y_model = @view y[model_sample_indices]
+        y_model = y[model_sample_indices]
         w_model = (w isa AbstractVector) ? @view(w[model_sample_indices]) : w      # w might be nothing
 
         # Train the model
