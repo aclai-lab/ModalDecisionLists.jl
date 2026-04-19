@@ -35,6 +35,29 @@ istop(a::Antecedent)  = a.formula.grandchildren == [⊤]
 conds(a::Antecedent) = a.formula.grandchildren
 nconds(a::Antecedent) = length(conds(a))
 
+
+function extract_covered_labels(
+    ant::Union{Nothing, Antecedent},
+    y::AbstractVector{<:CLabel},
+    w::Union{Nothing, AbstractVector{<:Real}}
+)
+    y_covered = if (isnothing(ant) || isempty(ant.covmask))
+        Int64[]
+    else
+        @view y[ant.covmask]
+    end
+
+    w_covered = if isnothing(w)
+        nothing
+    elseif (isnothing(ant) || isempty(ant.covmask))
+        Int64[]
+    else
+        @view w[ant.covmask]
+    end
+
+    return y_covered, w_covered
+end
+
 # Utilizzare questo Wrapper di Accessors
 # @forward Antecedent.formula (
 #     SoleLogics.check,  # check(antecedent, X) diventa check(antecedent.formula, X)
@@ -95,7 +118,7 @@ struct TrainingState
 end
 
 
-function sliceinstances(ts::TrainingState, inds; return_view=true)
+function sliceinstances(ts::TrainingState, inds::AbstractVector{<:Integer}; return_view=true)
     tr_y = (return_view ? @view(ts.y[inds]) : ts.y[inds] )
     tr_w = (return_view ? @view(ts.w[inds]) : ts.w[inds] )
 

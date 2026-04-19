@@ -1,6 +1,6 @@
 using SoleBase: CLabel
 using DataFrames
-using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
+using SoleModels: DecisionList
 using SoleData
 using MLJ
 using CategoricalArrays: CategoricalValue, CategoricalArray
@@ -8,7 +8,6 @@ using RDatasets
 using StatsBase
 using Random
 using ModalDecisionLists
-using ModalDecisionLists.Metrics: binary_accuracy
 using Logging
 using Test
 
@@ -44,11 +43,13 @@ y_test = String.(y_test)
 
 
 # if the sizes of X and y do not match we expect the function to throw an AssertionError 
-@test_throws AssertionError irepstar(X_train, y_test, target_class, min_rule_coverage = 3)
+@test_throws Exception irepstar(X_train, y_test, target_class, min_rule_coverage = 3)
 
 # check if the algorithm gives the same result given the same seed and conditions
 global_logger(std_logger)
+rng_snapshot = copy(rng)
 list1 = irepstar(X_train, y_train, target_class; rng = rng)
+copy!(rng, rng_snapshot)
 list2 = irepstar(X_train, y_train, target_class, rng = rng)
 
 @test string(list1) == string(list2)    

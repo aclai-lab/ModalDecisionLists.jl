@@ -44,6 +44,12 @@ mutable struct BeamSearch <: SearchMethod
     end
 end
 
+function BeamSearch(; conjuncts_generation_method::AbstractGenerator=AtomGenerator(), beam_width::Integer=3)
+    if beam_width < 1
+        throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
+    end
+    BeamSearch(conjuncts_generation_method, beam_width)
+end
 
 
 
@@ -247,13 +253,7 @@ function init_best_antecedent(y, w, loss_function::LossFunctions.AbstractLossFun
 end
 
 # For symmetric losses
-function init_best_antecedent(
-    y, 
-    w, 
-    loss_function::LossFunctions.SymmetricLoss; 
-    nlabels, 
-    kwargs...
-)
+function init_best_antecedent(y, w, loss_function::LossFunctions.SymmetricLoss; nlabels, kwargs...)
     antecedent = bot_antecedent(length(y))
     loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
     return antecedent, loss_val 
@@ -316,7 +316,11 @@ function findbestantecedent(
         best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
     else
         best = starting_antecedent
-        best_loss = loss_function(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        if isa(loss_function, LossFunctions.AsymmetricLoss)
+            best_loss = loss_function(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        else
+            best_loss = loss_function(y, w; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        end
     end
 
     newcandidates = Antecedent[]

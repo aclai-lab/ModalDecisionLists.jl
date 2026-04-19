@@ -10,17 +10,17 @@ using ..ModalDecisionLists: count_labels_distribution
 
 """
     binary_accuracy(
-        y::AbstractVector{<:String},
-        y_pred::AbstractVector{<:String},
-        target_class::String
+        y::AbstractVector{<:CLabel},
+        y_pred::AbstractVector{<:CLabel},
+        target_class::CLabel
     ) -> Float64
 
 Computes binary accuracy for a target class by comparing true and predicted labels.
 
 # Arguments
-- `y::AbstractVector{<:String}`: Vector of true class labels.
-- `y_pred::AbstractVector{<:String}`: Vector of predicted class labels.
-- `target_class::String`: The specific class to evaluate accuracy for.
+- `y::AbstractVector{<:CLabel}`: Vector of true class labels.
+- `y_pred::AbstractVector{<:CLabel}`: Vector of predicted class labels.
+- `target_class::CLabel`: The specific class to evaluate accuracy for.
 
 # Returns
 - `Float64`: Accuracy value in the range [0, 1], where 1.0 indicates perfect accuracy.
@@ -43,9 +43,9 @@ binary_accuracy(y, y_pred, "cat")  # Returns 0.75, because 3 predictions are rig
 ```
 """
 function binary_accuracy(
-    y::AbstractVector{<:String},
-    y_pred::AbstractVector{<:String},
-    target_class::String
+    y::AbstractVector{<:CLabel},
+    y_pred::AbstractVector{<:CLabel},
+    target_class::CLabel
 )
 
     @assert length(y_pred) == length(y) "The two vectors y and y_pred in accuracy should have the same length"
@@ -86,26 +86,23 @@ end
 
 
 function entropy(
-    y::AbstractVector{<:UInt32},
+    y::AbstractVector{<:Integer},
     w::AbstractVector=default_weights(length(y));
     nlabels::Union{Integer, Nothing} = nothing,
     kwargs...
 )
-    isempty(y) && return Inf
+    # handle empty input
+    length(y) == 0 && return 0.
 
-    if isnothing(nlabels)
-        nlabels = maximum(y)
-    elseif nlabels <= 0
-        throw(ArgumentError("`nlabels` must be ≥ 1, got $nlabels"))
-    end
+    counts = countmap(y, weights(w))
 
-    # extract the labels' distribution, remove zero frequency elements and handle edge case in which all labels are in the same class
-    distribution, _ = count_labels_distribution(y, nlabels, Weights(w))
-    filter!(!iszero, distribution)
-    length(distribution) == 1 && return 0.0
+    distribution = collect(values(counts))
 
-    prob = distribution ./ sum(distribution)
-    e = -sum(prob .* log2.(prob))
+    length(distribution) <= 1 && return 0.0
+    
+    total_w = sum(distribution)
+    probs = distribution ./ total_w
+    e = -sum(probs .* log2.(probs))
     return e
 end
 
@@ -125,7 +122,7 @@ function laplace_metric(
     # number of effective labels (k) and number of matches for target class (target)
     k, target = nlabels, maximum(dist)
 
-    return 1 - ((target + 1) / (sum(dist) + k))
+    return (target + 1) / (sum(dist) + k)
 end
 
 
