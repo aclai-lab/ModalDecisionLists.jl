@@ -475,6 +475,9 @@ end
 # ---------------------------------------------------------------------------- #
 #                                   metadata                                   #
 # ---------------------------------------------------------------------------- #
+MMI.prediction_type(::Type{<:DecisionListClassifier}) = :probabilistic
+MMI.prediction_type(::Type{<:RandomDecisionListClassifier}) = :probabilistic
+
 MMI.metadata_pkg.(
     (
         OrderedCN2Learner,
