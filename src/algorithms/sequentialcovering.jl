@@ -287,6 +287,7 @@ function irepstar(
 
     info_cm = (;
         # supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        supporting_labels=y,
         # supporting_weights=collect(justcoveredw), # TODO
         supporting_predictions=fill(default_class, length(y)),
     )
