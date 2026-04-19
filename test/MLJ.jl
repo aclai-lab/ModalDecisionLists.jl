@@ -36,6 +36,7 @@ dlist = @test_nowarn fitted_params(mach).fitresult.model
 
 @test_nowarn apply(dlist, slicedataset(PropositionalLogiset(X), test))
 
+test_dlist = deepcopy(dlist)
 @test_nowarn apply!(test_dlist, slicedataset(PropositionalLogiset(X), test), y_test)
 @test_nowarn printmodel(test_dlist; show_metrics = true, show_subtree_metrics=true)
 @test_nowarn apply!(test_dlist, slicedataset(PropositionalLogiset(X), test), y_test; mode=:append)

@@ -297,8 +297,8 @@ function irepstar(
     info_dl = (;
         featurenames,
         supporting_labels=y,
+        supporting_predictions=eltype(y)[],
         supporting_weights=w
-        # TODO: add supporting predictions?
     )
     
     return DecisionList(rules, default_consequent, info_dl)

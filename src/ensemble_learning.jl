@@ -124,7 +124,11 @@ function build_ensemble(
 		models[model_num] = model
 	end
 
-    info::NamedTuple = (;featurenames, supporting_labels=y)
+    info::NamedTuple = (;
+      featurenames,
+      supporting_labels=y,
+      supporting_predictions=eltype(y)[]
+    )
 
     return DecisionEnsemble(models, aggregation_function, nothing, info)    
 end
