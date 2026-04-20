@@ -377,7 +377,7 @@ function RandomDecisionListClassifier(;
     searchmethod::SearchMethod=BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
-    loss_function::LossFunctions.AsymmetricLoss = LossFunctions.LaplaceAccuracy(),
+    loss_function::LossFunctions.AsymmetricLoss=LossFunctions.LaplaceAccuracy(),
     max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
