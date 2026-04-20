@@ -44,15 +44,6 @@ mutable struct BeamSearch <: SearchMethod
     end
 end
 
-function BeamSearch(; conjuncts_generation_method::AbstractGenerator=AtomGenerator(), beam_width::Integer=3)
-    if beam_width < 1
-        throw(ArgumentError("`beam_width` must be ≥ 1, got $beam_width"))
-    end
-    BeamSearch(conjuncts_generation_method, beam_width)
-end
-
-
-
 """
     function filteralphabetoptimized(
         X::AbstractLogiset,
