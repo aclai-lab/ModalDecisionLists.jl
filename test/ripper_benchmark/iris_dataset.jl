@@ -65,6 +65,7 @@ for target_class ∈ unique_labels
     results = repeated_cv(
         model_wrapper, metrics_wrapper,
         X, y; 
+        max_k = 5,
         rng = rng, 
         num_folds = num_folds, 
         num_repeats = num_kfolds_repeat, 
