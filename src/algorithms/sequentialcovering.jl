@@ -898,18 +898,18 @@ function ripperk(
     )
 
 
-    uncovered_original_y_labels = y
+    original_y_labels = y
     y, labels = y |> maptointeger
     poslabel_idx = findfirst(x -> x == poslabel, labels)
 
-    uncovered_original_y = y
+    original_y = y
     y = UInt32.(y .== poslabel_idx)  # convert y to an array of {0,1}, with 1 being the target class and 0 being anything else
 
-    uncovered = TrainingState(X, y, w, uncovered_original_y, uncovered_original_y_labels)
+    original_train_state = TrainingState(X, y, w, original_y, original_y_labels)
 
     # Create the initial ruleset, keeping it only as a vector of rules
     Base.@debug "Creating initial ruleset through call to IREP*"
-    curr_ruleset = irepstar(uncovered.X, uncovered.original_y_labels, poslabel, uncovered.w; 
+    curr_ruleset = irepstar(X, original_y_labels, poslabel, w; 
                             searchmethod = searchmethod,
                             tdl_threshold = tdl_threshold,
                             split_ratio = split_ratio, 
@@ -933,15 +933,15 @@ function ripperk(
     num_selectors = get_num_independent_selectors(X, y, discretizedomain)       
     
     for ripper_iteration = 1 : max_k
-        ruleset_masks = _precalculate_rules_satmasks(uncovered.X, curr_ruleset)
+        ruleset_masks = _precalculate_rules_satmasks(X, curr_ruleset)
         
         # Calculate initial TDL 
-        curr_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
-        optimized_ruleset_satmask = falses( ninstances(uncovered.X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+        curr_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, ruleset_masks)
+        optimized_ruleset_satmask = falses( ninstances(X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
         args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
         
         optimized_ruleset_satmask = _optimize_ruleset!(
-            ruleset_masks, curr_ruleset, uncovered,
+            ruleset_masks, curr_ruleset, X, y, w, original_y,
             labels, poslabel, args, curr_tdl, searchmethod, num_selectors, 
             split_ratio, rng, max_rule_length 
         )
@@ -949,7 +949,7 @@ function ripperk(
 
         # Calculate indices covered and not covered by the ruleset
         covered_indices = findall(x -> x == 1, optimized_ruleset_satmask)
-        uncovered_slice = setdiff(1:ninstances(uncovered.X), covered_indices)
+        uncovered_slice = setdiff(1:ninstances(X), covered_indices)
         
         Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
         
@@ -957,7 +957,7 @@ function ripperk(
         if length(uncovered_slice) == 0
             break end
 
-        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
+        uncovered = sliceinstances(original_train_state, uncovered_slice; return_view = true)
 
         # Check for stopping condition if no new rule can be made with such few samples. This also handles the case where no positive samples are remaining
         num_pos_samples_remaining = count(x -> x == 1, uncovered.y)
@@ -996,9 +996,9 @@ function ripperk(
     default_prediction = "other"    # default prediction if no other Rule applies
 
     info_cm = (;
-        supporting_labels=[labels[x] for x in collect(uncovered.original_y)],
+        supporting_labels=[labels[x] for x in collect(original_y)],
         # supporting_weights=collect(justcoveredw), # TODO
-        supporting_predictions=fill(default_prediction, length(uncovered.original_y)),
+        supporting_predictions=fill(default_prediction, length(original_y)),
     )
     default_consequent = ConstantModel(default_prediction, info_cm)
 
@@ -1008,11 +1008,14 @@ end
 
 
 
-
+# Note: This returns the SatMask of the optimized ruleset on the data as a BitVector
 function _optimize_ruleset!(
     ruleset_masks::BitMatrix,
     curr_ruleset::AbstractVector{<:Rule},
-    uncovered::TrainingState,
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector{<:Real},
+    original_y::AbstractVector{<:CLabel},
     labels::AbstractVector{<:CLabel},
     poslabel::CLabel,
     args::Tuple,
@@ -1025,7 +1028,7 @@ function _optimize_ruleset!(
     max_rule_length::Union{Nothing, Integer}
 )
 
-    optimized_ruleset_satmask = falses( ninstances(uncovered.X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+    optimized_ruleset_satmask = falses( ninstances(X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
 
 
     for (i, rule) ∈ enumerate(curr_ruleset)
@@ -1034,15 +1037,14 @@ function _optimize_ruleset!(
         default_dataset_satmask = merge_ruleset_satmasks(ruleset_masks, i)      # satmask of the dataset if 'rule' was not a part of it
 
         # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
-        split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng)
+        split = split_instances(X, y, w, split_ratio, rng)
         split === nothing && break
         
 
         # Consider newly grown rule as a variant to rule
         # grow a new rule and prune it, 
-        # args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
         rule_grown, rule_grown_covered_indices = _grow_and_prune_rule(
-            searchmethod, split, uncovered.original_y, poslabel, 
+            searchmethod, split, original_y, poslabel, 
             labels, default_dataset_satmask, args; 
             nlabels = 2, max_rule_length = max_rule_length,
             target_class = 1
@@ -1056,13 +1058,13 @@ function _optimize_ruleset!(
         ruleset_masks[:, i] .= false                       
         ruleset_masks[rule_grown_covered_indices, i] .= true
         curr_ruleset[i] = rule_grown
-        rule_grown_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
+        rule_grown_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, ruleset_masks)
 
 
 
         # refine a new rule starting from 'rule' and prune it, do the same as before
         rule_revised, rule_revised_covered_indices = _revise_and_prune_rule(
-            searchmethod, split, uncovered.original_y, poslabel, 
+            searchmethod, split, original_y, poslabel, 
             labels, default_dataset_satmask, 
             rule, original_rule_satmask, args; 
             nlabels = 2, max_rule_length = max_rule_length,
@@ -1076,7 +1078,7 @@ function _optimize_ruleset!(
         ruleset_masks[:, i] .= false                       
         ruleset_masks[rule_revised_covered_indices, i] .= true
         curr_ruleset[i] = rule_revised
-        rule_revised_tdl = _calculate_TDL(uncovered.y, curr_ruleset, num_selectors, ruleset_masks)
+        rule_revised_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, ruleset_masks)
 
         # Select best rule amongst the three
         competing_TDLs = (curr_tdl, rule_grown_tdl, rule_revised_tdl)
