@@ -1,14 +1,18 @@
 module MLJInterface
 
-export ExtendedSequentialCovering
-export OrderedCN2Learner
+export ExtendedSequentialCovering, OrderedCN2Learner
+export DecisionListClassifier, RandomDecisionListClassifier
 # export BeamSearch, RandSearch
 
 using ModalDecisionLists
 using ModalDecisionLists: LossFunctions
+using ModalDecisionLists: Metrics
+using ModalDecisionLists: AbstractGenerator, AtomGenerator
 
 # import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
 # import ModalDecisionLists: sequentialcovering
+
+using SoleLogics: AbstractAlphabet
 
 using SoleData
 import SoleBase: CLabel
@@ -17,13 +21,14 @@ import SoleModels: apply
 import MLJModelInterface
 using Parameters
 using StatsBase
+using Random
 
 const MMI = MLJModelInterface
 const MDL = ModalDecisionLists
 
 const _package_url = "https://github.com/aclai-lab/$(MDL).jl"
 
-abstract type CoveringStrategy <: MLJModelInterface.Deterministic end
+abstract type CoveringStrategy <: MMI.Deterministic end
 
 ############################################################################################
 ############################ ExtendedSequentialCovering #####################################
@@ -55,8 +60,8 @@ Train the machine with  fit!(mach, rows=...).
 ## Hyperparameters
 
 * `searchmethod::SearchMethod=BeamSearch()`: The search method for finding single rules (see [`SearchMethod`](@ref)).
-* `max_rulebase_length::Union{Nothing,Integer}=nothing` is the maximum length of the rulebase.
-* `min_rule_coverage::Integer=1`: constrains the minimum number of instances covered by each rule.
+* `max_rulebase_length::Union{Nothing,Int}=nothing` is the maximum length of the rulebase.
+* `min_rule_coverage::Int=1`: constrains the minimum number of instances covered by each rule.
 * `suppress_parity_warning::Bool=false`: if `true`, suppresses parity warnings.
 
 ## Fitted Parameters
@@ -75,12 +80,12 @@ See also
 mutable struct ExtendedSequentialCovering <: CoveringStrategy
     searchmethod::SearchMethod
     # shared parameters
-    loss_function::Function
+    loss_function::LossFunctions.AbstractLossFunction
     discretizedomain::Bool
     max_infogain_ratio::Real
     significance_alpha::Union{Real,Nothing}
-    min_rule_coverage::Union{Nothing,Integer}
-    max_rulebase_length::Union{Nothing,Integer}
+    min_rule_coverage::Union{Nothing,Int}
+    max_rulebase_length::Union{Nothing,Int}
     suppress_parity_warning::Bool
 end
 
@@ -97,13 +102,13 @@ end
 # Keyword constructor
 function ExtendedSequentialCovering(;
     searchmethod::SearchMethod=BeamSearch(),
-    max_rulebase_length::Union{Nothing,Integer}=nothing,
+    max_rulebase_length::Union{Nothing,Int}=nothing,
     # shared parameters
-    loss_function::Function=LossFunctions.entropy,
+    loss_function::LossFunctions.AbstractLossFunction = LossFunctions.Entropy(),
     discretizedomain::Bool=false,
     max_infogain_ratio::Real=1.0,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Integer=1,
+    min_rule_coverage::Int=1,
 
     suppress_parity_warning::Bool=false,
     kwargs...
@@ -130,15 +135,15 @@ end
 
 mutable struct OrderedCN2Learner <: CoveringStrategy
 
-    beam_width::Integer
-    loss_function::Function
+    beam_width::Int
+    loss_function::LossFunctions.SymmetricLoss
     discretizedomain::Bool
     max_infogain_ratio::Union{Real,Nothing}
     significance_alpha::Union{Real,Nothing}
     # SequentialCovering
-    min_rule_coverage::Integer
+    min_rule_coverage::Int
     max_rule_length::Union{Real,Nothing}
-    max_rulebase_length::Union{Nothing,Integer}
+    max_rulebase_length::Union{Nothing,Int}
 end
 
 function MMI.clean!(model::OrderedCN2Learner)
@@ -153,15 +158,15 @@ end
 
 # Keyword constructor
 function OrderedCN2Learner(;
-    beam_width::Integer = 3,
-    loss_function::Function = ModalDecisionLists.LossFunctions.entropy,
+    beam_width::Int = 3,
+    loss_function::LossFunctions.AbstractLossFunction = LossFunctions.Entropy(),
     discretizedomain::Bool = false,
     max_infogain_ratio::Union{Real,Nothing} = nothing,
     significance_alpha::Union{Real,Nothing} = nothing,
     # SequentialCovering
-    min_rule_coverage::Integer = 1,
-    max_rule_length::Union{Nothing,Integer} = nothing,
-    max_rulebase_length::Union{Nothing,Integer} = nothing,
+    min_rule_coverage::Int = 1,
+    max_rule_length::Union{Nothing,Int} = nothing,
+    max_rulebase_length::Union{Nothing,Int} = nothing,
 )
     model = OrderedCN2Learner(beam_width,
         loss_function, discretizedomain,
@@ -177,7 +182,7 @@ end
 ################ Fit (General for all CoveringStrategy ) ###################################
 ############################################################################################
 
-function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
+function MMI.fit(m::CoveringStrategy, verbosity::Int, X, y)
 
     # TODO use wrapdataset...?
     X_pl = PropositionalLogiset(X)
@@ -227,10 +232,258 @@ function MMI.fit(m::CoveringStrategy, verbosity::Integer, X, y)
     return fitresult, cache, report
 end
 
+# ---------------------------------------------------------------------------- #
+#                          decision tree classifier                            #
+# ---------------------------------------------------------------------------- #
+mutable struct DecisionListClassifier <: CoveringStrategy
+    searchmethod::SearchMethod 
+    tdl_threshold::Int
+    split_ratio::Real
+    loss_function::LossFunctions.AsymmetricLoss
+    max_infogain_ratio::Union{Nothing,Real}
+    default_alphabet::Union{Nothing,AbstractAlphabet}
+    discretizedomain::Bool
+    significance_alpha::Union{Real,Nothing}
+    min_rule_coverage::Int
+    max_rule_length::Union{Nothing,Int}
+    max_rulebase_length::Union{Nothing,Int}
+    conjuncts_generation_method::AbstractGenerator
+    beam_width::Int
+    rng::AbstractRNG
+    suppress_parity_warning::Bool
+end
+
+function DecisionListClassifier(;
+    searchmethod::SearchMethod=BeamSearch(), 
+    tdl_threshold::Int=64,
+    split_ratio::Real=0.7, 
+    loss_function::LossFunctions.AsymmetricLoss=LossFunctions.LaplaceAccuracy(),
+    max_infogain_ratio::Union{Nothing,Real}=nothing,
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    discretizedomain::Bool=false,
+    significance_alpha::Union{Real,Nothing}=0.0,
+    min_rule_coverage::Int=1, 
+    max_rule_length::Union{Nothing,Int}=nothing,
+    max_rulebase_length::Union{Nothing,Int}=nothing,
+    # BeamSearch
+    conjuncts_generation_method::AbstractGenerator=AtomGenerator(),
+    beam_width::Int=3,
+    # utils
+    rng::AbstractRNG=TaskLocalRNG(),
+    suppress_parity_warning::Bool=false,
+)
+    model = DecisionListClassifier(
+        searchmethod, 
+        tdl_threshold,
+        split_ratio, 
+        loss_function,
+        max_infogain_ratio,
+        default_alphabet,
+        discretizedomain,
+        significance_alpha,
+        min_rule_coverage, 
+        max_rule_length,
+        max_rulebase_length,
+        conjuncts_generation_method,
+        beam_width,
+        rng,
+        suppress_parity_warning,
+    )
+    message = MMI.clean!(model)
+    isempty(message) || @warn message
+    return model
+end
+
+function MMI.clean!(model::DecisionListClassifier)
+    warning = ""
+    if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
+        warning *= "Need max_rulebase_length ≥ 1. " *
+            "Resetting max_rulebase_length = nothing."
+        model.max_rulebase_length = nothing
+    end
+    return warning
+end
+
+function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
+    featurenames = propertynames(X)
+    logiset = scalarlogiset(X; featurenames, allow_propositional=true)
+
+    model = begin
+        irepstar(
+            logiset,
+            y;
+            featurenames,
+            searchmethod=m.searchmethod,
+            tdl_threshold=m.tdl_threshold,
+            split_ratio=m.split_ratio,
+            loss_function=m.loss_function,
+            max_infogain_ratio=m.max_infogain_ratio,
+            default_alphabet=m.default_alphabet,
+            discretizedomain=m.discretizedomain,
+            significance_alpha=m.significance_alpha,
+            min_rule_coverage=m.min_rule_coverage,
+            max_rule_length=m.max_rule_length,
+            max_rulebase_length=m.max_rulebase_length,
+            conjuncts_generation_method=m.conjuncts_generation_method,
+            beam_width=m.beam_width,
+            rng=m.rng,
+            suppress_parity_warning=m.suppress_parity_warning
+        )
+    end
+
+    verbosity == 1 && println(model)
+
+    fitresult = (; model)
+    report = (; model)
+    cache = nothing
+
+    return fitresult, cache, report
+end
+
+# ---------------------------------------------------------------------------- #
+#                      random decision tree classifier                         #
+# ---------------------------------------------------------------------------- #
+mutable struct RandomDecisionListClassifier <: CoveringStrategy
+    num_models::Int
+    use_bootstrapping::Bool
+    samples_ratio_per_model::Real
+    n_subfeatures_per_model::Union{Nothing,Int}
+    aggregation_function::Union{Nothing,Base.Callable}
+    searchmethod::SearchMethod 
+    tdl_threshold::Int
+    split_ratio::Real
+    loss_function::LossFunctions.AsymmetricLoss
+    max_infogain_ratio::Union{Nothing,Real}
+    default_alphabet::Union{Nothing,AbstractAlphabet}
+    discretizedomain::Bool
+    significance_alpha::Union{Real,Nothing}
+    min_rule_coverage::Int
+    max_rule_length::Union{Nothing,Int}
+    max_rulebase_length::Union{Nothing,Int}
+    conjuncts_generation_method::AbstractGenerator
+    beam_width::Int
+    rng::AbstractRNG
+    suppress_parity_warning::Bool
+end
+
+function RandomDecisionListClassifier(;
+    # ensemble
+    num_models::Int=50,
+    use_bootstrapping::Bool=true,
+    samples_ratio_per_model::Real=1.0,
+    n_subfeatures_per_model::Union{Nothing,Int}=nothing,
+    aggregation_function::Union{Nothing,Base.Callable}=nothing,
+    #irepstar
+    searchmethod::SearchMethod=BeamSearch(), 
+    tdl_threshold::Int=64,
+    split_ratio::Real=0.7, 
+    loss_function::LossFunctions.AsymmetricLoss=LossFunctions.LaplaceAccuracy(),
+    max_infogain_ratio::Union{Nothing,Real}=nothing,
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    discretizedomain::Bool=false,
+    significance_alpha::Union{Real,Nothing}=0.0,
+    min_rule_coverage::Int=1, 
+    max_rule_length::Union{Nothing,Int}=nothing,
+    max_rulebase_length::Union{Nothing,Int}=nothing,
+    # BeamSearch
+    conjuncts_generation_method::AbstractGenerator=AtomGenerator(),
+    beam_width::Int=3,
+    # utils
+    rng::AbstractRNG=TaskLocalRNG(),
+    suppress_parity_warning::Bool=false,
+)
+    model = RandomDecisionListClassifier(
+        num_models,
+        use_bootstrapping,
+        samples_ratio_per_model,
+        n_subfeatures_per_model,
+        aggregation_function,
+        searchmethod, 
+        tdl_threshold,
+        split_ratio, 
+        loss_function,
+        max_infogain_ratio,
+        default_alphabet,
+        discretizedomain,
+        significance_alpha,
+        min_rule_coverage, 
+        max_rule_length,
+        max_rulebase_length,
+        conjuncts_generation_method,
+        beam_width,
+        rng,
+        suppress_parity_warning,
+    )
+    message = MMI.clean!(model)
+    isempty(message) || @warn message
+    return model
+end
+
+function MMI.clean!(model::RandomDecisionListClassifier)
+    warning = ""
+    if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
+        warning *= "Need max_rulebase_length ≥ 1. " *
+            "Resetting max_rulebase_length = nothing."
+        model.max_rulebase_length = nothing
+    end
+    return warning
+end
+
+function MMI.fit(m::RandomDecisionListClassifier, verbosity::Int, X, y)
+    featurenames = propertynames(X)
+    logiset = scalarlogiset(X; featurenames, allow_propositional=true)
+
+    model = begin
+        build_ensemble(
+            logiset,
+            y,
+            m.num_models;
+            num_models=m.num_models,
+            use_bootstrapping=m.use_bootstrapping,
+            samples_ratio_per_model=m.samples_ratio_per_model,
+            n_subfeatures_per_model=m.n_subfeatures_per_model,
+            aggregation_function=m.aggregation_function,
+            model_wrapper=irepstar,
+            rng=m.rng,
+            # irepstar kwargs
+            searchmethod=m.searchmethod,
+            tdl_threshold=m.tdl_threshold,
+            split_ratio=m.split_ratio,
+            loss_function=m.loss_function,
+            max_infogain_ratio=m.max_infogain_ratio,
+            default_alphabet=m.default_alphabet,
+            discretizedomain=m.discretizedomain,
+            significance_alpha=m.significance_alpha,
+            min_rule_coverage=m.min_rule_coverage,
+            max_rule_length=m.max_rule_length,
+            max_rulebase_length=m.max_rulebase_length,
+            conjuncts_generation_method=m.conjuncts_generation_method,
+            beam_width=m.beam_width,
+            suppress_parity_warning=m.suppress_parity_warning
+        )
+    end
+
+    verbosity == 1 && println(model)
+
+    fitresult = (; model)
+    report = (; model)
+    cache = nothing
+
+    return fitresult, cache, report
+end
+
+# ---------------------------------------------------------------------------- #
+#                                   metadata                                   #
+# ---------------------------------------------------------------------------- #
+MMI.prediction_type(::Type{<:DecisionListClassifier}) = :probabilistic
+MMI.prediction_type(::Type{<:RandomDecisionListClassifier}) = :probabilistic
+
 MMI.metadata_pkg.(
     (
         OrderedCN2Learner,
         ExtendedSequentialCovering,
+        DecisionListClassifier,
+        RandomDecisionListClassifier,
     ),
     name = "$(MDL)",
     package_uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8",
@@ -240,4 +493,4 @@ MMI.metadata_pkg.(
     package_license = "MIT",
 )
 
-end # module
+end

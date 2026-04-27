@@ -1,7 +1,9 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
-/Manifest.toml
 /docs/build/
+/docs/site/
+/docs/Manifest.toml
+/Manifest.toml
 
 /src/algorithms/tryoptimize.jl
