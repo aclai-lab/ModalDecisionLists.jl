@@ -54,7 +54,8 @@ for num_models ∈ [5, 10, 15]
 
             # number of models
             num_models = num_models,
-            num_lists = num_lists
+            num_lists = num_lists,
+            loss_function = ModalDecisionLists.LossFunctions.FOILGain(),
         )
 
         println("\t\t=== 95% confidence intervals ===")

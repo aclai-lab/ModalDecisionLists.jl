@@ -28,6 +28,8 @@ X = select(table, Not([:ID, :Class]));
 X, y = preprocess_inputdata(X,y)
 X = DataFrame(X)
 
+num_features = length(collect(Tables.columnnames(Tables.columns(X)))) 
+
 
 # rng = Xoshiro(42)
 rng = Random.default_rng()
@@ -35,16 +37,16 @@ rng = Random.default_rng()
 # folds for cross validation
 num_samples = length(y)
 num_folds = 5
-num_kfolds_repeat = 5          # how many times we repeat kfolds
+num_kfolds_repeat = 2          # how many times we repeat kfolds
 
 unique_labels = unique(y)
 
 # Execute repeated k-fold cross validation for each model to be tested 
-for num_models ∈ [5]
+for num_models ∈ [5, 11, 21]
 
     println("Repeating experiments through k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RDL with $num_models models")
 
-    for lists_perc ∈ [0.0, 0.5, 1.0]
+    for lists_perc ∈ [1.0, 0.0]
 
         num_lists = round(Integer, num_models * lists_perc)
 
@@ -60,28 +62,41 @@ for num_models ∈ [5]
             # number of models
             num_models = num_models,
             num_lists = num_lists,
-            beam_width = 10
+            beam_width = 25,
+
+            min_rule_coverage = 1,
+            tdl_threshold = 0,
+            num_features_considered_per_test = round(Integer, num_features / 3.0),
+            loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+            split_ratio = 1.0,      # this means no pruning from irep*
+            discretizedomain = true,
+            suppress_parity_warning = true,
+            method_used = :irepstar,
+            prior = prior,
+            m = 1.0,
+            lam = 1
         )
 
         println("\t\t=== 95% confidence intervals ===")
         println("\t\t\tTraining accuracy: $(round(results[:train_accuracy].mean; digits=4)) ± $(round(results[:train_accuracy].margin, digits=4))")
         println("\t\t\tTesting accuracy: $(round(results[:test_accuracy].mean; digits=4)) ± $(round(results[:test_accuracy].margin, digits=4))")
-
+        println("\n\t\t\tNumber of rules per model: $(round(results[:avg_num_rules].mean; digits=4)) ± $(round(results[:avg_num_rules].margin, digits=4))")
+        println("\t\t\tNumber of connectives per rule: $(round(results[:avg_num_connectives_per_rule].mean; digits=4)) ± $(round(results[:avg_num_connectives_per_rule].margin, digits=4))")
     end
 
 
 end
 
 
-X_p = PropositionalLogiset(X)
-model_lists = rdl_model_wrapper(X_p, string.(y), rng; 
-                                num_models = 5, 
-                                num_lists = 5,
-                                beam_width = 8)
+# X_p = PropositionalLogiset(X)
+# model_lists = rdl_model_wrapper(X_p, string.(y), rng; 
+#                                 num_models = 5, 
+#                                 num_lists = 5,
+#                                 beam_width = 8)
 
-model_trees = rdl_model_wrapper(X_p, string.(y), rng; 
-                                num_models = 5, 
-                                num_lists = 0)
+# model_trees = rdl_model_wrapper(X_p, string.(y), rng; 
+#                                 num_models = 5, 
+#                                 num_lists = 0)
 
-println("\n\nLists model: \n$model_lists")
-println("\n\nTrees model: \n$model_trees")
+# println("\n\nLists model: \n$model_lists")
+# println("\n\nTrees model: \n$model_trees")

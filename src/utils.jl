@@ -205,3 +205,8 @@ function safe_reconstruct(obj, kwargs)
     to_apply = (; [k => v for (k, v) in kwargs if k in valid_keys]...)
     return reconstruct(obj; to_apply...)
 end
+
+
+function get_no_nil(a, b)
+    return (isnothing(a)) ? b : a
+end

@@ -166,8 +166,17 @@ function growth_w(ds::DataSplit; return_view = true)
     return_view ? @view(ds.w[ds.grow_inds]) : ds.w[ds.grow_inds]
 end
 
-prune_X(ds::DataSplit; return_view = true) = slicedataset(ds.X, ds.prune_inds; return_view = return_view)
-prune_y(ds::DataSplit; return_view = true) = return_view ? @view(ds.y[ds.prune_inds]) : ds.y[ds.prune_inds]
+function prune_X(ds::DataSplit; return_view = true)
+    (isnothing(ds.prune_inds) || isempty(ds.prune_inds)) && return []
+
+    slicedataset(ds.X, ds.prune_inds; return_view = return_view)
+end
+
+function prune_y(ds::DataSplit; return_view = true)
+    (isnothing(ds.prune_inds) || isempty(ds.prune_inds)) && return []
+
+    return_view ? @view(ds.y[ds.prune_inds]) : ds.y[ds.prune_inds]
+end
 
 function prune_w(ds::DataSplit; return_view = true)
     isnothing(ds.w) && return nothing 
@@ -177,6 +186,8 @@ end
 
 grow_indices(ds::DataSplit) = ds.grow_inds
 prune_indices(ds::DataSplit) = ds.prune_inds
+grow_size(ds::DataSplit) = length(ds.grow_inds)
+prune_size(ds::DataSplit) = length(ds.prune_inds)
 permutation_indices(ds::DataSplit) = ds.permutation_indices
 
 
@@ -229,7 +240,7 @@ function split_instances(
     ngrow = round(Integer, n * split_ratio)
 
     # return nothing if the split would put all the data either in the grow category or in the prune category
-    if ngrow == 0 || n - ngrow == 0
+    if ngrow == 0 # || n - ngrow == 0
         return nothing
     end
 

@@ -37,7 +37,7 @@ function model_wrapper(X, y, rng; kwargs...)
     loss_function = pop!(args_dict, :loss_function)
     min_rule_coverage = pop!(args_dict, :min_rule_coverage)
 
-    ripperk(X, y; rng = rng, loss_function = loss_function, min_rule_coverage = min_rule_coverage, args_dict...)
+    ripperk(X, y; rng = rng, loss_function = loss_function, min_rule_coverage = min_rule_coverage, num_features_considered_per_test = 2, args_dict...)
 end
 
 function metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
@@ -51,7 +51,7 @@ function metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
 end
 
 # Execute repeated k-fold cross validation for each target class
-println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
+println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RIPPER")
 
 
 results = repeated_cv(
@@ -60,8 +60,8 @@ results = repeated_cv(
     rng = rng, 
     num_folds = num_folds, 
     num_repeats = num_kfolds_repeat, 
-    loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
-    min_rule_coverage = 3
+    loss_function = ModalDecisionLists.LossFunctions.FOILGain(),
+    min_rule_coverage = 3,
 )
 
 

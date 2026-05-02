@@ -111,7 +111,7 @@ function sequentialcovering(
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
     searchmethod::SearchMethod=BeamSearch(), 
     loss_function::ModalDecisionLists.LossFunctions.SymmetricLoss = ModalDecisionLists.LossFunctions.Entropy(),
-    max_infogain_ratio::Real=1.0, 
+    max_infogain_ratio::Union{Nothing, Real}=nothing, 
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
@@ -125,7 +125,7 @@ function sequentialcovering(
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
-    @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(max_infogain_ratio) encountered."
+    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(max_infogain_ratio) encountered."
 
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
                                                                "than one. Please provide a valid value."
@@ -153,7 +153,6 @@ function sequentialcovering(
 
     rule_base = Rule[]       # the resulting rulebase
     while true
-
         # bestantecedent_coverage è un array di 0 e 1 con 1 negli indici i dove la regola trovata copre il sample xi (in unconveredX)
         bestantecedent = findbestantecedent(searchmethod, uncovered.X, uncovered.y, uncovered.w,
             #
@@ -164,9 +163,10 @@ function sequentialcovering(
             significance_alpha,
             min_rule_coverage; 
             max_rule_length=max_rule_length,
-            nlabels=length(labels)
+            nlabels=length(labels),
+            kwargs...
         )
-        
+
         istop(bestantecedent) && break
 
         rule = begin
@@ -189,9 +189,10 @@ function sequentialcovering(
         end
 
         push!(rule_base, rule)
-
+        
         # bitvector marking the samples yet to be covered by any rule
         uncovered_slice = (!).(bestantecedent.covmask)
+        uncovered_slice = findall(uncovered_slice)
 
         # update uncovered portion of the dataset
         uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
@@ -226,9 +227,10 @@ function irepstar(
     featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing,
     kwargs...
 )::DecisionList where {U<:Real}
-    @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     
+    featurenames = get_no_nil(featurenames, names(X.tabulardataset))
+
     w = if isnothing(w) || w == :default
         default_weights(y)
     elseif w == :rebalance
@@ -313,7 +315,7 @@ function irepstar(
     default_consequent = ConstantModel(default_class, info_cm)
     
     info_dl = (;
-        featurenames,
+        featurenames = featurenames,
         supporting_labels=y,
         supporting_predictions=eltype(y)[],
         supporting_weights=w
@@ -325,25 +327,28 @@ end
 
 
 function irepstar(
-    X::AbstractLogiset,
+    X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
     poslabel::CLabel,
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
 
+    featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing,
     searchmethod::SearchMethod = BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
-    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.FOILGain(),
     max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Integer=1, 
+    min_rule_coverage::Integer=3, 
     max_rule_length::Union{Nothing,Integer}=nothing,
     max_rulebase_length::Union{Nothing,Integer}=nothing,
 
     rng::AbstractRNG = Random.default_rng(),
     suppress_parity_warning::Bool=false,
+
+    num_features_considered_per_test::Union{Integer, Nothing} = nothing,
 
     kwargs...
 )::DecisionList where {U<:Real}
@@ -356,9 +361,24 @@ function irepstar(
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter `max_rule_length` cannot be less" *
                                                                "than one. Please provide a valid value."
 
-    @assert (0 < split_ratio < 1) "Parameter `split_ratio` must be in range (0,1)"
+    @assert (0 < split_ratio ≤ 1) "Parameter `split_ratio` must be in range (0,1]"
     @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
 
+    n_feats_per_test = isnothing(num_features_considered_per_test) ? nfeatures(X) : num_features_considered_per_test
+
+    # If feature-selection is necessary, materialize this to a dataset
+    if n_feats_per_test != nfeatures(X)
+        X_df = try
+            DataFrame(X)
+        catch
+            throw(ArgumentError("IREP* with the option `num_features_considered_per_test` currently requires a PropositionalLogiset materializable to a DataFrame"))
+        end
+        X = PropositionalLogiset(X_df)
+    end
+
+    featurenames = get_no_nil(featurenames, names(X.tabulardataset))
+
+    # Materialize weights if symbol was passed
     w = if isnothing(w) || w == :default
         default_weights(y)
     elseif w == :rebalance
@@ -375,12 +395,12 @@ function irepstar(
     searchmethod = safe_reconstruct(searchmethod, kwargs)
 
     info_dl = (;
-        featurenames = names(X.tabulardataset),
-        supporting_labels=y,
+        featurenames = featurenames,
+        supporting_labels=y
     )
 
     y, labels = y |> maptointeger
-    poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva)
+    poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
 
     @assert !isnothing(poslabel_idx) "The dataset provided must contain at least one positive sample!"
 
@@ -397,6 +417,7 @@ function irepstar(
     curr_TDL = get_initial_dataset_bits(y)
     curr_min_TDL = curr_TDL
     
+
     rulebase = Rule[]
     while true
 
@@ -422,10 +443,14 @@ function irepstar(
             default_alphabet,
             discretizedomain,
             significance_alpha,
-            min_rule_coverage; 
+            min_rule_coverage;
+
             max_rule_length=max_rule_length,
             nlabels=2,
-            target_class=1
+            target_class=1,
+            num_features_considered_per_test = n_feats_per_test,
+            rng = rng,
+            kwargs...
         )
 
         Base.@debug begin
@@ -455,7 +480,7 @@ function irepstar(
         istop(bestantecedent) && break
 
         # PRUNING
-        bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, prune_X(split), prune_y(split), prune_w(split))
+        bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split)
 
         # Create the new Rule as an instance of "Rule" from SoleModels
         coverage_indices = compute_global_coverage(bestantecedent, split, bestantecedent_prune_cov)
@@ -558,7 +583,7 @@ function compute_global_coverage(
     grow_cov_local = findall(grow_mask)
     grow_cov_global = grow_indices(split)[grow_cov_local]
 
-    if bestantecedent_prune_cov === nothing
+    if bestantecedent_prune_cov === nothing 
         prune_mask = check(antecedent, pruneX)
     else
         prune_mask = bestantecedent_prune_cov
@@ -635,10 +660,16 @@ end
 
 function pruneantecedent(
     antecedent::Antecedent,
-    X::AbstractLogiset,
-    y::AbstractVector{UInt32},
-    w::AbstractVector{U} = default_weights(length(y))
-) where {U<:Real}
+    split::DataSplit
+)
+    if prune_size(split) == 0
+        return antecedent.formula, BitVector([])
+    end 
+
+    X = prune_X(split)
+    y = prune_y(split)
+    w = get_no_nil(prune_w(split), default_weights(length(y)))
+
     target_class = 1
 
     # 1. Build the positive/negative masks with respect to the target class
@@ -697,7 +728,7 @@ function _r_theory_bits(rule::Rule, n::Int)
     # conds = unaryconditions_noneq(alph, X)        # @Nicola va richiamato? su wittgenstein sembra sia fissato ma mi puzza come cosa
     # n_old = length(conds) 
 
-    k = 1 + nconnectives(rule.antecedent)       # nconnectives is defined on any type <:Formula
+    k = min(1 + nconnectives(rule.antecedent), n - 1)  # make sure not to get Inf on the logarithms. if k = n then pr = 1 and we get a division by zero when calculating S
     pr = k / n
 
     S = k * log2(1 / pr) + (n - k) * log2(1 / (1 - pr))
@@ -781,12 +812,15 @@ function ripperk(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
+    featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing,
     kwargs...
 )::DecisionList where {U<:Real}
     # TODO: scrivere tutti i check sull'input
     @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     
+    featurenames = get_no_nil(featurenames, names(X.tabulardataset))
+
     w = if isnothing(w) || w == :default
         default_weights(y)
     elseif w == :rebalance
@@ -871,7 +905,8 @@ function ripperk(
     
     info_dl = (;
         supporting_labels=y,
-        supporting_weights=w
+        supporting_weights=w,
+        featurenames = featurenames
         # TODO: add supporting predictions?
     )
     
@@ -889,10 +924,12 @@ function ripperk(
     
     max_k::Integer = 1,
 
+    featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing,
+
     searchmethod::SearchMethod = BeamSearch(), 
     tdl_threshold::Int=64,
     split_ratio::Real=0.7, 
-    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+    loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss = ModalDecisionLists.LossFunctions.FOILGain(),
     max_infogain_ratio::Union{Nothing,Real}=nothing,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
@@ -904,11 +941,11 @@ function ripperk(
     rng::AbstractRNG = Random.default_rng(),
     suppress_parity_warning::Bool=false,
 
+    num_features_considered_per_test::Union{Integer, Nothing} = nothing,
 
     kwargs...
 )::DecisionList where {U<:Real}
 
-    # TODO: add checks for max_k, must be in [0, ∞] but should probably throw a warning if zero
     @assert (0 ≤ max_k) "Parameter `max_k` must be greater or equal to zero"
     if max_k == 0
         @warn "The parameter `max_k` is zero, therefore ripperk will be equivalent to irep* as no optimization step will be performed. It may be desirable to call `irepstar` directly"
@@ -922,9 +959,23 @@ function ripperk(
     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter `max_rule_length` cannot be less" *
     "than one. Please provide a valid value."
 
-    @assert (0 < split_ratio < 1) "Parameter `split_ratio` must be in range (0,1)"
+    @assert (0 < split_ratio ≤ 1) "Parameter `split_ratio` must be in range (0,1]"
     @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
 
+    n_feats_per_test = isnothing(num_features_considered_per_test) ? nfeatures(X) : num_features_considered_per_test
+
+    # If feature-selection is necessary, materialize this to a dataset
+    if n_feats_per_test != nfeatures(X)
+        X_df = try
+            DataFrame(X)
+        catch
+            throw(ArgumentError("RIPPERk used with the option `num_features_considered_per_test` currently requires a PropositionalLogiset materializable to a DataFrame"))
+        end
+        X = PropositionalLogiset(X_df)
+    end
+
+    featurenames = get_no_nil(featurenames, names(X.tabulardataset))
+    
     w = if isnothing(w) || w == :default
         default_weights(y)
     elseif w == :rebalance
@@ -943,6 +994,7 @@ function ripperk(
 
     info_dl = (;
         supporting_labels=y,
+        featurenames = featurenames
     )
 
 
@@ -972,6 +1024,7 @@ function ripperk(
                             max_rulebase_length = max_rulebase_length,
                             rng = rng, 
                             suppress_parity_warning = suppress_parity_warning,
+                            num_features_considered_per_test = num_features_considered_per_test,
                             kwargs...)
 
         
@@ -992,7 +1045,7 @@ function ripperk(
         optimized_ruleset_satmask = _optimize_ruleset!(
             ruleset_masks, curr_ruleset, X, y, w, original_y,
             labels, poslabel, args, curr_tdl, searchmethod, num_selectors, 
-            split_ratio, rng, max_rule_length 
+            split_ratio, rng, max_rule_length, num_features_considered_per_test,
         )
 
 
@@ -1035,6 +1088,7 @@ function ripperk(
                             max_rulebase_length = max_rulebase_length,
                             rng = rng, 
                             suppress_parity_warning = suppress_parity_warning,
+                            num_features_considered_per_test = num_features_considered_per_test,
                             kwargs...)
 
         # Append the residual ruleset to 
@@ -1074,10 +1128,16 @@ function _optimize_ruleset!(
     num_selectors::Integer,
     split_ratio::Real,
     rng::AbstractRNG,
-    max_rule_length::Union{Nothing, Integer}
+    max_rule_length::Union{Nothing, Integer},
+    num_features_considered_per_test::Union{Integer, Nothing},
 )
 
     optimized_ruleset_satmask = falses( ninstances(X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+
+
+    # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
+    split = split_instances(X, y, w, split_ratio, rng)
+    split === nothing && return optimized_ruleset_satmask
 
 
     for (i, rule) ∈ enumerate(curr_ruleset)
@@ -1085,18 +1145,13 @@ function _optimize_ruleset!(
         original_rule_covered_indices = findall(x -> x == 1, original_rule_satmask)
         default_dataset_satmask = merge_ruleset_satmasks(ruleset_masks, i)      # satmask of the dataset if 'rule' was not a part of it
 
-        # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
-        split = split_instances(X, y, w, split_ratio, rng)
-        split === nothing && break
-        
-
         # Consider newly grown rule as a variant to rule
         # grow a new rule and prune it, 
         rule_grown, rule_grown_covered_indices = _grow_and_prune_rule(
             searchmethod, split, original_y, poslabel, 
             labels, default_dataset_satmask, args; 
             nlabels = 2, max_rule_length = max_rule_length,
-            target_class = 1
+            target_class = 1, num_features_considered_per_test
         )
         if rule_grown === nothing
             rule_grown = rule
@@ -1117,7 +1172,7 @@ function _optimize_ruleset!(
             labels, default_dataset_satmask, 
             rule, original_rule_satmask, args; 
             nlabels = 2, max_rule_length = max_rule_length,
-            target_class = 1
+            target_class = 1, num_features_considered_per_test
         )
         if rule_revised === nothing
             rule_revised = rule
@@ -1238,12 +1293,18 @@ end
 reduced error pruning over a "joint coverage hypothesis" given by (ruleset(x) v ant(x)). In other words, this prunes ant
 in order to maximize the accuracy if ant were to be added to the ruleset.  """
 function reduced_error_prune_rule(
-    X::AbstractLogiset,
-    y::AbstractVector{<:UInt32},
-    w::AbstractVector,
+    split::DataSplit,
     ruleset_mask::BitVector,
     ant::Antecedent
 )
+    if prune_size(split) == 0
+        return ant.formula, BitVector([])
+    end 
+
+    X = prune_X(split)
+    y = prune_y(split)
+    w = prune_w(split)
+
 
     # Build positive/negative masks with respect to the target class
     target_mask = (y .== 1)
@@ -1342,7 +1403,7 @@ function _prune_rule_over_dataset(
     labels::AbstractVector{<:CLabel}
 )
     pruning_default_dataset_satmask = default_dataset_satmask[prune_indices(split)]
-    pruned_ant, pruned_ant_covmask = reduced_error_prune_rule(prune_X(split), prune_y(split), prune_w(split), pruning_default_dataset_satmask, antecedent)
+    pruned_ant, pruned_ant_covmask = reduced_error_prune_rule(split, pruning_default_dataset_satmask, antecedent)
     
     coverage_indices = compute_global_coverage(pruned_ant, split, pruned_ant_covmask)
     

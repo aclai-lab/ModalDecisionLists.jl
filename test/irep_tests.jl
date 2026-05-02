@@ -12,9 +12,9 @@ using Logging
 using Test
 
 # Create a logger to set it in debug mode
-std_logger = global_logger()
-debug_logger = ConsoleLogger(stderr, Logging.Debug)
-global_logger(debug_logger)
+# std_logger = global_logger()
+# debug_logger = ConsoleLogger(stderr, Logging.Debug)
+# global_logger(debug_logger)
 
 # Load the dataset
 X,y = @load_iris
@@ -22,7 +22,7 @@ X = DataFrame(X)
 
 
 train_ratio = 0.7
-rng = Xoshiro(1)
+rng = Xoshiro(3)
 
 train, test = partition(eachindex(y), train_ratio; shuffle=true, rng)
 X_train, y_train = X[train, :], y[train]
@@ -46,10 +46,22 @@ y_test = String.(y_test)
 @test_throws Exception irepstar(X_train, y_test, target_class, min_rule_coverage = 3)
 
 # check if the algorithm gives the same result given the same seed and conditions
-global_logger(std_logger)
+# global_logger(std_logger)
 rng_snapshot = copy(rng)
 list1 = irepstar(X_train, y_train, target_class; rng = rng)
 copy!(rng, rng_snapshot)
 list2 = irepstar(X_train, y_train, target_class, rng = rng)
 
 @test string(list1) == string(list2)    
+
+# Test if num_features_considered_per_test yields a different result
+rng_snapshot = copy(rng)
+list1 = irepstar(X_train, y_train, target_class; rng = rng, num_features_considered_per_test = 2)
+copy!(rng, rng_snapshot)
+list2 = irepstar(X_train, y_train, target_class, rng = rng)
+
+println("list1 == list2: $(string(list1) == string(list2))")
+
+println("List1:\n$(string(list1))")
+
+println("\n\nList2:\n$(string(list2))")

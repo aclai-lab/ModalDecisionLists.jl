@@ -106,7 +106,11 @@ function build_ensemble(
         end
 
         # Extract 'n_subfeatures_per_model' features randomly 
-		model_feature_names = shuffle(local_rng, all_feats)[1 : n_subfeatures_per_model]
+		model_feature_names = if (n_subfeatures_per_model != num_features)
+            shuffle(local_rng, all_feats)[1 : n_subfeatures_per_model]
+        else
+            all_feats
+        end
 
         # use those indices to extract a dataset from X
         X_model = X[model_sample_indices, model_feature_names]            # select sampled features and instances

@@ -132,7 +132,7 @@ function (::FOILGain)(
             end
         end
 
-        if antecedent.covmask[i] && prev_antecedent.covmask[i]
+        if antecedent.covmask[i] && prev_antecedent.covmask[i] && y[i] == target_class
             t += w[i];
         end
 
@@ -143,7 +143,8 @@ function (::FOILGain)(
 
     # handle edge cases which would cause the return type fo be NaN (ex: Inf - Inf or 0 * Inf)
     t == 0 && return 0.0
-    (prec_curr == 0 && prec_prev == 0) && return 0.0
+    prec_curr == 0 && return Inf
+    prec_prev == 0 && return -Inf   # depends on convention, but usually safe
 
     return -t * ( log2(prec_curr) - log2(prec_prev) );             
 end
@@ -175,5 +176,50 @@ function (::LaplaceAccuracy)(
 
     return 1 - (tp + 1) / (tp + fp + 2)
 end
+
+
+struct MEstimate <: AsymmetricLoss end
+
+
+function (::MEstimate)(
+    y::AbstractVector{<:UInt32},
+    w::AbstractVector{<:Real},
+    target_class::Integer;
+    antecedent::Antecedent = nothing,
+    prev_antecedent::Union{Antecedent, Nothing} = nothing,
+    nlabels::Integer,
+    m::Real = 2.0, # The 'm' smoothing parameter
+    prior::Union{Nothing, Real} = nothing,
+    kwargs...
+)
+    # No antecedent means no accuracy (or infinite loss)
+    isnothing(antecedent) && return 1.0
+
+    # 1 where y is equal to target_class, 0 otherwise
+    target_vector = (y .== target_class)
+
+    # tp = true positive, fp = false positive
+    tp_mask = antecedent.covmask .& target_vector
+    fp_mask = antecedent.covmask .& (.!target_vector)
+
+    tp = sum(w .* tp_mask)         
+    fp = sum(w .* fp_mask)
+    n = tp + fp # Total coverage of the rule
+
+    # calculate prior probability from the data if not provided
+    # Usually the frequency of target_class in the whole dataset
+    if isnothing(prior)
+        prior = sum(w .* target_vector) / sum(w)
+    end
+
+    # M-estimate formula: (tp + m * prior) / (n + m)
+    accuracy = (tp + m * prior) / (n + m)
+
+    # Return as loss (1 - accuracy)
+    return 1.0 - accuracy
+end
+
+
+
 
 end

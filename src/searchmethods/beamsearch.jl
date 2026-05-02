@@ -1,12 +1,14 @@
 using SoleLogics: AbstractAlphabet, pushconjunct!
 using SoleData: AbstractLogiset
-using SoleData: isordered, polarity, metacond
+using SoleData
+using SoleData: isordered, polarity, metacond, features
 using SoleLogics: subalphabets
 using Parameters
-# using ModalDecisionLists.Metrics: entropy, laplace_accuracy
-# using ModalDecisionLists.LossFunctions
+using StatsBase
+using Random
+using DataFrames
+using Tables
 using .LossFunctions
-# using .Metrics
 
 ############################################################################################
 ############## Beam search #################################################################
@@ -263,17 +265,32 @@ end
 
 """
     function findbestantecedent(
-        ::BeamSearch,
+        bs::BeamSearch,
+
         X::AbstractLogiset,
-        y::AbstractVector{<:CLabel},
-        w::AbstractVector;
-        beam_width::Integer = 3,
-        loss_function::Function = soleentropy,
-        max_rule_length::Union{Nothing,Integer} = nothing,
-        alphabet::Union{Nothing,AbstractAlphabet} = nothing
+        y::AbstractVector{<:Integer},
+        w::AbstractVector,
+
+        loss_function::LossFunctions.AbstractLossFunction,
+        max_infogain_ratio::Union{Real, Nothing},
+        default_alphabet::Union{Nothing,AbstractAlphabet},
+        discretizedomain::Bool,
+        significance_alpha::Real,
+        min_rule_coverage::Integer;
+
+        nlabels::Integer,
+        max_rule_length::Union{Integer,Nothing} = nothing,
+        target_class::Union{Integer,Nothing} = nothing,
+        starting_antecedent::Union{Nothing, Antecedent} = nothing,
+
+        num_features_considered_per_test::Union{Nothing, Integer} = nothing,
+        rng::AbstractRNG = Random.default_rng(),
     )::Antecedent
 
 Performs a beam search to find the best antecedent for a given dataset and labels.
+
+# Note
+If num_features_considered_per_test is passed, X must support column-wise indexing such as `X_sub = X[:, my_feats]`
 
 For further details, please refer to [`BeamSearch`](@ref).
 """
@@ -296,6 +313,9 @@ function findbestantecedent(
     target_class::Union{Integer,Nothing} = nothing,  # this is passed down to the loss function
     starting_antecedent::Union{Nothing, Antecedent} = nothing,
 
+    num_features_considered_per_test::Union{Nothing, Integer} = nothing,
+    rng::AbstractRNG = Random.default_rng(),        # necessary for random feature selection when building tests if num_features_considered_per_test is not equal to nfeatures(X)
+
     kwargs...
 )::Antecedent
 
@@ -314,13 +334,24 @@ function findbestantecedent(
         end
     end
 
+    X_specialization = if isnothing(num_features_considered_per_test) || num_features_considered_per_test == nfeatures(X)
+        X
+    else
+        all_feats = collect(Tables.columnnames(Tables.columns(X)))                   # list of feature names, this requires X to be a PropositionalLogiset supporting DataFrame indexing
+        # all_feats = features(X)
+        selected_features = shuffle(rng, all_feats)[1 : num_features_considered_per_test]   # extract features to be used in the test
+        X[:, selected_features]
+    end
+
+    # default_alphabet = get_no_nil(default_alphabet, alphabet(X_specialization; test_operators=[<, ≥]))
+
     newcandidates = Antecedent[]
     while true
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Antecedent[]
 
         newcandidates = specializeantecedents(bs,
-                                            candidates, X, y,
+                                            candidates, X_specialization, y,
 
                                             max_rule_length,
                                             discretizedomain,
