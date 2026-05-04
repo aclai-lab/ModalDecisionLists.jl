@@ -31,13 +31,13 @@ rng = Random.default_rng()
 # folds for cross validation
 num_samples = length(y)
 num_features = length(collect(Tables.columnnames(Tables.columns(X)))) 
-num_folds = 5
-num_kfolds_repeat = 5          # how many times we repeat kfolds
+num_folds = 3
+num_kfolds_repeat = 10          # how many times we repeat kfolds
 
 unique_labels = unique(y)
 
 # Execute repeated k-fold cross validation for each model to be tested 
-for num_models ∈ [11, 27, 51, 101]
+for num_models ∈ [11, 27, 51, 101, 201]
 
     println("Repeating experiments through k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RDL with $num_models models")
 
