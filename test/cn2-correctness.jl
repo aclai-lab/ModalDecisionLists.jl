@@ -3,7 +3,7 @@ using SoleBase: CLabel
 using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
 using SoleData
-using MLJ
+# using MLJ
 using StatsBase
 using Random
 using ModalDecisionLists
@@ -26,9 +26,8 @@ function checkconditionsequivalence(
 end
 ############################################################################################
 
-
 # Test
-
+#
 # base
 base_decisionlist = BaseCN2.build_base_cn2(X_df, y)
 @test base_decisionlist isa DecisionList

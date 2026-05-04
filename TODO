@@ -1,89 +1,73 @@
-Main:
+IREP*: 
+    ✔ Ripulire codice @started(26-03-06 22:07) @done(26-03-06 22:23) @lasted(16m59s)
+    ✔ Chiedersi se il numero totale delle condizioni non equivalenti n, in _r_theory_bits deve essere richiamato oppure no @done(26-03-26 18:38)
+    ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa) per ottimizzazione 
+    ✔ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity @done(26-03-06 22:07)
+    ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
+    ✔ Fixare e testare la versione di IREP* multiclasse @done(26-03-08 22:33)
+    ✔ Fare più test sulla versione di IREP* multiclasse, aggiungere print di debug anche lì come nel caso a classe singola @done(26-03-09 19:35)
+    ☐ Il calcolo della description length in IREP* dovrebbe usare i pesi per determinare quanto costa descrivere ogni sample?
+        -> bisognerebbe assicurarsi che i pesi siano normalizzati
 
-    Generic:
-        ☐ Delete unnecessary CN2 implementation
-            ✔ arrivare a due implementazioni uguali @done(24-04-03 11:05)
-                ✔ build_cn2 as orange_cn2(simple selector version) @done(24-03-14 20:39)
-                ✔ build_base_cn2 as orange_cn2(simple selector version) @done(24-03-16 12:00)
+Loss functions e Metrics:
+    ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
+    ✔ Sostituire gli usi di counts() nel calcolo dell'entropia e di impurità di Gini con count_labels_distribution @done(26-03-02 17:37)
+    ✔ Scrivere il sistema di dispatching per le loss functions in findbestantecedent e sortedantecedents @done(25-12-11 19:10)
+    ✔ Gestire warning sugli import e più generalmente aggiornare il resto del codice/dei sistemando gli import @done(26-03-02 15:13)
+    ✔ Creare funzione information gain usando accuratezza su true positive e true negatives come in wittgenstein (base.py linea 387) @done(25-12-11 19:09)
+    ✔ Finire di implementare le varie loss functions @started(26-03-02 17:39) @done(26-03-06 18:38) @lasted(4d59m48s)
+    ✔ Scrivere tests per le funzioni in metrics @done(26-03-06 18:38)
 
-        ☐ new section in docu
-        ✔ MLJ interface for cn2 @done(24-04-29 18:23)
-        ☐ Metrics  
-            ✔ Entropy @done(24-04-29 18:23)
-            ✔ Laplace @done(24-04-29 18:23)
-            ✔ entropyMDL @done(24-04-29 18:23)
-            ☐ Rule validation
-            ☐ LRS
-            ☐ Weighted relative accuracy
-        ☐ SyntaxSearch
-            # Formule di una certa grammatica e di un certo alfabeto si generan così
-                # a = ExplicitAlphabet(@atoms p q r s)
-                # g = SoleLogics.CompleteFlatGrammar(a, [∧, ∨])
-                # formulas(g; maxdepth = 2)
-                # formulas(g; maxdepth = 100, nformulas = 100)
-        ☐ Define DecisionSet and corresponding apply method
+Test IREP*:
+    ✔ Rimpiazzare rand_seed con un oggetto rng così come è standard in Julia @done(26-03-10 15:36)
+    ✔ Testare che la riproducibilità di irep* funzioni davvero @done(26-03-10 15:36)
+    ✔ Implementare stopping condition descritta realmente nel paper e confrontare le performance con quella precedente @done(26-03-10 18:47)
+    ☐ Sviluppare benchmark su dataset vari di RDatasets, guardare anche quali tipi di test hanno fatto gli altri @started(26-03-10 14:55)
+        ✔ Iris @done(26-03-10 14:55)
+        ✔ Crab classification @done(26-03-10 14:55)
+        ☐ Abalone
+        ☐ Yeast
+    ☐ Confrontare performance con quella di altri metodi o di altre implementazioni (ex: quello in wittgenstein)
 
+RIPPER:
+    ✔ Implementare RIPPER @done(26-03-15 15:27)
+    ✔ Testare la riproducibilità dei risultati di RIPPER @done(26-03-15 17:14)
+    ✔ Implementare il caso non binario @done(26-03-26 18:38)
+    ☐ Pensare a se sono possibili ulteriori ottimizzazioni per risparmiare delle operazioni
+
+Pulizia codice RIPPER/IREP*:
+    ✔ Creare una struct ausiliaria "TrainingState" per gestire automaticamente le operazioni ripetute su uncoveredX, uncoveredy e così via @done(26-03-22 22:42)
+    ✔ Creare una struct ausiliaria "DataSplit" per gestire lo splitting dei dati nella parte di growth e di pruning @done(26-03-22 22:43)
+    ☐ Considerare la reintroduzione di InstanceSet? A quel punto TrainingState e DataSplit potrebbero usare InstanceSet a loro volta
+    ☐ Spostare alcune funzioni relative allo splitting in core.jl?
+    ☐ Considerare la possibilità di modificare sliceinstances e TrainingSet in modo da usare una selezione ripetuta degli indici attivi nel dataset, in modo da non dover aggiungere progressivamente campi opzionali come original_y e original_y_labes: forse si può fare tutto con un semplice mapping (i-esimo indice attivo --> corrispondente indice nel dataset inziale)?
+    ☐ Sistemare max_rulebase_length in RIPPERk multiclasse
+    ☐ Aggiungere ProgressMeter per printing durante RIPPERk, IREP* e magari anche sequentialcovering
+
+RandomDecisionForests:
+    ✔ Implementare le ModalDecisionForest come stabilito in chiamata @done(26-03-08 18:00)
+    ✔ Fare un test sul dataset di crab classification @done(26-03-08 20:21)
+    ✔ Implementare repeated cross validation nei test di rdl e irep? @started(26-03-10 12:32) @done(26-03-10 14:44) @lasted(2h12m2s)
+    ✔ Testare la riproducibilità di RandomDecisionLists, assicurarsi che i risultati siano deterministici @done(26-03-10 15:55)
+    ✔ Far passare la funzione con cui addestrare il modello di base come parametro a build_rdl @done(26-03-15 17:25)
+        --> Automaticamente darebbe la possibilità di creare un modello misto, con subsampling di samples e features come random forest, ma unendo sia decision lists sia decision trees
+    ✔ Scrivere funzione per caso non binario di Random Decision Lists @done(26-03-26 18:38)
     
-    Utility:
-        ✔ Implementing instances(PropositionalLogiset) @done(24-03-04 17:11)
-            ✔ Gestione errore in istanziazione PropositionalLogiset{DataFrame}(SubDataFrame) @done(24-04-13 04:08)
-            # già scritta soluzione temporanea
-        ✔ add alphabet parameter @done(24-04-03 11:06)
-        ✔ check empty row table in ProposiionlLogiset costruction @done(24-04-03 17:35)
-        ✔ map from integer to original class names @done(24-04-10 16:31)
-        ☐ semplificazione LmCF o LmDF 
-            # scalarminimizer
-        ✔ BoundedScalarCond -> UnivariateScalarCondion @done(24-04-10 16:31)    
-    Testing:
-        ✔ 100% accuracy when testing on training data ? @done(24-03-01 03:02)
-            ☐ Only real attributes
-                ☐ Biopsy
-                ☐ Ionosphere
-                ☐ Mobile
-                ☐ Yeast
-                ☐ Abalone
-            
-    Future: 
-        ✔ Differenziare caso attributi discreti/categoriali
-    
+Test RandomDecisionForests:
+        --> mi servirà per fare i confronti con Random Forests, che sono agnostiche rispetto al tipo di classe
+    ✔ Scrivere template esperimenti vari per confrontare Random Decision Lists con Random Decision Forests e con modello misto tra alberi e Random Decision Lists @done(26-03-26 18:38)
+        ✔ Crab classification @done(26-03-26 18:38)
+        ✔ Iris dataset @done(26-03-30 15:07)
+        ✔ Biopsy @done(26-03-30 15:07)
+        ✔ Wine quality @done(26-03-30 15:08)
+        ☐ Altri?
 
-    MLJ-Interface:
-        ✔ Constructor with keyword arguments @done(24-04-12 13:32)
-        ✔ fit @done(24-06-01 13:59)
-            # parlare con gio di CategoricalArrays
-        ✔ predict @done(24-06-01 13:59)
-        ✔ clean! @done(24-06-01 13:59)
-            # https://juliaai.github.io/MLJModelInterface.jl/dev/quick_start_guide/
-        ✔ MMI.metadata_pkg.MMI.metadata_pkg @done(24-06-01 13:59)
+    ✔ Cambiare "build_rdl" in "build_ensemble" @done(26-03-30 13:55)
+
+Later:
+    ✔ Considerare la possibilità di introdurre delle funzioni astratte per fare k-fold cross validation e repeated cross validation, magari da mettere in SoleModels? @done(26-03-15 17:14)
+    ✔ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni fold in repeated cross validation @done(26-03-30 15:15)
 
 
-
-    Last:
-
-        ☐ In RandSearch, when calling randformula, should you give it the right atompicking_mode and subalphabets_weights; right?
-            ✔ :uniform working ? @done(24-06-01 18:59)
-            ✔ :twostep working ? @done(24-06-01 18:59)
-            ☐ subalphabets_weights working ? 
-            # atompicker = ((rng,alph)->randatom(rng,alph; atompicking_mode = ..., subalphabets_weights = ...))
-            ☐ was :uniform or :weighted working better...? 
-            ✔ And which one are we using now? @done(24-06-02 11:56)
-                ☐ Uniform
-
-        ✔ only one expression between "evaluation function" and "quality evaluator" and "loss_function" @done(24-06-01 15:05)
-            or maybe "loss function". 
-        ☐ TODO Remove Italian writings (@Italian)
-        ✔ Rename SequentialCoveringLearner; "learner" is a bit old-fashioned in my opinion. Maybe something like "ExtendedSequentialCovering?" @done(24-06-01 15:05)
-        ☐ add documentation for SequentialCoveringLearner
-        ✔ Gather all the good code in "dev" branch, and delete unnecessary branches, edo, edo-memo, edo-dec-set, etc. @done(24-06-01 15:05)
-            # https://stackoverflow.com/questions/1307114/how-can-i-archive-git-branches/42232899#42232899
-            ☐ keep edo ? 
-            ✔ edo-memo @done(24-06-01 15:05)
-            ✔ edo-dec-set @done(24-06-01 15:05)
-    
-
-    Post Experiments Patches:
-        ☐ Unify names for maxinfogain
-        ☐ In RandSearch default alpha and max_infogain_ratio to Nothing (after tuning phase)
-
-
-        
+ALtro:
+    ✔ Sistemare sequentialcovering di base, per qualche motivo quando testato su iris ritorna una lista vuota, findbestantecedent ritorna \top @done(26-04-13 13:09)

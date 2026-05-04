@@ -75,7 +75,7 @@ See also
 mutable struct ExtendedSequentialCovering <: CoveringStrategy
     searchmethod::SearchMethod
     # shared parameters
-    loss_function::Function
+    loss_function::LossFunctions.AbstractLossFunction
     discretizedomain::Bool
     max_infogain_ratio::Real
     significance_alpha::Union{Real,Nothing}
@@ -99,7 +99,7 @@ function ExtendedSequentialCovering(;
     searchmethod::SearchMethod=BeamSearch(),
     max_rulebase_length::Union{Nothing,Integer}=nothing,
     # shared parameters
-    loss_function::Function=LossFunctions.entropy,
+    loss_function::LossFunctions.AbstractLossFunction = LossFunctions.Entropy(),
     discretizedomain::Bool=false,
     max_infogain_ratio::Real=1.0,
     significance_alpha::Union{Real,Nothing}=0.0,
@@ -131,7 +131,7 @@ end
 mutable struct OrderedCN2Learner <: CoveringStrategy
 
     beam_width::Integer
-    loss_function::Function
+    loss_function::LossFunctions.SymmetricLoss
     discretizedomain::Bool
     max_infogain_ratio::Union{Real,Nothing}
     significance_alpha::Union{Real,Nothing}
@@ -154,7 +154,7 @@ end
 # Keyword constructor
 function OrderedCN2Learner(;
     beam_width::Integer = 3,
-    loss_function::Function = ModalDecisionLists.LossFunctions.entropy,
+    loss_function::LossFunctions.SymmetricLoss = LossFunctions.Entropy(),
     discretizedomain::Bool = false,
     max_infogain_ratio::Union{Real,Nothing} = nothing,
     significance_alpha::Union{Real,Nothing} = nothing,

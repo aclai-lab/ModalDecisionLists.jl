@@ -1,34 +1,245 @@
 using DataFrames
+
 using SoleBase: CLabel
 using SoleData: AbstractLogiset, PropositionalLogiset
 using SoleModels: bestguess
 using Parameters
 using FillArrays
 using StatsBase
-using ModalDecisionLists.LossFunctions: laplace_accuracy
-using ModalDecisionLists.LossFunctions: significance_test
 
 const SatMask = BitVector
 
+
 ############################################################################################
-############ Helping function ##############################################################
+############ Utilities #####################################################################
 ############################################################################################
 
-pp(str) = printstyled("$(str) \n", color = :red, bold = true)
 
-macro showlc(list, c)
-    return esc(quote
-        infolist = (length($list) == 0 ?
-                        "EMPTY" :
-                        "len: $(length($list))"
-                    )
-        printstyled($(string(list)),  " | $infolist \n", bold=true, color=$c)
-        for (ind, element) in enumerate($list)
-            printstyled(ind,") ",element, "\n", color=$c)
-        end
-    end)
 
+struct Antecedent
+    formula::LeftmostConjunctiveForm
+    covmask::SatMask
 end
+
+function Antecedent(fs::AbstractVector{<:Formula}, cm::SatMask)
+    return Antecedent(LeftmostConjunctiveForm(fs), cm)
+end
+
+# Funzione per creare un Antecedent "top"
+function bot_antecedent(n::Integer)
+    return Antecedent(LeftmostConjunctiveForm([⊤]), ones(Bool, n))   # ⊤ rappresenta la formula top 
+end
+
+istop(a::Antecedent)  = a.formula.grandchildren == [⊤]
+
+conds(a::Antecedent) = a.formula.grandchildren
+nconds(a::Antecedent) = length(conds(a))
+
+function extract_covered_labels(
+    ant::Union{Nothing, Antecedent}, 
+    y::AbstractVector{<:CLabel}, 
+    w::Union{Nothing, AbstractVector{<:Real}}
+)
+    y_covered = if (isnothing(ant) || isempty(ant.covmask))
+        Int64[]
+    else
+        @view y[ant.covmask]
+    end
+        
+    w_covered = if isnothing(w)
+        nothing
+    elseif (isnothing(ant) || isempty(ant.covmask)) 
+        Int64[]
+    else
+        @view w[ant.covmask]
+    end
+
+    return y_covered, w_covered
+end
+
+# Utilizzare questo Wrapper di Accessors
+# @forward Antecedent.formula (
+#     SoleLogics.check,  # check(antecedent, X) diventa check(antecedent.formula, X)
+#     Base.length,
+#     nconjuncts,
+#     # ... altri metodi
+# )
+#
+# # Ora puoi fare:
+# ant = Antecedent(formula, mask)
+# check(ant, X)  # Automaticamente delegato a check(ant.formula, X)
+#
+
+
+
+
+struct TrainingState
+    X :: AbstractLogiset
+    y :: AbstractVector{<:CLabel}
+    w :: Union{Nothing,AbstractVector{<:Real}}
+    original_y :: Union{AbstractVector, Nothing}
+    original_y_labels :: Union{AbstractVector, Nothing}
+
+    function TrainingState(
+        X::AbstractLogiset,
+        y::AbstractVector{<:CLabel},
+        w::Union{Nothing, AbstractVector{<:Real}, Symbol},
+        original_y::Union{AbstractVector, Nothing} = nothing,
+        original_y_labels::Union{AbstractVector, Nothing} = nothing
+    )
+        @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
+
+        w = if isnothing(w) || w == :default
+            default_weights(y) # ones
+        elseif w == :rebalance
+            balanced_weights(y)
+        else
+            w
+        end
+
+        !(ninstances(X) == length(y)) && error("Mismatching number of instances between X and y! ($(ninstances(X)) != $(length(y)))")
+        if !isnothing(w)
+            !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
+        end
+
+        (ninstances(X) == 0) && error("Empty training set")
+
+        if !isnothing(original_y)
+            !(ninstances(X) == length(original_y)) && error("Mismatch number of instances between X and original_y! ($(ninstances(X)) != $(length(original_y)))")
+        end
+
+        if !isnothing(original_y_labels)
+            !(ninstances(X) == length(original_y_labels)) && error("Mismatch number of instances between X and original_y_labels! ($(ninstances(X)) != $(length(original_y_labels)))")
+        end
+
+        return new(X, y, w, original_y, original_y_labels)
+    end
+end
+
+
+function sliceinstances(ts::TrainingState, inds::AbstractVector{<:Integer}; return_view=true)
+    tr_y = (return_view ? @view(ts.y[inds]) : ts.y[inds] )
+    tr_w = (return_view ? @view(ts.w[inds]) : ts.w[inds] )
+
+    tr_original_y = nothing
+    if !isnothing(ts.original_y)
+        tr_original_y = (return_view) ? @view(ts.original_y[inds]) : ts.original_y[inds]
+    end
+
+    tr_original_y_labels = nothing
+    if !isnothing(ts.original_y_labels)
+        tr_original_y_labels = (return_view) ? @view(ts.original_y_labels[inds]) : ts.original_y_labels[inds]
+    end
+
+    return TrainingState(
+        slicedataset(ts.X, inds; return_view=return_view),
+        tr_y,
+        tr_w,
+        tr_original_y,
+        tr_original_y_labels
+    )
+end
+
+
+
+
+
+
+
+struct DataSplit
+    X :: AbstractLogiset
+    y :: AbstractVector{<:CLabel}
+    w :: Union{Nothing,AbstractVector{<:Real}}
+
+    grow_inds::Vector{Int}
+    prune_inds::Vector{Int}
+    permutation_indices::Vector{Int}
+end
+
+growth_X(ds::DataSplit; return_view = true) = slicedataset(ds.X, ds.grow_inds; return_view = return_view)
+growth_y(ds::DataSplit; return_view = true) = return_view ? @view(ds.y[ds.grow_inds]) : ds.y[ds.grow_inds]
+
+function growth_w(ds::DataSplit; return_view = true)
+    isnothing(ds.w) && return nothing 
+
+    return_view ? @view(ds.w[ds.grow_inds]) : ds.w[ds.grow_inds]
+end
+
+prune_X(ds::DataSplit; return_view = true) = slicedataset(ds.X, ds.prune_inds; return_view = return_view)
+prune_y(ds::DataSplit; return_view = true) = return_view ? @view(ds.y[ds.prune_inds]) : ds.y[ds.prune_inds]
+
+function prune_w(ds::DataSplit; return_view = true)
+    isnothing(ds.w) && return nothing 
+
+    return_view ? @view(ds.w[ds.prune_inds]) : ds.w[ds.prune_inds]
+end
+
+grow_indices(ds::DataSplit) = ds.grow_inds
+prune_indices(ds::DataSplit) = ds.prune_inds
+permutation_indices(ds::DataSplit) = ds.permutation_indices
+
+
+"""
+    split_instances(
+        X::AbstractLogiset,
+        y::AbstractVector{<:CLabel},
+        w::AbstractVector{<:Real},
+        split_ratio::Real,
+        rng::AbstractRNG = Random.default_rng()
+    ) -> Union{DataSplit, Nothing}
+
+Split the dataset `(X, y, w)` into two disjoint subsets: a "grow" set and a "prune" set,
+based on the specified `split_ratio`. The split is performed randomly using the provided
+random number generator `rng`.
+
+# Arguments
+- `X::AbstractLogiset`: The input dataset, containing the instances to be split.
+- `y::AbstractVector{<:CLabel}`: The labels corresponding to the instances in `X`.
+- `w::AbstractVector{<:Real}`: The weights associated with each instance in `X`.
+- `split_ratio::Real`: The proportion of instances to allocate to the "grow" set.
+- `rng::AbstractRNG`: The random number generator to use for shuffling the instances.
+
+# Returns
+- `DataSplit`: An object containing the split dataset information, including:
+  - The original `X`, `y`, and `w`.
+  - `grow_inds`: Indices of instances in the grow set.
+  - `prune_inds`: Indices of instances in the prune set.
+  - `permutation_indices`: The random permutation used for splitting.
+- `Nothing`: If the split would result in an empty grow set or an empty prune set
+  (i.e., if `round(n * split_ratio) == 0` or `round(n * split_ratio) == n`, where `n`
+  is the number of instances).
+
+# Notes
+- The split is performed by generating a random permutation of instance indices and
+  assigning the first `ngrow = round(Integer, n * split_ratio)` indices to the grow set,
+  with the remaining indices going to the prune set.
+- The function ensures that both subsets are non-empty to avoid degenerate splits.
+
+See also: [`DataSplit`](@ref), [`growth_X`](@ref), [`prune_X`](@ref).
+"""
+function split_instances(
+    X::AbstractLogiset,
+    y::AbstractVector{<:CLabel},
+    w::AbstractVector{<:Real},
+    split_ratio::Real,
+    rng::AbstractRNG = Random.default_rng()
+)
+    n = ninstances(X)
+    ngrow = round(Integer, n * split_ratio)
+
+    # return nothing if the split would put all the data either in the grow category or in the prune category
+    if ngrow == 0 || n - ngrow == 0
+        return nothing
+    end
+
+    perm_indices = randperm(rng, n)
+    grow_indices = perm_indices[1:ngrow]
+    prun_indices = perm_indices[ngrow+1:end]
+
+    return DataSplit(X, y, w, grow_indices, prun_indices, perm_indices)
+end
+
+
 
 ############################################################################################
 ############ SearchMethods #################################################################
@@ -39,9 +250,7 @@ end
         SearchMethod
 
 Abstract type for all search methods to be used in [`sequentialcovering`](@ref).
-
 Any search method implements a [`findbestantecedent`](@ref) method.
-
 See also [`findbestantecedent`](@ref), [`BeamSearch`](@ref), [`RandSearch`](@ref).
 """
 abstract type SearchMethod end
@@ -56,7 +265,6 @@ abstract type SearchMethod end
     )
 
 Find the best antecedent formula using `sm` on dataset `X` labelled by `y` and weighted by `w`.
-
 See also [`findbestantecedent`](@ref), [`SearchMethod`](@ref).
 """
 function findbestantecedent(
@@ -67,135 +275,34 @@ function findbestantecedent(
     kwargs...
 )
     return error("Please, provide method findbestantecedent(sm::$(typeof(sm)), X::$(typeof(X))," *
-    " y::$(typeof(y)), w::$(typeof(w)); kwargs...).")
+                 " y::$(typeof(y)), w::$(typeof(w)); kwargs...).")
 end
 
 ############################################################################################
-############ AtomSearch ####################################################################
+############ AbstractGenerator #############################################################
 ############################################################################################
+#
 """
 
-        AtomSearch
+        AbstractGenerator
 
-Method for conjunctions search to be used with [`BeamSearch`](@ref), where the conjunctions are restricted to
-atomic conditions. This approach precisely implements the CN2 algorithm.
+Abstract type representing a generic generator of logical conjuncts.
+
+Subtypes of `AbstractGenerator` are responsible for producing individual conjuncts 
+— either atomic predicates or composite formulas — according to specific generation 
+rules or constraints. These conjuncts can then be combined using logical `AND` 
+operators to form full rule bodies.
+
+Typical use cases include:
+- Generating candidate atoms for rule induction.
+- Sampling logical subformulas under syntactic or semantic constraints.
+- Building the conjunction part of a logical rule (the rule's body).
+
+Implementations should define at least:
+- `generate_conjuncts(gen::YourGenerator)`: returns an iterable or vector
+  of conjuncts produced by the generator.
 """
-struct AtomSearch <: SearchMethod end
 
-function findbestantecedent(
-    as::AtomSearch,
-    X::AbstractLogiset,
-    y::AbstractVector{<:CLabel},
-    w::AbstractVector;
-    kwargs...
-)
-    return findbestantecedent(BeamSearch(; conjuncts_search_method=as, max_rule_length=1), X, y, w; kwargs...)
-end
+abstract type AbstractGenerator end
 
 ############################################################################################
-
-
-include("searchmethods/beamsearch.jl")
-include("searchmethods/randsearch.jl")
-
-
-function maptointeger(y::AbstractVector{<:CLabel})
-
-    # ordered values
-    values = unique(y)
-    integer_y = zeros(UInt32, length(y))
-
-    for (i, v) in enumerate(values)
-        integer_y[y.==v] .= i
-    end
-    return integer_y, values
-end
-
-"""
-    best_satmasks(
-        satmasks::Vector{Tuple{Formula, SatMask}},
-        y::AbstractVector{CLabel},
-        w::AbstractVector,
-        beam_width::Integer,
-        loss_function::Function
-    )
-
-Sort rule satmasks based on their loss, using a specified loss function.
-
-Sorts rule antecedents based on their lossfnctn using a specified loss function.
-
-Takes an *antecedents*, each decorated by a SatMask indicating his coverage bitmask.
-Each antecedent is evaluated on his covered y using the provided *loss_function* function.
-Then the permutation of the bests *beam_search* sorted antecedent is returned with the lossfnctn
-value of the best one.
-
-See also
-[`entropy`](@ref).
-"""
-function sortantecedents(
-    antecedents::AbstractVector{<:Tuple{Formula, SatMask}},
-    y::AbstractVector{<:CLabel},
-    w::AbstractVector,
-    beam_width::Integer,
-    loss_function::Function,
-    min_rule_coverage::Integer,
-    max_infogain_ratio::Union{Real, Nothing},
-    significance_alpha::Union{Real, Nothing};
-    kwargs...
-)::Tuple{AbstractVector, <:Real}
-
-    isempty(antecedents) && return [], Inf
-
-    if min_rule_coverage > 1
-        validindexes = [(count(ant[2]) >= min_rule_coverage) for ant in antecedents
-            ] |> findall
-        isempty(validindexes) && return [], Inf
-        antecedents = antecedents[validindexes]
-    end
-    indexes = collect(1:length(antecedents))
-
-    antslossfnctn = map(antd -> begin
-            _, satinds = antd
-            loss_function(y[satinds], w[satinds]; kwargs...)
-        end, antecedents)
-    if !isnothing(max_infogain_ratio)
-        @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio not in range [0,1]"
-
-        minloss = (1 - max_infogain_ratio) * loss_function(y, w; kwargs...)
-
-        indexes = map(aq -> begin
-                    (index, lossfnctn) = aq
-                    (lossfnctn >= minloss) && index
-            end, enumerate(antslossfnctn)
-        ) |> filter(x -> x != false)
-        isempty(indexes) && return [], Inf
-    end
-    valid_indexes = partialsortperm(antslossfnctn[indexes], 1:min(beam_width, length(indexes)))
-
-    newstar_perm = indexes[valid_indexes]
-    newstar = antecedents[newstar_perm]
-    bestantecedent_lossfnctn = antslossfnctn[newstar_perm[1]]
-
-    return newstar, bestantecedent_lossfnctn
-end
-
-############################################################################################
-############ Utils #########################################################################
-############################################################################################
-
-function preprocess_inputdata(
-    X::AbstractDataFrame,
-    y;
-    remove_duplicate_rows = false
-)
-    if remove_duplicate_rows
-        allunique(X) && return (X, y)
-        nonunique_ind = nonunique(X)
-        Xy = hcat( X[findall((!).(nonunique_ind)), :],
-                   y[findall((!).(nonunique_ind))]
-        ) |> dropmissing
-    else
-        Xy = hcat(X[:, :], y[:]) |> dropmissing
-    end
-    return Xy[:, 1:(end-1)], Xy[:, end]
-end

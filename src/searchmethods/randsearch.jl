@@ -3,7 +3,7 @@ using SoleLogics: randatom
 using SoleData: thresholds
 using FillArrays
 using Random
-using ModalDecisionLists.LossFunctions: entropy, significance_test
+using ModalDecisionLists.Metrics: entropy, significance_test
 ############################################################################################
 ############## Random search ###############################################################
 ############################################################################################
