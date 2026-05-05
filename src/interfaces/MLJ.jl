@@ -438,28 +438,29 @@ function MMI.fit(m::RandomDecisionListClassifier, verbosity::Int, X, y)
             logiset,
             y,
             m.num_models;
-            num_models=m.num_models,
             use_bootstrapping=m.use_bootstrapping,
             samples_ratio_per_model=m.samples_ratio_per_model,
             n_subfeatures_per_model=m.n_subfeatures_per_model,
             aggregation_function=m.aggregation_function,
-            model_wrapper=irepstar,
+            model_wrapper=sequentialcovering,
             rng=m.rng,
+
+            max_rulebase_length=15
             # irepstar kwargs
-            searchmethod=m.searchmethod,
-            tdl_threshold=m.tdl_threshold,
-            split_ratio=m.split_ratio,
-            loss_function=m.loss_function,
-            max_infogain_ratio=m.max_infogain_ratio,
-            default_alphabet=m.default_alphabet,
-            discretizedomain=m.discretizedomain,
-            significance_alpha=m.significance_alpha,
-            min_rule_coverage=m.min_rule_coverage,
-            max_rule_length=m.max_rule_length,
-            max_rulebase_length=m.max_rulebase_length,
-            conjuncts_generation_method=m.conjuncts_generation_method,
-            beam_width=m.beam_width,
-            suppress_parity_warning=m.suppress_parity_warning
+            # searchmethod=m.searchmethod,
+            # tdl_threshold=m.tdl_threshold,
+            # split_ratio=m.split_ratio,
+            # loss_function=m.loss_function,
+            # max_infogain_ratio=m.max_infogain_ratio,
+            # default_alphabet=m.default_alphabet,
+            # discretizedomain=m.discretizedomain,
+            # significance_alpha=m.significance_alpha,
+            # min_rule_coverage=m.min_rule_coverage,
+            # max_rule_length=m.max_rule_length,
+            # max_rulebase_length=m.max_rulebase_length,
+            # conjuncts_generation_method=m.conjuncts_generation_method,
+            # beam_width=m.beam_width,
+            # suppress_parity_warning=m.suppress_parity_warning
         )
     end
 
