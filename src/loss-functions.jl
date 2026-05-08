@@ -162,17 +162,23 @@ function (::LaplaceAccuracy)(
     kwargs...
 )
     # no antecedent means no accuracy
-    isnothing(antecedent) && return 0.0
+    isnothing(antecedent) && return 1.0
+    
+    tp = 0.0
+    fp = 0.0
+    mask = antecedent.covmask
 
-    # 1 where y is equal to target_class, 0 otherwise
-    target_vector = (y .== target_class)
-
-    # tp = true positive, fp = false positive
-    tp_mask = antecedent.covmask .& target_vector
-    fp_mask = antecedent.covmask .& (.!target_vector)
-
-    tp = sum(w .* tp_mask)         
-    fp = sum(w .* fp_mask)
+    # Doing a single pass over the data is much faster than using ".==" syntax, because this doesn't allocate any 
+    # temporary arrays. Memory allocation is the real bottleneck of .==
+    @inbounds for i in eachindex(y, w, mask)
+        if mask[i]
+            if y[i] == target_class
+                tp += w[i]
+            else
+                fp += w[i]
+            end
+        end
+    end
 
     return 1 - (tp + 1) / (tp + fp + 2)
 end
@@ -195,21 +201,41 @@ function (::MEstimate)(
     # No antecedent means no accuracy (or infinite loss)
     isnothing(antecedent) && return 1.0
 
-    # 1 where y is equal to target_class, 0 otherwise
-    target_vector = (y .== target_class)
+    tp = 0.0
+    fp = 0.0
+    mask = antecedent.covmask
+    
+    # We may need these for the prior calculation
+    sum_w_target = 0.0
+    sum_w_total = 0.0
 
-    # tp = true positive, fp = false positive
-    tp_mask = antecedent.covmask .& target_vector
-    fp_mask = antecedent.covmask .& (.!target_vector)
+    @inbounds for i in eachindex(y, w, mask)
+        is_target = (y[i] == target_class)
+        wi = w[i]
+        
+        # tp = true positive, fp = false positive
+        if mask[i]
+            if is_target
+                tp += wi
+            else
+                fp += wi
+            end
+        end
 
-    tp = sum(w .* tp_mask)         
-    fp = sum(w .* fp_mask)
+        # calculate prior probability from the data if not provided
+        # using the frequency of target_class in the whole dataset
+        if isnothing(prior)
+            sum_w_total += wi
+            if is_target
+                sum_w_target += wi
+            end
+        end
+    end
+
     n = tp + fp # Total coverage of the rule
 
-    # calculate prior probability from the data if not provided
-    # Usually the frequency of target_class in the whole dataset
     if isnothing(prior)
-        prior = sum(w .* target_vector) / sum(w)
+        prior = sum_w_target / sum_w_total
     end
 
     # M-estimate formula: (tp + m * prior) / (n + m)

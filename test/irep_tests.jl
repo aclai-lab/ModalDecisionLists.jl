@@ -53,6 +53,7 @@ copy!(rng, rng_snapshot)
 list2 = irepstar(X_train, y_train, target_class, rng = rng)
 
 @test string(list1) == string(list2)    
+println("Original reproducibility test surpassed: $(string(list1) == string(list2))")
 
 # Test if num_features_considered_per_test yields a different result
 rng_snapshot = copy(rng)
@@ -60,8 +61,6 @@ list1 = irepstar(X_train, y_train, target_class; rng = rng, num_features_conside
 copy!(rng, rng_snapshot)
 list2 = irepstar(X_train, y_train, target_class, rng = rng)
 
-println("list1 == list2: $(string(list1) == string(list2))")
+println("List1 (created with subfeature selection for each rule):\n$(string(list1))")
 
-println("List1:\n$(string(list1))")
-
-println("\n\nList2:\n$(string(list2))")
+println("\n\nList2 (created with all features per each rule):\n$(string(list2))")

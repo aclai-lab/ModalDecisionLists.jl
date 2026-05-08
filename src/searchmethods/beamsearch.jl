@@ -288,6 +288,7 @@ end
     )::Antecedent
 
 Performs a beam search to find the best antecedent for a given dataset and labels.
+If `num_features_considered_per_test` is passed, a subset of the same number of features is randomly selected, and only those features are used to construct the rule. 
 
 # Note
 If num_features_considered_per_test is passed, X must support column-wise indexing such as `X_sub = X[:, my_feats]`
@@ -321,8 +322,7 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
-    # Inizializza il migliore antecedente come formula ⊤ 
-    # (sempre vera, copre tutte le istanze)
+    # Initializes the best antecedent as the formuala ⊤ 
     if isnothing(starting_antecedent)
         best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
     else
@@ -334,6 +334,7 @@ function findbestantecedent(
         end
     end
 
+    # Selects the features if 'num_features_considered_per_test' is specified and not equal to the number of features
     X_specialization = if isnothing(num_features_considered_per_test) || num_features_considered_per_test == nfeatures(X)
         X
     else

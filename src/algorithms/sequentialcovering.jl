@@ -220,11 +220,47 @@ end
 
 
 
+"""
+    irepstar(X::AbstractLogiset, y::AbstractVector{<:CLabel},
+            w::Union{Nothing,AbstractVector,Symbol}=default_weights(length(y));
+            featurenames::Union{Nothing,Vector}=nothing,
+            invert_class_orders::Bool=false,
+            kwargs...)::DecisionList
+
+Learn a multiclass decision list using IREP* by decomposing the task into a sequence of
+binary IREP* problems. Each class is treated as the positive target in turn, while
+previously covered instances are removed from later rounds.
+
+# Arguments
+- `X::AbstractLogiset`: The feature dataset.
+- `y::AbstractVector{<:CLabel}`: Class labels for each instance.
+- `w::Union{Nothing,AbstractVector,Symbol}=default_weights(length(y))`: Optional sample weights.
+  - `nothing` or `:default` uses uniform weights.
+  - `:rebalance` uses class-balanced weights.
+  - A numeric weight vector may be supplied explicitly.
+- `featurenames::Union{Nothing,Vector}=nothing`: Optional feature names.
+- `invert_class_orders::Bool=false`: If `true`, process classes from most to least frequent.
+- `kwargs...`: Additional keyword arguments forwarded to the binary `irepstar` function.
+
+# Returns
+A `DecisionList` containing:
+- learned rules for each class except the default,
+- a default consequent predicting the most frequent class,
+- training metadata.
+
+# Notes
+- The most frequent class is used as the default prediction when no rule applies.
+- The underlying binary `irepstar` implementation is invoked for each class.
+- `invert_class_orders` can be used to reverse the class processing order.
+
+See also: [`irepstar`](@ref) (binary version), [`sequentialcovering`](@ref), [`DecisionList`](@ref)
+"""
 function irepstar(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
     featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing,
+    invert_class_orders::Bool = false,
     kwargs...
 )::DecisionList where {U<:Real}
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
@@ -247,7 +283,7 @@ function irepstar(
     y_int, labels = y |> maptointeger
     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
 
-    # indici ordinati delle classi in ordine crescente di copertura
+    # indices of the classes ordered by ascending amount of instances (first index corresponds to the least prevalent class, last index to the most prevalent)
     sorted_indices = sortperm(y_dist)
 
     # the actual list of rules that is obtained from the various calls 
@@ -255,9 +291,13 @@ function irepstar(
 
     uncovered = TrainingState(X, y, w)
 
-    # starting from the least common class index and going up to the most common, the last class
-    # is used as the default consequent
-    for class_idx ∈ sorted_indices[1:end-1]
+    # starting from the least common class index and going up to the most common, the last class is used as the default consequent. This is the standard behavior for IREP*
+    # If "invert_class_orders" is true, the order is inverted, and the method starts with the most frequent class.
+    loop_indices = sorted_indices[1:end-1]
+    loop_indices = invert_class_orders ? reverse(loop_indices) : loop_indices
+
+
+    for class_idx ∈ loop_indices
         # Create the decision list with a call to IREP* on the data that still hasn't been classified
         label = labels[class_idx]
 
@@ -326,6 +366,99 @@ end
 
 
 
+"""
+    irepstar(X::PropositionalLogiset, y::AbstractVector{<:CLabel}, poslabel::CLabel,
+             w::Union{Nothing,AbstractVector,Symbol}=default_weights(length(y));
+             kwargs...)::DecisionList
+
+Learn a binary decision list using the IREP* algorithm (Incremental Reduced Error Pruning).
+
+This function implements the IREP* algorithm for binary classification, which iteratively 
+grows and prunes rules to minimize the Total Description Length (TDL) of the resulting 
+ruleset and data. The algorithm uses a grow-prune split strategy where each rule is first 
+grown on a training subset to maximize information gain, then pruned on a separate validation 
+subset to minimize classification error.
+
+# Arguments
+- `X::PropositionalLogiset`: The feature matrix containing the training data.
+- `y::AbstractVector{<:CLabel}`: A vector of class labels for each instance in `X`.
+- `poslabel::CLabel`: The positive class label (target class for binary classification).
+- `w::Union{Nothing,AbstractVector,Symbol}=default_weights(length(y))`: Sample weights. 
+  Can be:
+  - `nothing` or `:default` for uniform weights
+  - `:rebalance` for balanced class weights
+  - An explicit weight vector of length equal to the number of instances
+
+# Keyword Arguments
+- `featurenames::Union{Nothing,Vector}=nothing`: Optional names for features in the dataset.
+- `searchmethod::SearchMethod=BeamSearch()`: The search strategy for finding antecedents 
+  (rules). See [`SearchMethod`](@ref) for available options.
+- `tdl_threshold::Int=64`: Stopping criterion threshold for Total Description Length. The 
+  algorithm stops adding rules when the TDL exceeds the minimum TDL seen so far by this 
+  threshold. Higher values produce more rules; lower values produce sparser rulesets.
+- `split_ratio::Real=0.7`: Ratio for grow-prune split (must be in (0,1]). Controls the 
+  proportion of instances used for growing rules vs. pruning them. Default of 0.7 uses 70% 
+  for growing and 30% for pruning. If the value is 1.0 there is no pruning on the extracted rules.
+- `loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss=FOILGain()`: The loss 
+  function for evaluating partial solutions during rule growth.
+- `max_infogain_ratio::Union{Nothing,Real}=nothing`: Maximum information gain ratio constraint. 
+  If provided, must be in [0,1] and constrains the information gain of antecedents with 
+  respect to the uncovered training set.
+- `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing`: Optional custom alphabet for 
+  antecedent generation. If not provided, the alphabet is automatically derived from data.
+- `discretizedomain::Bool=false`: If `true`, discretizes continuous variables by identifying 
+  optimal cut points. This can significantly speed up the learning process over large datasets.
+- `significance_alpha::Union{Real,Nothing}=0.0`: Statistical significance level for hypothesis 
+  testing (if applicable).
+- `min_rule_coverage::Integer=3`: Minimum number of instances that must be covered by each rule. 
+  Prevents learning rules that cover too few examples, controlling variance.
+- `max_rule_length::Union{Nothing,Integer}=nothing`: Maximum number of conditions allowed in 
+  a rule antecedent. Limits rule complexity.
+- `max_rulebase_length::Union{Nothing,Integer}=nothing`: Maximum number of rules to generate. 
+  If reached, learning stops regardless of TDL.
+- `rng::AbstractRNG=Random.default_rng()`: Random number generator for reproducible splits 
+  and feature sampling.
+- `suppress_parity_warning::Bool=false`: If `true`, suppresses warnings when predicting 
+  the most common class.
+- `num_features_considered_per_test::Union{Integer,Nothing}=nothing`: If provided as a 
+  positive integer, each rule is trained on a randomly sampled set of this many unique 
+  features, similar to the feature sampling strategy used in random forests. This can help 
+  with feature selection and reducing overfitting.
+- `kwargs...`: Additional keyword arguments passed to search and other internal functions.
+
+# Returns
+A `DecisionList` object containing:
+- A set of learned rules
+- A default consequent for instances not covered by any rule
+- Metadata about the learning process
+
+# Algorithm Overview
+1. Split the dataset into grow (training) and prune (validation) subsets using `split_ratio`
+2. Initialize Total Description Length (TDL) tracking
+3. Iteratively:
+   - Search for the best antecedent on the grow set
+   - Prune the antecedent on the prune set to minimize error
+   - Add the rule to the ruleset if TDL improves
+   - Stop if TDL exceeds best TDL by `tdl_threshold`
+   - Stop if all instances are covered or max rules reached
+4. Assign uncovered instances to the default class ("other")
+
+# Total Description Length (TDL)
+IREP* uses the Minimum Description Length (MDL) principle to determine when to stop adding 
+rules. The TDL accounts for both the complexity of the ruleset and the remaining data 
+misclassifications. This provides a principled stopping criterion that balances model size 
+and accuracy.
+
+# Example
+```julia
+X = PropositionalLogiset(data_dataframe)
+y = Vector{CLabel}(class_labels)
+model = irepstar(X, y, "positive_class", split_ratio=0.6, max_rule_length=5)
+predictions = apply(model, X)
+```
+
+See also: [`irepstar`](@ref) (multiclass version), [`sequentialcovering`](@ref), [`DecisionList`](@ref)
+"""
 function irepstar(
     X::PropositionalLogiset,
     y::AbstractVector{<:CLabel},
@@ -492,7 +625,7 @@ function irepstar(
 
         push!(rulebase, rule)
 
-        data_new_ruleset_desc_length, rulebase_sat_mask = rs_dataset_bits(X, y, rule, rulebase_sat_mask)
+        data_new_ruleset_desc_length = rs_dataset_bits!(X, y, rule, rulebase_sat_mask)      # this also updates rulebase_sat_mask
 
 
         Base.@debug "Description length of the new Rule: $rule_desc_length"
@@ -501,7 +634,8 @@ function irepstar(
 
         # ΔTDL = ΔTDL(Ruleset) + ΔTDL(Dataset | Ruleset), dove ΔTDL(Ruleset) = TDL(Ruleset + Rule_i) - TDL(Ruleset) = TDL(Rule_i), with TDL being the Total Description Length
         # In other words, since every iteration adds a single Rule to the RuleSet, the description length of the ruleset increases by the description length of the rule
-        # this is why ΔTDL_ruleset is just rule_desc_length
+        # this is why ΔTDL_ruleset is just rule_desc_length. On the other hand, the increase in description length because of the data is given by 
+        # TDL(Dataset | new ruleset) - TDL(Dataset | old ruleset), where the old ruleset is the one before the new rule. 
         ΔTDL_data_given_ruleset = data_new_ruleset_desc_length - data_curr_ruleset_desc_length
         ΔTDL_ruleset = rule_desc_length
         ΔTDL = ΔTDL_ruleset + ΔTDL_data_given_ruleset
@@ -647,10 +781,10 @@ and returns them as a list of Formulas in order of decreasing length (startin fr
 This is used in the pruning phase in RIPPER
 """
 
-# TODO: @Nicola: specificare un ulteriore parametro per il pruning: 
-# Esistono metodi alternativi oper il pruning invece che rimuovere in maniera monotona l'ultima condizione ? 
-# Questo andrebbe fatto in una propria struct effettiva, magari con dispatching sulle varie pruning strategies.
-# Bisogna prima identificare qualche metodo che si vuole implementare poi si pensa a tutta la struttura effettiva
+# TODO: @Nicola: Specify an additional parameter for pruning: 
+# Are there alternative pruning methods instead of simply removing the last condition? 
+# This should be implemented in a dedicated struct, perhaps with dispatch based on various pruning strategies.
+# First, we need to identify which methods we want to implement, then we can consider the actual structure.
 function generate_pruned_formulas(ant::Antecedent)
     _range = nconds(ant):-1:1
     return [LeftmostConjunctiveForm(conds(ant)[1:i])
@@ -725,9 +859,6 @@ end
     Returns the TDL (Total Description Length) of a Rule
 """
 function _r_theory_bits(rule::Rule, n::Int)
-    # conds = unaryconditions_noneq(alph, X)        # @Nicola va richiamato? su wittgenstein sembra sia fissato ma mi puzza come cosa
-    # n_old = length(conds) 
-
     k = min(1 + nconnectives(rule.antecedent), n - 1)  # make sure not to get Inf on the logarithms. if k = n then pr = 1 and we get a division by zero when calculating S
     pr = k / n
 
@@ -735,7 +866,7 @@ function _r_theory_bits(rule::Rule, n::Int)
     K = log2(k)
     desc_length = (S + K) * 0.5
 
-    return max(desc_length, 1)
+    return max(desc_length, 1.0)
 end
 
 
@@ -754,14 +885,29 @@ function rs_dataset_bits(
     ruleset_satmask::BitVector
 )
     n_samples = length(y)
-    num_pos = count(label -> label == 1, y)
-    p = sum(ruleset_satmask)                   # number of samples covered by the ruleset
+    num_pos = 0         # total positives in dataset
+    tp = 0              # true positives
+    p = 0               # total covered by ruleset
 
-    ruleset_covered_labels = y[ruleset_satmask]
-    tp = count(==(1), ruleset_covered_labels)
-    fp = count(!=(1), ruleset_covered_labels)
+    # whilst this does not use usual julian syntax, it is significantly faster as it only passes through the data once, and doesn't allocate any temporary arrays
+    @inbounds for i in eachindex(y, ruleset_satmask)
+        is_pos = y[i] == 1
+        is_covered = ruleset_satmask[i]
+        
+        if is_pos
+            num_pos += 1  
+            if is_covered
+                tp += 1   
+            end
+        end
+        
+        if is_covered
+            p += 1        
+        end
+    end
 
-    fn = num_pos - tp       # false negatives
+    fp = p - tp             # false positives 
+    fn = num_pos - tp       # false negatives 
 
     desc_length = log2binomial(p, fp) + log2binomial(n_samples - p, fn)
     return desc_length
@@ -770,17 +916,18 @@ end
 
 
 """ In a particular binary classification problem, this function returns the number of bits to describe the dataset (X,y) 
-given the previous satisfaction/coverage mask 'prev_ruleset_satmask' of the ruleset, and a new rule added to the ruleset """
-function rs_dataset_bits(
+given the previous satisfaction/coverage mask 'prev_ruleset_satmask' of the ruleset, and a new rule added to the ruleset.
+Note: this also changes `curr_ruleset_satmask` for the caller to include the sat mask of `rule` """
+function rs_dataset_bits!(
     X::AbstractLogiset, 
     y::AbstractVector{<:UInt32},
     rule::Rule,
-    prev_ruleset_satmask::BitVector
+    curr_ruleset_satmask::BitVector
 )
     rule_sat_mask = check(rule.antecedent, X)       # check which samples are covered by the new rule
-    ruleset_sat_mask = prev_ruleset_satmask .| rule_sat_mask    # update the sat mask of the whole ruleset by adding samples covered by the new rule
+    curr_ruleset_satmask .|= rule_sat_mask          # update the sat mask of the whole ruleset by adding samples covered by the new rule
 
-    return rs_dataset_bits(y, ruleset_sat_mask), ruleset_sat_mask
+    return rs_dataset_bits(y, curr_ruleset_satmask)
 end
 
 """ In a binary classification problem, this function returns the number of bits required to describe a dataset with labels y, such that
@@ -807,15 +954,69 @@ end
 ################### RIPPERk - Binary Classification #######################################
 ############################################################################################
 
+"""
+    ripperk(X::AbstractLogiset, y::AbstractVector{<:CLabel}, 
+            w::Union{Nothing,AbstractVector,Symbol}=default_weights(length(y));
+            featurenames::Union{Nothing,Vector}=nothing,
+            invert_class_orders::Bool=false,
+            kwargs...)::DecisionList
 
+Learn a multiclass decision list using the RIPPERk algorithm (Repeated Incremental Pruning 
+to Produce Error Reduction for K-class problems).
+
+This function extends RIPPER to handle multiclass classification problems using a 
+one-vs-rest approach. It iteratively learns binary classifiers for each class, starting 
+with the least frequent class and proceeding to the most frequent. The most frequent class 
+is reserved as the default prediction when no other rules apply.
+
+# Arguments
+- `X::AbstractLogiset`: The feature matrix containing the training data.
+- `y::AbstractVector{<:CLabel}`: A vector of class labels for each instance in `X`.
+- `w::Union{Nothing,AbstractVector,Symbol}=default_weights(length(y))`: Sample weights. 
+  Can be:
+  - `nothing` or `:default` for uniform weights
+  - `:rebalance` for balanced class weights
+  - An explicit weight vector of length equal to the number of instances
+- `featurenames::Union{Nothing,Vector}=nothing`: Optional names for features in the dataset.
+- `invert_class_orders::Bool=false`: If `true`, reverses the class ordering to start with 
+  the most frequent class instead of the least frequent. Default behavior follows standard 
+  RIPPER conventions.
+- `kwargs...`: Additional keyword arguments passed to the binary classification version 
+  of `ripperk`.
+
+# Returns
+A `DecisionList` object containing:
+- A set of learned rules (one set per class except the default)
+- A default consequent predicting the most frequent class
+- Metadata about the learning process
+
+# Algorithm Overview
+1. Convert multiclass problem into multiple binary classification problems (one-vs-rest)
+2. Order classes by frequency (ascending by default)
+3. For each class (except the most frequent):
+   - Learn a binary RIPPER classifier on remaining uncovered instances
+   - Add learned rules to the decision list
+   - Remove instances covered by the new rules
+4. Set the most frequent class as the default prediction
+
+# Example
+```julia
+X = PropositionalLogiset(data_dataframe)
+y = Vector{CLabel}(class_labels)
+model = ripperk(X, y)
+predictions = apply(model, X)
+```
+
+See also: [`irepstar`](@ref), [`sequentialcovering`](@ref), [`DecisionList`](@ref)
+"""
 function ripperk(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y)); 
     featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing,
+    invert_class_orders::Bool = false,
     kwargs...
 )::DecisionList where {U<:Real}
-    # TODO: scrivere tutti i check sull'input
     @assert length(y) == ninstances(X) "The sizes of the training data X and of the labels y do not match. X has $num_instances instances, whilst y has length $(length(y))"
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
     
@@ -837,9 +1038,14 @@ function ripperk(
     y_int, labels = y |> maptointeger
     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
 
-    # indici ordinati delle classi in ordine crescente di copertura
+    # indices of the classes ordered by ascending amount of instances (first index corresponds to the least prevalent class, last index to the most prevalent)
     sorted_indices = sortperm(y_dist)
 
+    # starting from the least common class index and going up to the most common, the last class is used as the default consequent. This is the standard behavior for IREP*
+    # If "invert_class_orders" is true, the order is inverted, and the method starts with the most frequent class.
+    loop_indices = sorted_indices[1:end-1]
+    loop_indices = invert_class_orders ? reverse(loop_indices) : loop_indices
+    
     # the actual list of rules that is obtained from the various calls 
     rules = Rule[]
 
@@ -847,7 +1053,7 @@ function ripperk(
 
     # starting from the least common class index and going up to the most common, the last class
     # is used as the default consequent
-    for class_idx ∈ sorted_indices[1:end-1]
+    for class_idx ∈ loop_indices
         # Create the decision list with a call to IREP* on the data that still hasn't been classified
         label = labels[class_idx]
 
@@ -915,7 +1121,46 @@ end
 
 
 
+"""
+    ripperk(X::AbstractLogiset, y::AbstractVector{<:CLabel}, poslabel::CLabel;
+            kwargs...)
 
+Learn a binary decision list for the target class `poslabel` using the RIPPERk algorithm.
+This implementation trains a one-vs-rest classifier and optionally performs up to `max_k`
+optimization passes to revise the learned ruleset.
+
+# Arguments
+- `X::AbstractLogiset`: The feature dataset.
+- `y::AbstractVector{<:CLabel}`: Class labels for each instance in `X`.
+- `poslabel::CLabel`: The positive target class label.
+- `w::Union{Nothing,AbstractVector{U},Symbol}=default_weights(length(y))`: Optional sample weights.
+  - `nothing` or `:default` uses uniform weights.
+  - `:rebalance` uses class-balanced weights.
+  - An explicit weight vector with per-instance values may also be supplied.
+
+# Keyword Arguments
+- `max_k::Integer=1`: Number of optimization passes over the learned ruleset. When `0`, no RIPPER optimization occurs and the method is equivalent to `irepstar`.
+- `featurenames::Union{Nothing,Vector{<:Union{AbstractString,Symbol}}}=nothing`: Optional feature names.
+- `searchmethod::SearchMethod=BeamSearch()`: Search strategy for rule growth.
+- `tdl_threshold::Int=64`: Total Description Length threshold used to stop rule growth, see `irepstar`.
+- `split_ratio::Real=0.7`: Fraction of data used for growing rules versus pruning.
+- `loss_function::ModalDecisionLists.LossFunctions.AsymmetricLoss=FOILGain()`: Loss used to score candidate rules.
+- `max_infogain_ratio::Union{Nothing,Real}=nothing`: Optional upper bound for information gain ratio.
+- `default_alphabet::Union{Nothing,AbstractAlphabet}=nothing`: Optional alphabet for antecedent generation.
+- `discretizedomain::Bool=false`: If true, discretize continuous features before search.
+- `significance_alpha::Union{Real,Nothing}=0.0`: Significance level for statistical tests.
+- `min_rule_coverage::Integer=1`: Minimum allowed rule coverage.
+- `max_rule_length::Union{Nothing,Integer}=nothing`: Maximum allowed rule length.
+- `max_rulebase_length::Union{Nothing,Integer}=nothing`: Maximum number of rules in the final list.
+- `rng::AbstractRNG = Random.default_rng()`: RNG used for reproducible splitting and sampling.
+- `suppress_parity_warning::Bool=false`: Suppresses parity warnings for default predictions.
+- `num_features_considered_per_test::Union{Integer, Nothing}=nothing`: Number of randomly sampled features considered for each candidate test.
+  This parameter has the same meaning as in `irepstar` and restricts rule growth to a random subset of the feature space when provided.
+- `kwargs...`: Additional keyword arguments forwarded to internal search routines.
+
+# Returns
+A `DecisionList` containing the optimized ruleset and a default negative-class consequent.
+"""
 function ripperk(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},

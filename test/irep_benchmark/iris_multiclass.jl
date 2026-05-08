@@ -60,7 +60,7 @@ results = repeated_cv(
     rng = rng, 
     num_folds = num_folds, 
     num_repeats = num_kfolds_repeat, 
-    loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+    loss_function = ModalDecisionLists.LossFunctions.FOILGain(),
     min_rule_coverage = 3
 )
 
