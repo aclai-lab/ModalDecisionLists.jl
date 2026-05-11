@@ -31,7 +31,7 @@ rng = Random.default_rng()
 # folds for cross validation
 num_samples = length(y)
 num_features = length(collect(Tables.columnnames(Tables.columns(X)))) 
-num_folds = 3
+num_folds = 5
 num_kfolds_repeat = 10          # how many times we repeat kfolds
 
 unique_labels = unique(y)
@@ -60,14 +60,14 @@ for num_models ∈ [11, 27, 51, 101, 201]
             num_lists = num_lists,
             beam_width = 50,
             min_rule_coverage = 5,
-            tdl_threshold = 16,
+            tdl_threshold = 0, 
             num_features_considered_per_test = round(Integer, sqrt(num_features)) + 2,
             loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
             split_ratio = 1.0,
             discretizedomain = true,
             suppress_parity_warning = true,
             method_used=:ripper,
-            max_k = 2
+            max_k = 3
         )
 
         println("\t\t=== 95% confidence intervals ===")

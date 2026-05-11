@@ -33,7 +33,7 @@ RIPPER:
     ✔ Implementare RIPPER @done(26-03-15 15:27)
     ✔ Testare la riproducibilità dei risultati di RIPPER @done(26-03-15 17:14)
     ✔ Implementare il caso non binario @done(26-03-26 18:38)
-    ☐ Pensare a se sono possibili ulteriori ottimizzazioni per risparmiare delle operazioni
+    ☐ Sovolgere ottimizzazioni dove possibile per risparmiare delle operazioni
     ☐ Introdurre la possibilità di controllare se la rimozione di una regola riduce la description length, oltre che al suo refinement o a una nuova regola costruita successivamente
 
 Pulizia codice RIPPER/IREP*:

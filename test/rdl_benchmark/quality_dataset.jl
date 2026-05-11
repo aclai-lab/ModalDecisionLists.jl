@@ -54,7 +54,7 @@ for num_models ∈ [11, 31]
 
         println("\tTraining model with $num_lists lists and $(num_models - num_lists) decision trees")
 
-        results = repeated_cv(
+        results = stratified_repeated_cv(
             rdl_model_wrapper, compute_metrics,
             X, y; 
             rng = rng, 
@@ -67,15 +67,14 @@ for num_models ∈ [11, 31]
             beam_width = 25,
 
             min_rule_coverage = 1,
-            tdl_threshold = 0,
-            num_features_considered_per_test = round(Integer, num_features / 3.0),
-            loss_function = ModalDecisionLists.LossFunctions.Entropy(),
+            tdl_threshold = 32,
+            num_features_considered_per_test = round(Integer, sqrt(num_features)) + 2,
+            loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
             split_ratio = 1.0,      # this means no pruning from irep*
             discretizedomain = true,
             suppress_parity_warning = true,
-            method_used = :sequentialcovering,
-            m = 1.0,
-            lam = 1
+            method_used = :ripperk,
+            max_k = 3,
         )
 
         println("\t\t=== 95% confidence intervals ===")

@@ -293,8 +293,7 @@ function irepstar(
 
     # starting from the least common class index and going up to the most common, the last class is used as the default consequent. This is the standard behavior for IREP*
     # If "invert_class_orders" is true, the order is inverted, and the method starts with the most frequent class.
-    loop_indices = sorted_indices[1:end-1]
-    loop_indices = invert_class_orders ? reverse(loop_indices) : loop_indices
+    loop_indices = invert_class_orders ? reverse(sorted_indices)[1:end-1] : sorted_indices[1:end-1]
 
 
     for class_idx ∈ loop_indices
@@ -340,7 +339,7 @@ function irepstar(
     end
 
     # The most populated class in the dataset is predicted as default when no other previously discovered rule applies
-    default_class_index = sorted_indices[end]
+    default_class_index = invert_class_orders ? sorted_indices[1] : sorted_indices[end]
     default_class = labels[default_class_index]     # default prediction if no other rule applies
 
     Base.@debug "Resorting to default class $default_class if no other rule applies"
@@ -544,7 +543,7 @@ function irepstar(
     uncovered = TrainingState(X, y, w, uncovered_original_y)
 
     rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
-    data_curr_ruleset_desc_length = Inf
+    data_curr_ruleset_desc_length = get_initial_dataset_bits(y)
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
     
     curr_TDL = get_initial_dataset_bits(y)
@@ -800,6 +799,8 @@ function pruneantecedent(
         return antecedent.formula, BitVector([])
     end 
 
+    # TODO: optimize this function
+
     X = prune_X(split)
     y = prune_y(split)
     w = get_no_nil(prune_w(split), default_weights(length(y)))
@@ -815,7 +816,6 @@ function pruneantecedent(
     _best_covmask = nothing
     _best_score = -Inf              # this makes sure that at least one formula will be selected as _best_formula in the loop
     
-
     # 3. Evaluate all possible pruned versions of the formula, including the original formula itself
     for pformula in generate_pruned_formulas(antecedent)
 
@@ -871,7 +871,7 @@ end
 
 
 """ returns an approximation of ln(n!) using Stirling's approximation for numerical stability and optimization """
-log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.1201753 / n)     # 0.1201753 / n is just a term that minimizes the approximation whilst reducing error
+log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.1201753 / n)     # 0.1201753 / n is just a term that minimizes the approximation error without modifying the asymptotic relationship
 
 
 """ returns an approximation of ln( n choose k ) using log2_factorial for numerical stability and optimization  """
@@ -1043,8 +1043,7 @@ function ripperk(
 
     # starting from the least common class index and going up to the most common, the last class is used as the default consequent. This is the standard behavior for IREP*
     # If "invert_class_orders" is true, the order is inverted, and the method starts with the most frequent class.
-    loop_indices = sorted_indices[1:end-1]
-    loop_indices = invert_class_orders ? reverse(loop_indices) : loop_indices
+    loop_indices = invert_class_orders ? reverse(sorted_indices)[1:end-1] : sorted_indices[1:end-1]
     
     # the actual list of rules that is obtained from the various calls 
     rules = Rule[]
@@ -1096,7 +1095,7 @@ function ripperk(
     end
 
     # The most populated class in the dataset is predicted as default when no other previously discovered rule applies
-    default_class_index = sorted_indices[end]
+    default_class_index = invert_class_orders ? sorted_indices[1] : sorted_indices[end]
     default_class = labels[default_class_index]     # default prediction if no other rule applies
 
     Base.@debug "Resorting to default class $default_class if no other rule applies"
@@ -1280,7 +1279,6 @@ function ripperk(
     num_selectors = get_num_independent_selectors(X, y, discretizedomain)       
     
     for ripper_iteration = 1 : max_k
-        # ruleset_masks = _precalculate_rules_satmasks(uncovered.X, curr_ruleset)
         ruleset_masks = _precalculate_rules_satmasks(X, curr_ruleset)
         
         # Calculate initial TDL 
@@ -1320,20 +1318,20 @@ function ripperk(
 
         # Call IREP* again to get the residual ruleset
         residual_ruleset = irepstar(uncovered.X, uncovered.original_y_labels, poslabel, uncovered.w; 
-                            searchmethod = searchmethod,
-                            tdl_threshold = tdl_threshold,
-                            split_ratio = split_ratio, 
-                            loss_function = loss_function,
-                            max_infogain_ratio = max_infogain_ratio,
-                            default_alphabet = default_alphabet,
-                            discretizedomain = discretizedomain,
-                            significance_alpha = significance_alpha,
-                            min_rule_coverage = min_rule_coverage,
-                            max_rule_length = max_rule_length,
-                            max_rulebase_length = max_rulebase_length,
-                            rng = rng, 
-                            suppress_parity_warning = suppress_parity_warning,
-                            num_features_considered_per_test = num_features_considered_per_test,
+                            searchmethod,
+                            tdl_threshold,
+                            split_ratio, 
+                            loss_function,
+                            max_infogain_ratio,
+                            default_alphabet,
+                            discretizedomain,
+                            significance_alpha,
+                            min_rule_coverage,
+                            max_rule_length,
+                            max_rulebase_length,
+                            rng, 
+                            suppress_parity_warning,
+                            num_features_considered_per_test,
                             kwargs...)
 
         # Append the residual ruleset to 
@@ -1407,7 +1405,7 @@ function _optimize_ruleset!(
         ruleset_masks[:, i] .= false                       
         ruleset_masks[rule_grown_covered_indices, i] .= true
         curr_ruleset[i] = rule_grown
-        rule_grown_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, ruleset_masks)
+        rule_grown_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, default_dataset_satmask, ruleset_masks[:, i])   # ruleset_masks[:, i] has been set to the new rule's satmask two lines above
 
 
 
@@ -1427,7 +1425,7 @@ function _optimize_ruleset!(
         ruleset_masks[:, i] .= false                       
         ruleset_masks[rule_revised_covered_indices, i] .= true
         curr_ruleset[i] = rule_revised
-        rule_revised_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, ruleset_masks)
+        rule_revised_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, default_dataset_satmask, ruleset_masks[:, i])
 
         # Select best rule amongst the three
         competing_TDLs = (curr_tdl, rule_grown_tdl, rule_revised_tdl)
@@ -1524,7 +1522,37 @@ function _calculate_TDL(
         ruleset_dl += _r_theory_bits(rule, num_possible_selectors)
         
         rule_satmask = @view ruleset_masks[:, i]
-        ruleset_satmask = ruleset_satmask .| rule_satmask
+        ruleset_satmask .|= rule_satmask
+    end
+
+    # Calculate description length of the data, given the ruleset
+    data_dl_given_ruleset = rs_dataset_bits(y, ruleset_satmask)
+
+    return ruleset_dl + data_dl_given_ruleset
+end
+
+
+
+"""
+    _calculate_ruleset_length(X, y, rules)
+
+Calculate the total description length of a ruleset and of some data given that ruleset when a new rule is added.
+ruleset_satmask_curr is the coverage mask of the current ruleset (without the new rule) over the data y. new_rule_satmask on the other hand is the 
+sat mask of the new rule over y.
+"""
+function _calculate_TDL(
+    y::AbstractVector{<:UInt32},
+    rules::AbstractVector{<:Rule},
+    num_possible_selectors::Int,
+    ruleset_satmask_curr::BitVector,
+    new_rule_satmask::BitVector
+)::Real
+    # Calculate Description length of the ruleset itself, ignoring data (TDL(Ruleset)), we also use the loop to calculate the satmask of the ruleset
+    ruleset_satmask = ruleset_satmask_curr .| new_rule_satmask
+
+    ruleset_dl = 0.0
+    for rule ∈ rules
+        ruleset_dl += _r_theory_bits(rule, num_possible_selectors)
     end
 
     # Calculate description length of the data, given the ruleset
@@ -1550,10 +1578,6 @@ function reduced_error_prune_rule(
     y = prune_y(split)
     w = prune_w(split)
 
-
-    # Build positive/negative masks with respect to the target class
-    target_mask = (y .== 1)
-
     _best_formula = ant.formula
     _best_covmask = nothing
     _best_errors_sum = Inf
@@ -1561,12 +1585,17 @@ function reduced_error_prune_rule(
     # Evaluate all pruned versions of the formula, including the original formula itself
     for pformula ∈ generate_pruned_formulas(ant)
         p_covmask = check(pformula, X)
-        total_ruleset_covmask = ruleset_mask .| p_covmask           # satmask of the ruleset if we were to add the rule with antecedent formula "pformula" to the ruleset
 
-        errors_mask = (total_ruleset_covmask .!= target_mask)       # 1 where the formula's coverage and the actual {0,1} label differ
-        weighted_errors_sum = sum(errors_mask .& w)                 # extract corresponding weights and sum
-
-        # TODO: would "weighted_errors_sum = sum(w[ total_ruleset_covmask .!= target_mask ]) be faster? It might avoid summing tons of zeros
+        # calculate error sum manually, this is faster than doing temporary array allocations and then calling sum(), as
+        # memory allocation and garbage collections are the two biggest bottlenecks
+        weighted_errors_sum = 0.0
+        @inbounds for i in eachindex(w)
+            target = (y[i] == 1)
+            # error exists if (existing_rules OR this_rule) != target
+            if (ruleset_mask[i] | p_covmask[i]) != target
+                weighted_errors_sum += w[i]
+            end
+        end             
         
         if weighted_errors_sum < _best_errors_sum
             _best_formula = pformula
@@ -1577,7 +1606,6 @@ function reduced_error_prune_rule(
     end
 
     return _best_formula, _best_covmask
-
 end
 
 

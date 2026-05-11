@@ -14,12 +14,9 @@ using ModalDecisionLists: preprocess_inputdata
 using CSV
 
 include("../cv_utilities.jl")
+include("helper_functions.jl")
 
-# Create a logger to set it in debug mode
-# debug_logger = ConsoleLogger(stderr, Logging.Debug)
-# global_logger(debug_logger)
-
-# Load the dataset
+# PART 1 - LOAD THE DATASTE
 table = CSV.read("test/datasets/balance_scale.csv", DataFrame)
 y = table[:, :class] |> CategoricalArray
 X = select(table, Not([:class]))
@@ -28,45 +25,24 @@ X, y = preprocess_inputdata(X,y)
 X = DataFrame(X)
 y = string.(y)
 
+
+
+# DEFINE RNG FOR REPRODUCIBILITY
 rng = Xoshiro(42)
 # rng = Random.default_rng()
 
-# folds for cross validation
+
+
+# DEFINE REPEATED CROSS-VALIDATION PARAMETERS 
 num_samples = length(y)
 num_folds = 4
 num_samples_per_fold = num_samples ÷ num_folds      # integer division
 num_kfolds_repeat = 10          # how many times we repeat kfolds
 
-function model_wrapper(X, y, rng; kwargs...)
-    args_dict = Dict(kwargs)
 
-    irepstar(X, y; rng = rng, args_dict...)
-end
 
-function metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
-    args_dict = Dict(kwargs)
-
-    model_train_preds = apply(model, X_train)
-    model_test_preds = apply(model, X_test)
-
-    train_accuracy = mean(model_train_preds .== y_train)
-    test_accuracy = mean(model_test_preds .== y_test)
-
-    return Dict(
-        :train_accuracy => train_accuracy,
-        :test_accuracy => test_accuracy
-    )
-end
-
-vals = countmap(y)
-println(vals)
-unique_labels = unique(y)
-println(unique_labels)
-
-X_prop = PropositionalLogiset(X)
-
-# Execute repeated k-fold cross validation for each target class
-# println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
+# PERFORMING CROSS VALIDATION
+println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
 results = repeated_cv(
     model_wrapper, metrics_wrapper,
     X, y; 
@@ -80,11 +56,13 @@ results = repeated_cv(
     invert_class_orders = true
 )
 
+print_statistics(results)
 
-println("\t=== 95% confidence intervals ===")
-println("\t\tTraining accuracy: $(round(results[:train_accuracy].mean; digits=4)) ± $(round(results[:train_accuracy].margin, digits=4))")
-println("\t\tTesting accuracy: $(round(results[:test_accuracy].mean; digits=4)) ± $(round(results[:test_accuracy].margin, digits=4))")
 
+
+# SPECIFIC - TRAINING OUTCOME VISUALIZATION
+
+X_prop = PropositionalLogiset(X)
 
 sq_list = sequentialcovering(X_prop, y; min_rule_coverage=3)
 

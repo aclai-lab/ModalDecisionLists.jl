@@ -56,6 +56,7 @@ function repeated_cv(
     num_repeats = 10, 
     rng = Random.default_rng(), 
     use_views::Bool = true,
+    verbosity::Integer = 0,
     kwargs...
 )
     num_samples = length(y)
@@ -69,11 +70,10 @@ function repeated_cv(
         y_shf = use_views ? @view(y[shuffled_indices]) : y[shuffled_indices]
 
         fold_metrics = Dict{Symbol, Vector{Float64}}()
-        println("Finished repetition #$r")
 
         for f in 1:num_folds
             start_i = (f - 1) * num_samples_per_fold + 1
-            end_i = min(f * num_samples_per_fold, num_samples)
+            end_i = (f == num_folds) ? num_samples : f * num_samples_per_fold
             
             # FIX: with 1 fold, train on the full dataset (in-sample evaluation)
             test_idx  = start_i:end_i
@@ -92,18 +92,26 @@ function repeated_cv(
             metrics = metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
 
             for (m_name, m_val) ∈ metrics
-                push!(get!(fold_metrics, m_name, Float64[]), m_val)
+                # push!(get!(fold_metrics, m_name, Float64[]), m_val)
+                push!(get!(results_history, m_name, Float64[]), m_val)
+            end
+
+            if verbosity >= 2
+                println("Finished fold #$f")
             end
         end
 
-        for (m_name, m_vals) ∈ fold_metrics
-            push!(get!(results_history, m_name, Float64[]), mean(m_vals))
+        
+        # for (m_name, m_vals) ∈ fold_metrics
+        #     push!(get!(results_history, m_name, Float64[]), mean(m_vals))
+        # end
+
+        if verbosity >= 1
+            println("Finished repetition #$r")
         end
     end
 
-    # FIX: with 1 repeat, degrees of freedom = 0 so confidence interval is undefined;
-    # return margin = 0.0 as a sentinel (no variance can be estimated)
-    final_results = _aggregate_cv_results(results_history, num_repeats)
+    final_results = _aggregate_cv_results(results_history, num_repeats * num_folds)
     return final_results
 end
 
@@ -114,6 +122,7 @@ function _aggregate_cv_results(results_history, num_repeats)
         m_name => (
             mean   = mean(values),
             margin = t_val * (use_ci ? std(values) / sqrt(num_repeats) : 0.0),
+            std = std(values)
         )
         for (m_name, values) ∈ results_history
     )
@@ -130,6 +139,7 @@ function stratified_repeated_cv(
     rng         = Random.default_rng(),
     use_views::Bool = true,
     positive_class = nothing,
+    verbosity::Integer = 0,
     kwargs...
 )
     # --- Validate binary target -----------------------------------------------
@@ -210,16 +220,21 @@ function stratified_repeated_cv(
             metrics = metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
 
             for (m_name, m_val) ∈ metrics
-                push!(get!(fold_metrics, m_name, Float64[]), m_val)
+                # push!(get!(fold_metrics, m_name, Float64[]), m_val)
+                push!(get!(results_history, m_name, Float64[]), m_val)
             end
 
-            # println("\tFinished fold $f")
+            if verbosity >= 2
+                println("\tFinished fold $f")
+            end
         end
 
-        println("Finished repetition #$r")
+        # for (m_name, m_vals) ∈ fold_metrics
+        #     push!(get!(results_history, m_name, Float64[]), mean(m_vals))
+        # end
 
-        for (m_name, m_vals) ∈ fold_metrics
-            push!(get!(results_history, m_name, Float64[]), mean(m_vals))
+        if verbosity >= 1
+            println("Finished repetition #$r")
         end
     end
 
