@@ -26,13 +26,12 @@ include("helper_functions.jl")
 X, y = @load_iris
 X = DataFrame(X)
 
-# rng = Xoshiro(42)
-rng = Random.default_rng()
+rng = Xoshiro(42)
+# rng = Random.default_rng()
 
 # folds for cross validation
 num_samples = length(y)
 num_folds = 10
-num_samples_per_fold = num_samples ÷ num_folds      # integer division
 num_kfolds_repeat = 10          # how many times we repeat kfolds
 
 # Execute repeated k-fold cross validation for each target class
@@ -46,7 +45,9 @@ results = repeated_cv(
     num_folds = num_folds, 
     num_repeats = num_kfolds_repeat, 
     loss_function = ModalDecisionLists.LossFunctions.FOILGain(),
+    tdl_threshold = 64,
     min_rule_coverage = 3,
+    beam_width=10,
     invert_class_orders=false
 )
 

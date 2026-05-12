@@ -16,14 +16,13 @@ using CSV
 include("../cv_utilities.jl")
 include("helper_functions.jl")
 
-# PART 1 - LOAD THE DATASET - found at https://archive.ics.uci.edu/dataset/14/breast+cancer and preprocessed
-table = CSV.read("test/datasets/breast_cancer.csv", DataFrame)
+# PART 1 - LOAD THE DATASET
+table = dataset("MASS", "biopsy")
 y = table[:, :Class] |> CategoricalArray
-X = select(table, Not([:Class]))
+X = select(table, Not([:ID, :Class]))
 
+X, y = preprocess_inputdata(X,y)
 X = DataFrame(X)
-y = string.(y)
-
 
 
 # DEFINE RNG FOR REPRODUCIBILITY
@@ -35,8 +34,9 @@ rng = Xoshiro(42)
 # DEFINE REPEATED CROSS-VALIDATION PARAMETERS 
 num_samples = length(y)
 num_folds = 10
-num_kfolds_repeat = 10          # how many times we repeat kfolds
+num_kfolds_repeat = 2          # how many times we repeat kfolds
 
+println("Num samples: $num_samples")
 
 
 # PERFORMING CROSS VALIDATION
@@ -47,16 +47,16 @@ results = stratified_repeated_cv(
     rng = rng, 
     num_folds = num_folds, 
     num_repeats = num_kfolds_repeat, 
-    verbosity=1,
+    verbosity=2,
 
-    # IREP* arguments
-    loss_function = ModalDecisionLists.LossFunctions.FOILGain(),
+    # RIPPER arguments
+    loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
     discretizedomain=false,
     min_rule_coverage = 2,
     beam_width = 10,
     tdl_threshold=64,
     split_ratio = 1.0,
-    invert_class_orders=true
+    invert_class_orders=false
 )
 
 print_statistics(results)

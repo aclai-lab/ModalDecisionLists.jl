@@ -16,15 +16,13 @@ using CSV
 include("../cv_utilities.jl")
 include("helper_functions.jl")
 
-# PART 1 - LOAD THE DATASTE
-table = CSV.read("test/datasets/balance_scale.csv", DataFrame)
-y = table[:, :class] |> CategoricalArray
-X = select(table, Not([:class]))
+# PART 1 - LOAD THE DATASET
+table = dataset("MASS", "biopsy")
+y = table[:, :Class] |> CategoricalArray
+X = select(table, Not([:ID, :Class]))
 
 X, y = preprocess_inputdata(X,y)
 X = DataFrame(X)
-y = string.(y)
-
 
 
 # DEFINE RNG FOR REPRODUCIBILITY
@@ -38,46 +36,27 @@ num_samples = length(y)
 num_folds = 10
 num_kfolds_repeat = 10          # how many times we repeat kfolds
 
+println("Num samples: $num_samples")
+
 
 # PERFORMING CROSS VALIDATION
 println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
-results = repeated_cv(
+results = stratified_repeated_cv(
     model_wrapper, metrics_wrapper,
     X, y; 
     rng = rng, 
     num_folds = num_folds, 
     num_repeats = num_kfolds_repeat, 
-    verbosity = 1,
+    verbosity=1,
 
-    # IREP* parameters
+    # IREP* arguments
     loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+    discretizedomain=false,
     min_rule_coverage = 2,
-    tdl_threshold=256,
+    beam_width = 10,
+    tdl_threshold=64,
     split_ratio = 0.7,
-    invert_class_orders = true
+    invert_class_orders=false
 )
 
 print_statistics(results)
-
-
-
-# SPECIFIC - TRAINING OUTCOME VISUALIZATION
-
-# X_prop = PropositionalLogiset(X)
-
-# sq_list = sequentialcovering(X_prop, y; min_rule_coverage=3)
-
-# y_pred = apply(sq_list, X_prop)
-# acc_sq = mean(y_pred .== y)
-# println("Lista con sequential covering:\n$sq_list")
-
-# irep_list = irepstar(X_prop, y; rng = rng, tdl_threshold = 128, 
-#                     min_rule_coverage=2, split_ratio=1.0, invert_class_orders=true, 
-#                     loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy())
-# y_pred = apply(irep_list, X_prop)
-# acc_irep = mean(y_pred .== y)
-# println("\n\nLista con irep*:\n$irep_list")
-
-# println("Accuracy lista sequential covering: $acc_sq")
-# println("Accuracy lista irep: $acc_irep")
-

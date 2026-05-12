@@ -1255,20 +1255,20 @@ function ripperk(
     # Create the initial ruleset, keeping it only as a vector of rules
     Base.@debug "Creating initial ruleset through call to IREP*"
     curr_ruleset = irepstar(original_train_state.X, original_train_state.original_y_labels, poslabel, original_train_state.w; 
-                            searchmethod = searchmethod,
-                            tdl_threshold = tdl_threshold,
-                            split_ratio = split_ratio, 
-                            loss_function = loss_function,
-                            max_infogain_ratio = max_infogain_ratio,
-                            default_alphabet = default_alphabet,
-                            discretizedomain = discretizedomain,
-                            significance_alpha = significance_alpha,
-                            min_rule_coverage = min_rule_coverage,
-                            max_rule_length = max_rule_length,
-                            max_rulebase_length = max_rulebase_length,
-                            rng = rng, 
-                            suppress_parity_warning = suppress_parity_warning,
-                            num_features_considered_per_test = num_features_considered_per_test,
+                            searchmethod,
+                            tdl_threshold,
+                            split_ratio, 
+                            loss_function,
+                            max_infogain_ratio,
+                            default_alphabet,
+                            discretizedomain,
+                            significance_alpha,
+                            min_rule_coverage,
+                            max_rule_length,
+                            max_rulebase_length,
+                            rng, 
+                            suppress_parity_warning,
+                            num_features_considered_per_test,
                             kwargs...)
 
         

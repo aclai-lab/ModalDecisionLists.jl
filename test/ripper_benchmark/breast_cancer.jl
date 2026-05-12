@@ -40,7 +40,7 @@ num_kfolds_repeat = 10          # how many times we repeat kfolds
 
 
 # PERFORMING CROSS VALIDATION
-println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
+println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on RIPPER*")
 results = stratified_repeated_cv(
     model_wrapper, metrics_wrapper,
     X, y; 
@@ -51,12 +51,15 @@ results = stratified_repeated_cv(
 
     # IREP* arguments
     loss_function = ModalDecisionLists.LossFunctions.FOILGain(),
-    discretizedomain=false,
+    discretizedomain=true,
     min_rule_coverage = 2,
     beam_width = 10,
     tdl_threshold=64,
-    split_ratio = 1.0,
-    invert_class_orders=true
+    split_ratio = 0.7,
+    invert_class_orders=true,
+    max_k=3
 )
+
+# tdl_threshold = 64, split_ratio = 0.7, FOILGain
 
 print_statistics(results)

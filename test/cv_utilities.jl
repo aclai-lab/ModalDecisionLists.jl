@@ -238,5 +238,5 @@ function stratified_repeated_cv(
         end
     end
 
-    return _aggregate_cv_results(results_history, num_repeats)
+    return _aggregate_cv_results(results_history, num_repeats * num_folds)
 end

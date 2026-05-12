@@ -27,21 +27,26 @@ rng = Xoshiro(42)
 # folds for cross validation
 num_samples = length(y)
 num_folds = 10
-num_samples_per_fold = num_samples ÷ num_folds      # integer division
-num_kfolds_repeat = 2          # how many times we repeat kfolds
+num_kfolds_repeat = 10          # how many times we repeat kfolds
 
 unique_labels = unique(y)
+
 
 # Execute repeated k-fold cross validation for each target class
 println("Performing repeated k-fold cross validation $num_kfolds_repeat times with k = $num_folds on IREP*")
 
-results = repeated_cv(
+results = stratified_repeated_cv(
     model_wrapper, metrics_wrapper,
     X, y; 
     rng = rng, 
     num_folds = num_folds, 
     num_repeats = num_kfolds_repeat, 
+    
+    # IREP* parameters
     loss_function = ModalDecisionLists.LossFunctions.LaplaceAccuracy(),
+    tdl_threshold = 32,
+    split_ratio=0.7,
+    beam_width=10,
     min_rule_coverage = 3,
     verbosity=1
 )

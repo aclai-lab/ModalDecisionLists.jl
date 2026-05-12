@@ -8,7 +8,7 @@ using MLJ
 using Printf
 
 function model_wrapper(X, y, rng; kwargs...)
-    irepstar(X, y; rng = rng, kwargs...)
+    ripperk(X, y; rng = rng, kwargs...)
 end
 
 function metrics_wrapper(model, X_train, y_train, X_test, y_test; kwargs...)
