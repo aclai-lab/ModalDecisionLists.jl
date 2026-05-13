@@ -828,7 +828,7 @@ function pruneantecedent(
         # v* (IREP* pruning criterion)
         score = (p + n != 0) ? (p - n) / (p + n) : -1.0     # -1 is the lowest possible value of (p-n)/(p+n)
 
-        if score > _best_score
+        if score >= _best_score
             _best_formula = pformula
             _best_covmask = p_covmask
             _best_score = score

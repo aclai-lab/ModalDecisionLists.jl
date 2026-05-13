@@ -111,7 +111,7 @@ function newconditions(
         # make sure to create the alphabet automatically if default_alphabet is null
         _alphabet = isnothing(default_alphabet) ? 
             # alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
-            alphabet(_X; discretizedomain, y=_y) :
+            alphabet(_X; discretizedomain, y=_y, test_operators=[<, ≥]) :
             default_alphabet
 
         UnionAlphabet([_alphabet])   # return is cleaner
@@ -139,7 +139,7 @@ function initialize_antecedents(
 
     _alphabet = isnothing(default_alphabet) ?
         # alphabet(X; discretizedomain, y, sortingmode = :generalfirst) :
-        alphabet(X; discretizedomain, y) : 
+        alphabet(X; discretizedomain, y, test_operators=[<, ≥]) : 
             default_alphabet
 
     conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)

@@ -233,7 +233,7 @@ function MMI.fit(m::CoveringStrategy, verbosity::Int, X, y)
 end
 
 # ---------------------------------------------------------------------------- #
-#                          decision tree classifier                            #
+#                          decision list classifier                            #
 # ---------------------------------------------------------------------------- #
 mutable struct DecisionListClassifier <: CoveringStrategy
     searchmethod::SearchMethod 
