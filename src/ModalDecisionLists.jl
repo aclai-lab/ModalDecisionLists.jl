@@ -38,6 +38,7 @@ export ripperk
 
 include("ensemble_learning.jl")
 export build_ensemble
+export atoms, natoms
 
 module BaseCN2
 using ModalDecisionLists: SatMask
@@ -46,6 +47,7 @@ end
 
 export ExtendedSequentialCovering, OrderedCN2Learner
 export DecisionListClassifier, RandomDecisionListClassifier
+export RipperListClassifier
 include("interfaces/MLJ.jl")
 
 

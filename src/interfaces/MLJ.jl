@@ -2,6 +2,7 @@ module MLJInterface
 
 export ExtendedSequentialCovering, OrderedCN2Learner
 export DecisionListClassifier, RandomDecisionListClassifier
+export RipperListClassifier
 # export BeamSearch, RandSearch
 
 using ModalDecisionLists
@@ -233,7 +234,7 @@ function MMI.fit(m::CoveringStrategy, verbosity::Int, X, y)
 end
 
 # ---------------------------------------------------------------------------- #
-#                          decision list classifier                            #
+#                          decision list classifier (irep*)                    #
 # ---------------------------------------------------------------------------- #
 mutable struct DecisionListClassifier <: CoveringStrategy
     searchmethod::SearchMethod 
@@ -339,6 +340,133 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
 
     return fitresult, cache, report
 end
+
+
+
+# ---------------------------------------------------------------------------- #
+#                          decision list classifier (ripper)                   #
+# ---------------------------------------------------------------------------- #
+mutable struct RipperListClassifier <: CoveringStrategy
+    searchmethod::SearchMethod 
+    tdl_threshold::Int
+    split_ratio::Real
+    loss_function::LossFunctions.AsymmetricLoss
+    max_infogain_ratio::Union{Nothing,Real}
+    default_alphabet::Union{Nothing,AbstractAlphabet}
+    discretizedomain::Bool
+    significance_alpha::Union{Real,Nothing}
+    min_rule_coverage::Int
+    max_rule_length::Union{Nothing,Int}
+    max_rulebase_length::Union{Nothing,Int}
+    max_k::Int
+    
+    # AtomGenerator
+    conjuncts_generation_method::AbstractGenerator
+    
+    # BeamSearch
+    beam_width::Int
+    rng::AbstractRNG
+    suppress_parity_warning::Bool
+end
+
+function RipperListClassifier(;
+    searchmethod::SearchMethod=BeamSearch(), 
+    tdl_threshold::Int=64,
+    split_ratio::Real=0.7, 
+    loss_function::LossFunctions.AsymmetricLoss=LossFunctions.LaplaceAccuracy(),
+    max_infogain_ratio::Union{Nothing,Real}=nothing,
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    discretizedomain::Bool=false,
+    significance_alpha::Union{Real,Nothing}=0.0,
+    min_rule_coverage::Int=1, 
+    max_rule_length::Union{Nothing,Int}=nothing,
+    max_rulebase_length::Union{Nothing,Int}=nothing,
+    max_k::Integer = 2,
+
+    # BeamSearch
+    conjuncts_generation_method::AbstractGenerator=AtomGenerator(),
+    beam_width::Int=3,
+    # utils
+    rng::AbstractRNG=TaskLocalRNG(),
+    suppress_parity_warning::Bool=false,
+)
+    model = RipperListClassifier(
+        searchmethod, 
+        tdl_threshold,
+        split_ratio, 
+        loss_function,
+        max_infogain_ratio,
+        default_alphabet,
+        discretizedomain,
+        significance_alpha,
+        min_rule_coverage, 
+        max_rule_length,
+        max_rulebase_length,
+        max_k,
+        conjuncts_generation_method,
+        beam_width,
+        rng,
+        suppress_parity_warning,
+    )
+    message = MMI.clean!(model)
+    isempty(message) || @warn message
+    return model
+end
+
+function MMI.clean!(model::DecisionListClassifier)
+    warning = ""
+    if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
+        warning *= "Need max_rulebase_length ≥ 1. " *
+            "Resetting max_rulebase_length = nothing."
+        model.max_rulebase_length = nothing
+    end
+    return warning
+end
+
+function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
+    featurenames = propertynames(X)
+    logiset = scalarlogiset(X; featurenames, allow_propositional=true)
+
+    model = begin
+        ripperk(
+            logiset,
+            y;
+            featurenames,
+            searchmethod=m.searchmethod,
+            tdl_threshold=m.tdl_threshold,
+            split_ratio=m.split_ratio,
+            loss_function=m.loss_function,
+            max_infogain_ratio=m.max_infogain_ratio,
+            default_alphabet=m.default_alphabet,
+            discretizedomain=m.discretizedomain,
+            significance_alpha=m.significance_alpha,
+            min_rule_coverage=m.min_rule_coverage,
+            max_rule_length=m.max_rule_length,
+            max_rulebase_length=m.max_rulebase_length,
+            max_k = m.max_k,
+            conjuncts_generation_method=m.conjuncts_generation_method,
+            beam_width=m.beam_width,
+            rng=m.rng,
+            suppress_parity_warning=m.suppress_parity_warning
+        )
+    end
+
+    verbosity == 1 && println(model)
+
+    fitresult = (; model)
+    report = (; model)
+    cache = nothing
+
+    return fitresult, cache, report
+end
+
+
+
+
+
+
+
+
 
 # ---------------------------------------------------------------------------- #
 #                      random decision tree classifier                         #

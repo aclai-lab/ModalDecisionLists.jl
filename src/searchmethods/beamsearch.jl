@@ -346,8 +346,6 @@ function findbestantecedent(
         X[:, selected_features]
     end
 
-    # default_alphabet = get_no_nil(default_alphabet, alphabet(X_specialization; test_operators=[<, ≥]))
-
     newcandidates = Antecedent[]
     while true
         # Generate new specialized candidates
