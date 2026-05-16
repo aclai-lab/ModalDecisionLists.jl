@@ -14,6 +14,7 @@ using ModalDecisionLists: AbstractGenerator, AtomGenerator
 # import ModalDecisionLists: sequentialcovering
 
 using SoleLogics: AbstractAlphabet
+# using MLJ
 
 using SoleData
 import SoleBase: CLabel
@@ -263,7 +264,7 @@ function DecisionListClassifier(;
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
     discretizedomain::Bool=false,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Int=1, 
+    min_rule_coverage::Int=2, 
     max_rule_length::Union{Nothing,Int}=nothing,
     max_rulebase_length::Union{Nothing,Int}=nothing,
     # BeamSearch
@@ -307,7 +308,7 @@ end
 
 function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
     featurenames = propertynames(X)
-    logiset = scalarlogiset(X; featurenames, allow_propositional=true)
+    logiset = PropositionalLogiset(X)
 
     model = begin
         irepstar(
@@ -334,8 +335,13 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    fitresult = (; model)
-    report = (; model)
+    fitresult = (
+        model = model,
+        # target_levels=MLJ.levels(y)
+    )
+    report = (
+        model = model,
+    )
     cache = nothing
 
     return fitresult, cache, report
@@ -413,7 +419,7 @@ function RipperListClassifier(;
     return model
 end
 
-function MMI.clean!(model::DecisionListClassifier)
+function MMI.clean!(model::RipperListClassifier)
     warning = ""
     if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
         warning *= "Need max_rulebase_length ≥ 1. " *
@@ -453,8 +459,13 @@ function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    fitresult = (; model)
-    report = (; model)
+    fitresult = (
+        model = model,
+        # target_levels=levels(y)
+    )
+    report = (
+        model = model,
+    )
     cache = nothing
 
     return fitresult, cache, report
@@ -604,8 +615,8 @@ end
 # ---------------------------------------------------------------------------- #
 #                                   metadata                                   #
 # ---------------------------------------------------------------------------- #
-MMI.prediction_type(::Type{<:DecisionListClassifier}) = :probabilistic
-MMI.prediction_type(::Type{<:RandomDecisionListClassifier}) = :probabilistic
+# MMI.prediction_type(::Type{<:DecisionListClassifier}) = :probabilistic
+# MMI.prediction_type(::Type{<:RandomDecisionListClassifier}) = :probabilistic
 
 MMI.metadata_pkg.(
     (

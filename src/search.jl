@@ -78,7 +78,7 @@ end
 
 
 function sortantecedents(
-    antecedents::AbstractVector{Antecedent},
+    antecedents_with_parents::AbstractVector{<:Tuple{Antecedent, Union{Nothing, Antecedent}}},
     y::AbstractVector{<:CLabel},
     w::AbstractVector,
     beam_width::Integer,
@@ -88,20 +88,23 @@ function sortantecedents(
     significance_alpha::Union{Real,Nothing};
     target_class::Union{Integer, Nothing},
     kwargs...
-)::Tuple{AbstractVector,<:Real}     # TODO: Dispatching in base a tipo loss_function
-    isempty(antecedents) && return [], Inf
+)::Tuple{AbstractVector,<:Real} 
+    isempty(antecedents_with_parents) && return [], Inf
 
     # If 'min_rule_coverage' is defined, this filters out from antecedents any antecedent whose covmasks covers less than 'min_rule_coverage' samples 
     if min_rule_coverage > 1
-        validindices = findall(ant -> count(ant.covmask) >= min_rule_coverage, antecedents)
-        isempty(validindices) && return [], Inf
-        antecedents = antecedents[validindices]
+        validindices = findall(tup -> count(tup[1].covmask) >= min_rule_coverage, antecedents_with_parents)
+        isempty(validindices) && return Antecedent[], Inf
+        antecedents_with_parents = antecedents_with_parents[validindices]
     end
 
-    indices = eachindex(antecedents)
+    indices = eachindex(antecedents_with_parents)
 
     # loss function values for each antecedent
-    antslossfnctn = map(a ->  loss_function(y, w, target_class; antecedent=a, kwargs...) , antecedents)
+    antslossfnctn = map(antecedents_with_parents) do (child_ant, parent_ant)
+        # prev_antecedent is the parent to the loss_function, this is necessary if the loss function is a "delta_loss"
+        loss_function(y, w, target_class; antecedent=child_ant, prev_antecedent=parent_ant, kwargs...)
+    end
 
     if !isnothing(max_infogain_ratio)
         # every rule whose loss is < const. * loss of ⊤ over dataset is to be removed, this makes the actual sorting at the end faster
@@ -119,7 +122,7 @@ function sortantecedents(
     valid_indices = partialsortperm(antslossfnctn[indices], 1:min(beam_width, length(indices)))
 
     newstar_perm = indices[valid_indices]  # convert indices to those relative to the parameter antecedents
-    newstar = antecedents[newstar_perm]    # extract best antecedents and corresponding loss functions
+    newstar = [antecedents_with_parents[idx][1] for idx in newstar_perm]    # extract best antecedents and corresponding loss functions
     bestantecedent_lossfnctn = antslossfnctn[newstar_perm[1]]
 
     return newstar, bestantecedent_lossfnctn

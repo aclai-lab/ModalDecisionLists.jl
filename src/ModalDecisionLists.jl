@@ -27,6 +27,7 @@ using .LossFunctions
 
 include("search.jl")
 
+export AtomGenerator
 export sequentialcovering
 
 include("algorithms/sequentialcovering.jl")

@@ -111,7 +111,7 @@ function newconditions(
         # make sure to create the alphabet automatically if default_alphabet is null
         _alphabet = isnothing(default_alphabet) ? 
             # alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
-            alphabet(_X; discretizedomain, y=_y, test_operators=[<, ≥]) :
+            alphabet(_X; discretizedomain, y=_y, test_operators=[<, ≥], keep_unique=true) :
             default_alphabet
 
         UnionAlphabet([_alphabet])   # return is cleaner
@@ -139,7 +139,7 @@ function initialize_antecedents(
 
     _alphabet = isnothing(default_alphabet) ?
         # alphabet(X; discretizedomain, y, sortingmode = :generalfirst) :
-        alphabet(X; discretizedomain, y, test_operators=[<, ≥]) : 
+        alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥]) : 
             default_alphabet
 
     conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)
@@ -147,15 +147,37 @@ function initialize_antecedents(
 end # TODO: Spostare in core.jl, non ha nulla di specifico che abbia a che fare con beamsearch
 
 
+
 """
     specializeantecedents(
-        antecedents::Vector{Tuple{RuleAntecbedent,SatMask}},
-        X::AbstractLogiset,
-        max_rule_length::Union{Nothing,Integer} = nothing,
-    )::Vector{Tuple{Formula, SatMask}}
+        sm,
+        antecedents,
+        X,
+        y;
+        max_rule_length=nothing,
+        discretizedomain=false,
+        default_alphabet=nothing
+    )
 
-Specialize rule *antecedents*.
+Generates all possible specializations from a set of existing antecedents.
+For each antecedent, it constructs new specializations by adding a
+single condition atom and retains only those that actually change the
+dataset coverage.
+
+# Arguments
+- `sm::SearchMethod`: the search method used to generate new atoms.
+- `antecedents::AbstractVector{Antecedent}`: the antecedents that need to be specialized.
+- `X::AbstractLogiset`: the dataset to operate on.
+- `y::AbstractVector{<:CLabel}`: the labels associated with the instances of `X`.
+- `max_rule_length::Union{Nothing,Integer}`: maximum allowed length for the generated rules.
+- `discretizedomain::Bool`: if `true`, uses a discretized domain for alphabet generation.
+- `default_alphabet::Union{Nothing,AbstractAlphabet}`: default alphabet to use instead of reconstructing it from `X`.
+
+# Returns
+A vector of tuples `(new_antecedent, parent_antecedent)` containing the
+generated specializations and their starting antecedent.
 """
+
  function specializeantecedents(
     sm::SearchMethod,
     antecedents::AbstractVector{Antecedent},
@@ -165,15 +187,16 @@ Specialize rule *antecedents*.
     max_rule_length::Union{Nothing,Integer}=nothing,
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-)::Vector{Antecedent}
+)::Vector{Tuple{Antecedent, Union{Nothing, Antecedent}}}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "alphabet must be finite"
 
     if isempty(antecedents)
-        return initialize_antecedents(sm, X, y; discretizedomain, default_alphabet)
+        initial_ants = initialize_antecedents(sm, X, y; discretizedomain, default_alphabet)
+        return [(ant, nothing) for ant in initial_ants]
     end
 
-    specializedants = Antecedent[]
+    specializedants = Tuple{Antecedent, Union{Nothing, Antecedent}}[]
     # pre-allocate based on an assumption of branching factor: we can assume an average of two specializations for each current antecedent
     sizehint!(specializedants, length(antecedents) * 2)
 
@@ -198,8 +221,9 @@ Specialize rule *antecedents*.
                 
                 # reconstruct the formula without deepcopying the atoms themselves
                 new_formula = LeftmostConjunctiveForm(new_conjuncts)
-                
-                push!(specializedants, Antecedent(new_formula, new_mask))
+                new_ant = Antecedent(new_formula, new_mask)
+
+                push!(specializedants, (new_ant, antecedent))
             end
         end
     end
@@ -230,18 +254,19 @@ end
 
 
 """
-    init_best_antecedent(y, w, loss_function; nlabels)
+    init_best_antecedent(y, w, loss_function; nlabels, kwargs...)
 
-Crea un Antecedent iniziale "bot" e ne calcola la loss sul dataset.
+Generates an initial Antecedent "bot" and calcualtes its loss on the dataset.
 
-# Argomenti
-- `y`: vettore di etichette
-- `w`: vettore di pesi
-- `loss_function`: funzione di loss, deve accettare `(y, w; nlabels)`
-- `nlabels`: numero di label (keyword per loss_function)
+# Arguments
+- `y`: labels vector
+- `w`: weights vector
+- `loss_function`: the loss function, must accept `(y, w; nlabels)`
+- `nlabels`: number of labels (keyword for the loss function)
+- `kwargs`: other keyword arguments passed to the loss function
 
-# Ritorna
-Una tupla `(best_antecedent, best_loss)`
+# Returns
+A tuple `(best_antecedent, best_loss)`
 """
 function init_best_antecedent(y, w, loss_function::LossFunctions.AbstractLossFunction; nlabels, kwargs...)
     return error("Cannot call init_best_antecedent with an AbstractLossFunction type")
@@ -265,37 +290,63 @@ function init_best_antecedent(y, w, loss_function::LossFunctions.AsymmetricLoss;
     return antecedent, loss_val 
 end
 
+
+
+
+
+
+
+
+
 """
-    function findbestantecedent(
-        bs::BeamSearch,
+    findbestantecedent(
+        bs,
+        X,
+        y,
+        w,
+        loss_function,
+        max_infogain_ratio,
+        default_alphabet,
+        discretizedomain,
+        significance_alpha,
+        min_rule_coverage;
+        nlabels,
+        max_rule_length=nothing,
+        target_class=nothing,
+        starting_antecedent=nothing,
+        effective_loss=LossFunctions.LaplaceAccuracy(),
+        num_features_considered_per_test=nothing,
+        rng=Random.default_rng(),
+        kwargs...
+    )
 
-        X::AbstractLogiset,
-        y::AbstractVector{<:Integer},
-        w::AbstractVector,
+Finds the best antecedent under beam search using an asymmetric loss function.
+This function expands candidate antecedents iteratively, evaluates them with the
+provided loss and pruning criteria, and returns the antecedent with the lowest
+loss found by the beam search.
 
-        loss_function::LossFunctions.AbstractLossFunction,
-        max_infogain_ratio::Union{Real, Nothing},
-        default_alphabet::Union{Nothing,AbstractAlphabet},
-        discretizedomain::Bool,
-        significance_alpha::Real,
-        min_rule_coverage::Integer;
+# Arguments
+- `bs::BeamSearch`: the beam search strategy and beam width.
+- `X::AbstractLogiset`: the dataset used to generate and specialize antecedents.
+- `y::AbstractVector{<:Integer}`: target labels for the instances in `X`.
+- `w::AbstractVector`: instance weights for loss computation.
+- `loss_function::LossFunctions.AsymmetricLoss`: the asymmetric loss to optimize.
+- `max_infogain_ratio::Union{Real, Nothing}`: maximum information gain ratio allowed for new antecedents.
+- `default_alphabet::Union{Nothing,AbstractAlphabet}`: optional predefined alphabet used for condition generation.
+- `discretizedomain::Bool`: whether to discretize the domain when building the alphabet.
+- `significance_alpha::Real`: significance level used for statistical pruning.
+- `min_rule_coverage::Integer`: minimum number of instances a candidate antecedent must cover.
+- `nlabels::Integer`: number of label classes used by the loss function.
+- `max_rule_length::Union{Integer,Nothing}`: maximum rule length allowed for candidate antecedents.
+- `target_class::Union{Integer,Nothing}`: target class for asymmetric losses.
+- `starting_antecedent::Union{Nothing, Antecedent}`: optional antecedent from which to start the search.
+- `effective_loss::LossFunctions.AsymmetricLoss`: effective loss used when the provided loss is a delta loss.
+- `num_features_considered_per_test::Union{Nothing, Integer}`: number of randomly selected features to consider per test.
+- `rng::AbstractRNG`: random number generator for feature selection.
+- `kwargs...`: additional keyword arguments forwarded to the loss function.
 
-        nlabels::Integer,
-        max_rule_length::Union{Integer,Nothing} = nothing,
-        target_class::Union{Integer,Nothing} = nothing,
-        starting_antecedent::Union{Nothing, Antecedent} = nothing,
-
-        num_features_considered_per_test::Union{Nothing, Integer} = nothing,
-        rng::AbstractRNG = Random.default_rng(),
-    )::Antecedent
-
-Performs a beam search to find the best antecedent for a given dataset and labels.
-If `num_features_considered_per_test` is passed, a subset of the same number of features is randomly selected, and only those features are used to construct the rule. 
-
-# Note
-If num_features_considered_per_test is passed, X must support column-wise indexing such as `X_sub = X[:, my_feats]`
-
-For further details, please refer to [`BeamSearch`](@ref).
+# Returns
+The best `Antecedent` found by the beam search.
 """
 function findbestantecedent(
     bs::BeamSearch,
@@ -304,7 +355,7 @@ function findbestantecedent(
     y::AbstractVector{<:Integer},
     w::AbstractVector,
 
-    loss_function::LossFunctions.AbstractLossFunction,
+    loss_function::LossFunctions.AsymmetricLoss,
     max_infogain_ratio::Union{Real, Nothing},
     default_alphabet::Union{Nothing,AbstractAlphabet},
     discretizedomain::Bool,
@@ -316,6 +367,8 @@ function findbestantecedent(
     target_class::Union{Integer,Nothing} = nothing,  # this is passed down to the loss function
     starting_antecedent::Union{Nothing, Antecedent} = nothing,
 
+    effective_loss::LossFunctions.AsymmetricLoss = LossFunctions.LaplaceAccuracy(),
+
     num_features_considered_per_test::Union{Nothing, Integer} = nothing,
     rng::AbstractRNG = Random.default_rng(),        # necessary for random feature selection when building tests if num_features_considered_per_test is not equal to nfeatures(X)
 
@@ -324,16 +377,14 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
-    # Initializes the best antecedent as the formuala ⊤ 
-    if isnothing(starting_antecedent)
-        best, best_loss = init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
-    else
-        best = starting_antecedent
-        if isa(loss_function, LossFunctions.AsymmetricLoss)
-            best_loss = loss_function(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
-        else
-            best_loss = loss_function(y, w; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
-        end
+    
+    # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
+    loss_for_starting_candidate = (LossFunctions.is_delta_loss(loss_function)) ? effective_loss : loss_function
+    best, best_loss = if isnothing(starting_antecedent)
+        init_best_antecedent(y, w, loss_for_starting_candidate; nlabels, target_class = target_class, kwargs...)
+    else 
+        best_loss = loss_for_starting_candidate(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        starting_antecedent, best_loss
     end
 
     # Selects the features if 'num_features_considered_per_test' is specified and not equal to the number of features
@@ -358,6 +409,8 @@ function findbestantecedent(
                                             discretizedomain,
                                             default_alphabet)
         
+
+
         # @show newcandidates
         # readline()
         # Sort new candidates
@@ -370,124 +423,166 @@ function findbestantecedent(
                                                         # kwargs vari per tutte le possibili loss functions
                                                     nlabels=nlabels,
                                                     target_class=target_class,
-                                                    prev_antecedent=best,
                                                     kwargs...)
 
         isempty(newcandidates) && break
 
         newcandidate = newcandidates[begin]     # only keep the best new candidate (in terms of its loss value)
 
-        # Update the best candidate and its lossfnctn
-        if (bestcandidate_loss < best_loss)
-            best_loss = bestcandidate_loss
-            best = newcandidate
+        if LossFunctions.is_delta_loss(loss_function)
+            for candidate in newcandidates
+                # if a delta loss is passed as an effective loss (for some reason) then we must have prev_antecedent
+                abs_loss = effective_loss(y, w, target_class; antecedent=candidate, prev_antecedent=best, nlabels=nlabels, kwargs...)
+                if abs_loss < best_loss
+                    best_loss = abs_loss
+                    best = candidate
+                end
+            end
+        else
+            should_update = bestcandidate_loss < best_loss
+            should_update && (best = newcandidate; best_loss = bestcandidate_loss)
         end
     end
 
     return best
 end
 
-############################################################################################
-############################################################################################
-############################################################################################
-
-# function find_singlerule(
-#     candidates::AbstractVector{<:Tuple{Formula,SatMask}},
-#     X::AbstractLogiset,
-#     y::AbstractVector{<:Integer},
-#     w::AbstractVector,
-#     beam_width::Integer,
-#     # laplace
-#     target_class,
-#     nlabels,
-#     # optional positional
-#     discretizedomain::Bool=false,
-#     max_rule_length::Union{Nothing,Integer}=nothing,
-#     alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-#     max_infogain_ratio::Union{Nothing,Real}=nothing
-# )::Tuple{Union{Truth,LeftmostConjunctiveForm},SatMask}
-#
-#     while true
-#         (candidates, newcandidates) = newcandidates, Tuple{Formula,SatMask}[]
-#         newcandidates = specializeantecedents(candidates,
-#                             X, y,
-#                             max_rule_length, discretizedomain, alphabet
-#                         )
-#         # In case of unordered learning, all the antecedents that do not cover any instances
-#         # labeled with the target_class must be removed.
-#         newcandidates = [sant for sant in newcandidates if (
-#                             (_, satmask) = sant;
-#                             any(y[satmask] .== target_class)
-#                         )]
-#         (perm, bestcandidate_loss) = sortantecedents(newcandidates,
-#                             y, w,
-#                             beam_width, laplace_accuracy, max_infogain_ratio;
-#                             target_class=target_class,
-#                             nlabels=nlabels
-#                         )
-#
-#         isempty(perm) && break
-#         newcandidates = newcandidates[perm]
-#         if bestcandidate_loss < best_loss
-#             best = newcandidates[1]
-#             best_loss = bestcandidate_loss
-#         end
-#     end
-#     return best
-# end
-
-############################################################################################,
-############################################################################################
-############################################################################################
 
 
-# function find_rules(
-#     bs::BeamSearch,
-#     X::AbstractLogiset,
-#     y::AbstractVector{<:Integer},
-#     w::AbstractVector;
-#     target_class::Integer,
-#     nlabels::Integer
-# )::Vector{Rule}
-#
-#     @unpack beam_width, loss_function, max_rule_length,
-#         discretizedomain, alphabet, max_infogain_ratio = bs
-#
-#     @assert beam_width > 0 "parameter 'beam_width' cannot be less than one. Please provide a valid value."
-#     !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
-#                                                                "than one. Please provide a valid value."
-#     Xuncovered = X
-#     yuncovered = y
-#     wuncovered = w
-#
-#     initial_classdistribution = counts(y, nlabels)
-#     newcandidates = Tuple{Formula,SatMask}[]
-#
-#     bestrules = []
-#     while true
-#         bestantecedent = find_singlerule(
-#                 Xuncovered, yuncovered, wuncovered, beam_width,
-#                 # laplace
-#                 target_class, nlabels,
-#                 # general parameters
-#                 discretizedomain, max_rule_length, alphabet
-#         )
-#         (bestant_formula, bestant_coverage) = bestantecedent
-#
-#         # TODO change target_class::Integer to target_class::CLabel
-#         newrule = Rule(bestant_formula, ConstantModel(target_class))
-#         push!(bestrules, newrule)
-#
-#         uncovered_slice = begin
-#             correctclass_coverage = (yuncovered .== target_class) .& bestant_coverage
-#             (!).(correctclass_coverage)
-#         end
-#         Xuncovered = slicedataset(Xuncovered, uncovered_slice; return_view=true)
-#         yuncovered = @view yuncovered[uncovered_slice]
-#         wuncovered = @view wuncovered[uncovered_slice]
-#
-#         !any(yuncovered .== target_class) && break
-#     end
-#
-#     return bestrules
-# end
+
+"""
+    findbestantecedent(
+        bs,
+        X,
+        y,
+        w,
+        loss_function,
+        max_infogain_ratio,
+        default_alphabet,
+        discretizedomain,
+        significance_alpha,
+        min_rule_coverage;
+        nlabels,
+        max_rule_length=nothing,
+        target_class=nothing,
+        starting_antecedent=nothing,
+        num_features_considered_per_test=nothing,
+        rng=Random.default_rng(),
+        kwargs...
+    )
+
+Finds the best antecedent under beam search using a symmetric loss function.
+This variant does not require a target class and selects the antecedent that
+minimizes the symmetric loss across the beam's candidate specializations.
+
+# Arguments
+- `bs::BeamSearch`: the beam search strategy and beam width.
+- `X::AbstractLogiset`: the dataset used to generate and specialize antecedents.
+- `y::AbstractVector{<:Integer}`: target labels for the instances in `X`.
+- `w::AbstractVector`: instance weights for loss computation.
+- `loss_function::LossFunctions.SymmetricLoss`: the symmetric loss to optimize.
+- `max_infogain_ratio::Union{Real, Nothing}`: maximum information gain ratio allowed for new antecedents.
+- `default_alphabet::Union{Nothing,AbstractAlphabet}`: optional alphabet used for condition generation.
+- `discretizedomain::Bool`: whether to discretize the domain when building the alphabet.
+- `significance_alpha::Real`: significance level used for statistical pruning.
+- `min_rule_coverage::Integer`: minimum number of instances a candidate antecedent must cover.
+- `nlabels::Integer`: number of label classes used by the loss function.
+- `max_rule_length::Union{Integer,Nothing}`: maximum rule length allowed for candidate antecedents.
+- `target_class::Union{Integer,Nothing}`: included for signature compatibility; ignored by symmetric losses.
+- `starting_antecedent::Union{Nothing, Antecedent}`: optional antecedent from which to start the search.
+- `num_features_considered_per_test::Union{Nothing, Integer}`: number of randomly selected features to consider per test.
+- `rng::AbstractRNG`: random number generator for feature selection.
+- `kwargs...`: additional keyword arguments forwarded to the loss function.
+
+# Returns
+The best `Antecedent` found by the beam search.
+"""
+
+function findbestantecedent(
+    bs::BeamSearch,
+
+    X::AbstractLogiset,
+    y::AbstractVector{<:Integer},
+    w::AbstractVector,
+
+    loss_function::LossFunctions.SymmetricLoss,
+    max_infogain_ratio::Union{Real, Nothing},
+    default_alphabet::Union{Nothing,AbstractAlphabet},
+    discretizedomain::Bool,
+    significance_alpha::Real,
+    min_rule_coverage::Integer;
+
+    nlabels::Integer,
+    max_rule_length::Union{Integer,Nothing} = nothing,
+    target_class::Union{Integer,Nothing} = nothing,  # this is passed down to the loss function
+    starting_antecedent::Union{Nothing, Antecedent} = nothing,
+
+    num_features_considered_per_test::Union{Nothing, Integer} = nothing,
+    rng::AbstractRNG = Random.default_rng(),        # necessary for random feature selection when building tests if num_features_considered_per_test is not equal to nfeatures(X)
+
+    kwargs...
+)::Antecedent
+
+    @unpack conjuncts_generation_method, beam_width = bs
+
+    # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
+    best, best_loss = if isnothing(starting_antecedent)
+        init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
+    else 
+        loss_function(y, w; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        starting_antecedent, best_loss
+    end
+
+
+    # Selects the features if 'num_features_considered_per_test' is specified and not equal to the number of features
+    X_specialization = if isnothing(num_features_considered_per_test) || num_features_considered_per_test == nfeatures(X)
+        X
+    else
+        all_feats = collect(Tables.columnnames(Tables.columns(X)))                   # list of feature names, this requires X to be a PropositionalLogiset supporting DataFrame indexing
+        # all_feats = features(X)
+        selected_features = shuffle(rng, all_feats)[1 : num_features_considered_per_test]   # extract features to be used in the test
+        X[:, selected_features]
+    end
+
+    newcandidates = Antecedent[]
+    while true
+        # Generate new specialized candidates
+        (candidates, newcandidates) = newcandidates, Antecedent[]
+
+        newcandidates = specializeantecedents(bs,
+                                            candidates, X_specialization, y,
+
+                                            max_rule_length,
+                                            discretizedomain,
+                                            default_alphabet)
+        
+        # extract the actual antecedents, dump their parents
+        newcandidates = [ant for (ant, _) in newcandidates]
+
+        # @show newcandidates
+        # readline()
+        # Sort new candidates
+        (newcandidates, bestcandidate_loss) = sortantecedents(newcandidates,
+                                                    y, w, beam_width,
+                                                    loss_function,
+                                                    min_rule_coverage,
+                                                    max_infogain_ratio,
+                                                    significance_alpha;
+                                                        # kwargs vari per tutte le possibili loss functions
+                                                    nlabels=nlabels,
+                                                    target_class=target_class,
+                                                    kwargs...)
+
+        isempty(newcandidates) && break
+
+        newcandidate = newcandidates[begin]     # only keep the best new candidate (in terms of its loss value)
+
+
+        if bestcandidate_loss < best_loss
+            best = newcandidate
+            best_loss = bestcandidate_loss
+        end
+    end
+
+    return best
+end

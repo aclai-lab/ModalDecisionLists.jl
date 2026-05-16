@@ -567,6 +567,8 @@ function irepstar(
             Base.@debug "Training converged because the number of positive samples remaining is lower than min_rule_coverage = $min_rule_coverage"
             break end
 
+        Base.@debug "Calling GrowRule procedure"
+
         bestantecedent = findbestantecedent(searchmethod,
             growth_X(split), growth_y(split), growth_w(split),
             #

@@ -138,13 +138,17 @@ function (::FOILGain)(
 
     end
 
-    prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0;       # make sure division by zero does not occurr
-    prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0;
+    # prec_curr = (tp1 + fp1 > 0) ? tp1 / (tp1 + fp1) : 0.0;       # make sure division by zero does not occurr
+    # prec_prev = (tp0 + fp0 > 0) ? tp0 / (tp0 + fp0) : 0.0;
+
+    eps = 1e-10
+    prec_curr = tp1 / (tp1 + fp1 + eps)
+    prec_prev = tp0 / (tp0 + fp0 + eps)
 
     # handle edge cases which would cause the return type fo be NaN (ex: Inf - Inf or 0 * Inf)
-    t == 0 && return 0.0
-    prec_curr == 0 && return Inf
-    prec_prev == 0 && return -Inf   # depends on convention, but usually safe
+    # t == 0 && return 0.0
+    # prec_curr == 0 && return Inf
+    # prec_prev == 0 && return -Inf   # depends on convention, but usually safe
 
     return -t * ( log2(prec_curr) - log2(prec_prev) );             
 end
@@ -245,7 +249,14 @@ function (::MEstimate)(
     return 1.0 - accuracy
 end
 
+#####################################################
+################# DELTA LOSSES #################
+#####################################################
 
+
+# A "Delta loss" is a loss that works as a "difference" in a "goodness criterion", representing a relative improvement rather than an absolute metric of evaluation
+is_delta_loss(::AbstractLossFunction) = false
+is_delta_loss(::FOILGain) = true
 
 
 end
