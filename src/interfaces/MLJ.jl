@@ -253,6 +253,7 @@ mutable struct DecisionListClassifier <: CoveringStrategy
     beam_width::Int
     rng::AbstractRNG
     suppress_parity_warning::Bool
+    invert_class_orders::Bool
 end
 
 function DecisionListClassifier(;
@@ -273,6 +274,7 @@ function DecisionListClassifier(;
     # utils
     rng::AbstractRNG=TaskLocalRNG(),
     suppress_parity_warning::Bool=false,
+    invert_class_orders::Bool = false
 )
     model = DecisionListClassifier(
         searchmethod, 
@@ -290,6 +292,7 @@ function DecisionListClassifier(;
         beam_width,
         rng,
         suppress_parity_warning,
+        invert_class_orders
     )
     message = MMI.clean!(model)
     isempty(message) || @warn message
@@ -329,7 +332,8 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
             conjuncts_generation_method=m.conjuncts_generation_method,
             beam_width=m.beam_width,
             rng=m.rng,
-            suppress_parity_warning=m.suppress_parity_warning
+            suppress_parity_warning=m.suppress_parity_warning,
+            invert_class_orders=m.invert_class_orders
         )
     end
 
@@ -373,6 +377,7 @@ mutable struct RipperListClassifier <: CoveringStrategy
     beam_width::Int
     rng::AbstractRNG
     suppress_parity_warning::Bool
+    invert_class_orders::Bool
 end
 
 function RipperListClassifier(;
@@ -395,6 +400,7 @@ function RipperListClassifier(;
     # utils
     rng::AbstractRNG=TaskLocalRNG(),
     suppress_parity_warning::Bool=false,
+    invert_class_orders::Bool = false
 )
     model = RipperListClassifier(
         searchmethod, 
@@ -413,6 +419,7 @@ function RipperListClassifier(;
         beam_width,
         rng,
         suppress_parity_warning,
+        invert_class_orders
     )
     message = MMI.clean!(model)
     isempty(message) || @warn message
@@ -453,7 +460,8 @@ function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
             conjuncts_generation_method=m.conjuncts_generation_method,
             beam_width=m.beam_width,
             rng=m.rng,
-            suppress_parity_warning=m.suppress_parity_warning
+            suppress_parity_warning=m.suppress_parity_warning,
+            invert_class_orders=m.invert_class_orders
         )
     end
 
