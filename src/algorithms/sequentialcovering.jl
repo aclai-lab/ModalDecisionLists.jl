@@ -1193,9 +1193,6 @@ function ripperk(
 )::DecisionList where {U<:Real}
 
     @assert (0 ≤ max_k) "Parameter `max_k` must be greater or equal to zero"
-    if max_k == 0
-        @warn "The parameter `max_k` is zero, therefore ripperk will be equivalent to irep* as no optimization step will be performed. It may be desirable to call `irepstar` directly"
-    end
 
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be > 0"
 
