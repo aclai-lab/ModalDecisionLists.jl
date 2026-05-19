@@ -128,7 +128,7 @@ end
 
 function MMI.predict(m::CoveringStrategy, fitresult, Xnew)
     yhat = apply(fitresult.model, PropositionalLogiset(Xnew))
-    return yhat
+    return MMI.categorical(raw_preds, levels=target_pool)
 end
 
 ############################################################################################
@@ -223,8 +223,10 @@ function MMI.fit(m::CoveringStrategy, verbosity::Int, X, y)
     if verbosity == 1
         println(model)
     end
+    target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
+        target_pool = target_pool
     )
     report = (
         model = model,
@@ -339,9 +341,10 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
+    target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
-        # target_levels=MLJ.levels(y)
+        target_pool = target_pool
     )
     report = (
         model = model,
@@ -439,7 +442,6 @@ end
 function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
     featurenames = propertynames(X)
     logiset = PropositionalLogiset(X)
-    y = String.(y)
 
     model = begin
         ripperk(
@@ -468,9 +470,10 @@ function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
+    target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
-        # target_levels=levels(y)
+        target_pool = target_pool
     )
     report = (
         model = model,
@@ -614,7 +617,8 @@ function MMI.fit(m::RandomDecisionListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    fitresult = (; model)
+    target_pool = MLJModelInterface.classes(y)
+    fitresult = (; model, target_pool)
     report = (; model)
     cache = nothing
 
@@ -632,6 +636,7 @@ MMI.metadata_pkg.(
         OrderedCN2Learner,
         ExtendedSequentialCovering,
         DecisionListClassifier,
+        RipperListClassifier,
         RandomDecisionListClassifier,
     ),
     name = "$(MDL)",
