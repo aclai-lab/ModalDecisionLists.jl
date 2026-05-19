@@ -128,7 +128,7 @@ end
 
 function MMI.predict(m::CoveringStrategy, fitresult, Xnew)
     yhat = apply(fitresult.model, PropositionalLogiset(Xnew))
-    return MMI.categorical(raw_preds, levels=target_pool)
+    return yhat
 end
 
 ############################################################################################
@@ -223,10 +223,10 @@ function MMI.fit(m::CoveringStrategy, verbosity::Int, X, y)
     if verbosity == 1
         println(model)
     end
-    target_pool = MLJModelInterface.classes(y)
+    # target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
-        target_pool = target_pool
+        # target_pool = target_pool
     )
     report = (
         model = model,
@@ -341,10 +341,10 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    target_pool = MLJModelInterface.classes(y)
+    # target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
-        target_pool = target_pool
+        # target_pool = target_pool
     )
     report = (
         model = model,
@@ -470,10 +470,10 @@ function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    target_pool = MLJModelInterface.classes(y)
+    # target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
-        target_pool = target_pool
+        # target_pool = target_pool
     )
     report = (
         model = model,
@@ -617,8 +617,8 @@ function MMI.fit(m::RandomDecisionListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    target_pool = MLJModelInterface.classes(y)
-    fitresult = (; model, target_pool)
+    # target_pool = MLJModelInterface.classes(y)
+    fitresult = (; model)
     report = (; model)
     cache = nothing
 
