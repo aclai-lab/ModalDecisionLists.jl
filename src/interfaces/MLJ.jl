@@ -439,6 +439,7 @@ end
 function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
     featurenames = propertynames(X)
     logiset = PropositionalLogiset(X)
+    y = String.(y)
 
     model = begin
         ripperk(

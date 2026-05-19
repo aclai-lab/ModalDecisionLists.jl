@@ -669,7 +669,7 @@ function irepstar(
         Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
 
 
-        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
+        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = false)
     end
 
     default_prediction = "other"    # default prediction if no other Rule applies
@@ -715,18 +715,37 @@ function compute_global_coverage(
     pruneX = prune_X(split)
 
     grow_mask = check(antecedent, growX)
-    grow_cov_local = findall(grow_mask)
-    grow_cov_global = grow_indices(split)[grow_cov_local]
-
-    if bestantecedent_prune_cov === nothing 
+    
+    if bestantecedent_prune_cov === nothing
         prune_mask = check(antecedent, pruneX)
     else
         prune_mask = bestantecedent_prune_cov
     end
-    prune_cov_local = findall(prune_mask)
-    prune_cov_global = prune_indices(split)[prune_cov_local]
 
-    return vcat(grow_cov_global, prune_cov_global)
+    n_grow = count(grow_mask)
+    n_prune = count(prune_mask)
+    
+    _grow_inds = grow_indices(split)
+    _prune_inds = prune_indices(split)
+    
+    global_cov = Vector{eltype(_grow_inds)}(undef, n_grow + n_prune)
+    
+    idx = 1
+    @inbounds for i in eachindex(grow_mask)
+        if grow_mask[i]
+            global_cov[idx] = _grow_inds[i]
+            idx += 1
+        end
+    end
+    
+    @inbounds for i in eachindex(prune_mask)
+        if prune_mask[i]
+            global_cov[idx] = _prune_inds[i]
+            idx += 1
+        end
+    end
+
+    return global_cov
 end
 
 
@@ -799,19 +818,13 @@ function pruneantecedent(
         return antecedent.formula, BitVector([])
     end 
 
-    # TODO: optimize this function
-
     X = prune_X(split)
     y = prune_y(split)
     w = get_no_nil(prune_w(split), default_weights(length(y)))
 
     target_class = 1
 
-    # 1. Build the positive/negative masks with respect to the target class
-    posmask = y .== target_class
-    negmask = .!posmask
-
-    # 2. Initialization of the best antecedent (best rule) 
+    # initialization of the best antecedent (best rule) 
     _best_formula = antecedent.formula
     _best_covmask = nothing
     _best_score = -Inf              # this makes sure that at least one formula will be selected as _best_formula in the loop
@@ -821,8 +834,17 @@ function pruneantecedent(
 
         p_covmask = check(pformula, X)
 
-        p = sum(w[posmask .& p_covmask]) # Sum of True positives weight values
-        n = sum(w[negmask .& p_covmask]) # Sum of False positives weight values
+        p = 0.0
+        n = 0.0
+        @inbounds for i in eachindex(p_covmask, y, w)
+            if p_covmask[i]
+                if y[i] == target_class
+                    p += w[i]
+                else
+                    n += w[i]
+                end
+            end
+        end
 
 
         # v* (IREP* pruning criterion)
@@ -1287,7 +1309,7 @@ function ripperk(
         curr_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, curr_ruleset_satmask)
         args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
         
-        curr_ruleset_satmask = _optimize_ruleset!(
+        _optimize_ruleset!(curr_ruleset_satmask,
             ruleset_masks, curr_ruleset, X, y, w, original_y,
             labels, poslabel, args, curr_tdl, searchmethod, num_selectors, 
             split_ratio, rng, max_rule_length, num_features_considered_per_test,
@@ -1368,6 +1390,7 @@ Runs the RIPPER optimization phase. In the mean time, this computes the total sa
 'ruleset_masks' is also updated such that, after executing this function, the i-th column is the satmask of the i-th rule in the optimized ruleset
 """
 function _optimize_ruleset!(
+    optimized_ruleset_satmask::SatMask,
     ruleset_masks::BitMatrix,
     curr_ruleset::AbstractVector{<:Rule},
     X::AbstractLogiset,
@@ -1387,7 +1410,7 @@ function _optimize_ruleset!(
     num_features_considered_per_test::Union{Integer, Nothing},
 )
 
-    optimized_ruleset_satmask = falses( ninstances(X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
+    optimized_ruleset_satmask .= falses( ninstances(X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
 
 
     # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
@@ -1466,22 +1489,22 @@ function _optimize_ruleset!(
         ruleset_masks[:, i] .= false
         ruleset_masks[chosen_rule_coverage_indices, i] .= true
         chosen_rule_dl = competing_rules_dl[best_tdl_idx]
-
+        
         
         Base.@debug begin
             """=========== Rule optimization #$i ===========
             Total description lengths for competing rules (original, grown, revised): $(round.(competing_TDLs, digits=3))
-            Best rule: $best_rule
-            Best rule index: $best_tdl_idx
-            original rule's covered indices: $original_rule_covered_indices"""
+                Best rule: $best_rule
+                Best rule index: $best_tdl_idx
+                original rule's covered indices: $original_rule_covered_indices"""
         end
-
-        optimized_ruleset_satmask[chosen_rule_coverage_indices] .= true
+            
+        optimized_ruleset_satmask .|= ruleset_masks[:, i]                       # modify the ruleset mask
         curr_ruleset_desc_length += chosen_rule_dl - original_rule_dl           # apply the delta in description length of the single rule
+        rules_desc_lengths[i] = chosen_rule_dl
 
     end     # ruleset optimization completed 
 
-    return optimized_ruleset_satmask
 end
 
 
@@ -1519,7 +1542,7 @@ end
 Given a BitMatrix of shape (n_samples, n_rules), where the i-th column is the satmask of the i-th rule, this function returns the satmask of the entire ruleset, which is just
 the logical OR done computed element-wise between the columns of the matrix passed as an argument.
 """
-function merge_rules_satmasks(masks::BitMatrix)
+function merge_rules_satmasks(masks::BitMatrix)::SatMask
     num_samples, num_rules = size(masks)
     ruleset_satmask = falses(num_samples)
 
@@ -1561,13 +1584,10 @@ function _precalculate_rules_satmasks(
     num_samples = ninstances(X)
     ruleset_masks = BitMatrix(falses(num_samples, n_rules))
     
-    for rule_idx = 1 : n_rules
+    @views for rule_idx in 1:n_rules
         rule = rules[rule_idx]
-    
-        rule_satmask = checkantecedent(rule, X)
-        ruleset_masks[:, rule_idx] .= rule_satmask
+        ruleset_masks[:, rule_idx] .= checkantecedent(rule, X)
     end
-
     return ruleset_masks
 end
 
