@@ -788,9 +788,7 @@ This is used in the pruning phase in RIPPER
 # First, we need to identify which methods we want to implement, then we can consider the actual structure.
 function generate_pruned_formulas(ant::Antecedent)
     _range = nconds(ant):-1:1
-    return [LeftmostConjunctiveForm(conds(ant)[1:i])
-            for i in _range
-    ]
+    return (LeftmostConjunctiveForm(conds(ant)[1:i]) for i in _range)
 end
 
 function pruneantecedent(
@@ -848,7 +846,9 @@ function get_num_independent_selectors(
 )::Int
     alph = alphabet(X;
         discretizedomain=discretizedomain,
-        y=y
+        y=y,
+        test_operators=[<, ≥], 
+        keep_unique=true
     )
 
     independent_conds = alphabet2conditions(AtomGenerator(), alph, X)
@@ -1273,26 +1273,28 @@ function ripperk(
         
     curr_ruleset = rulebase(curr_ruleset)
 
-    
-    # This cannot possibly be inside the loop, otherwise the description length of a rule would change based on the ripper_iteration, it just doesn't make sense
+    # pre-calculate a matrix where each column is the satmask of the i-th rule in the current ruleset
+    ruleset_masks = _precalculate_rules_satmasks(X, curr_ruleset)
+    curr_ruleset_satmask = merge_rules_satmasks(ruleset_masks)
+
+    # number of possible selectors used to build rules
     num_selectors = get_num_independent_selectors(X, y, discretizedomain)       
     
     for ripper_iteration = 1 : max_k
-        ruleset_masks = _precalculate_rules_satmasks(X, curr_ruleset)
+        Base.@debug "Starting RIPPERk iteration #$ripper_iteration - running the ruleset optimization step"
         
         # Calculate initial TDL 
-        curr_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, ruleset_masks)
+        curr_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, curr_ruleset_satmask)
         args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
         
-        optimized_ruleset_satmask = _optimize_ruleset!(
+        curr_ruleset_satmask = _optimize_ruleset!(
             ruleset_masks, curr_ruleset, X, y, w, original_y,
             labels, poslabel, args, curr_tdl, searchmethod, num_selectors, 
             split_ratio, rng, max_rule_length, num_features_considered_per_test,
         )
 
-
         # Calculate indices covered and not covered by the ruleset
-        covered_indices = findall(x -> x == 1, optimized_ruleset_satmask)
+        covered_indices = findall(x -> x == 1, curr_ruleset_satmask)
         uncovered_slice = setdiff(1:ninstances(X), covered_indices)
         
         Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
@@ -1303,7 +1305,7 @@ function ripperk(
 
         uncovered = sliceinstances(original_train_state, uncovered_slice; return_view = true)
 
-        # Check for stopping condition if no new rule can be made with such few samples. This also handles the case where no positive samples are remaining
+        # Check for stopping condition if no new rule can be constructed with such few samples. This also handles the case where no positive samples are remaining
         num_pos_samples_remaining = count(x -> x == 1, uncovered.y)
         if num_pos_samples_remaining < min_rule_coverage
             Base.@debug "RIPPER training stopped after iteration $ripper_iteration because the number of positive samples remaining was smaller than min_rule_coverage"
@@ -1333,9 +1335,17 @@ function ripperk(
                             num_features_considered_per_test,
                             kwargs...)
 
-        # Append the residual ruleset to 
+        # Append the residual ruleset to the end of the current one
         residual_ruleset = rulebase(residual_ruleset)
         append!(curr_ruleset, residual_ruleset)
+
+        # recalculate the satmasks matrix. 'ruleset_masks' already contained the masks of the optimized rules. 
+        # Since the rules in 'residual_ruleset' are concatenated with the optimied ones, I only need to extract the satmasks of the new residual rules and concatenate the satmasks
+        residual_masks = _precalculate_rules_satmasks(X, residual_ruleset) 
+        ruleset_masks = hcat(ruleset_masks, residual_masks)      
+        
+        # update curr_ruleset_satmask with the new values from residual_masks
+        add_sat_coverage!(curr_ruleset_satmask, residual_masks)
     end
 
     default_prediction = "other"    # default prediction if no other Rule applies
@@ -1353,7 +1363,10 @@ end
 
 
 
-# Note: This returns the SatMask of the optimized ruleset on the data as a BitVector
+""" 
+Runs the RIPPER optimization phase. In the mean time, this computes the total sat mask of the optimized ruleset, which is returned, and the BitMatrix
+'ruleset_masks' is also updated such that, after executing this function, the i-th column is the satmask of the i-th rule in the optimized ruleset
+"""
 function _optimize_ruleset!(
     ruleset_masks::BitMatrix,
     curr_ruleset::AbstractVector{<:Rule},
@@ -1381,14 +1394,20 @@ function _optimize_ruleset!(
     split = split_instances(X, y, w, split_ratio, rng)
     split === nothing && return optimized_ruleset_satmask
 
+    suffix_matrix = compute_suffix_matrix(ruleset_masks)
+
+    rules_desc_lengths = [_r_theory_bits(rule, num_selectors) for rule ∈ curr_ruleset]
+    curr_ruleset_desc_length = sum(rules_desc_lengths)
 
     for (i, rule) ∈ enumerate(curr_ruleset)
+        # Cache interesting values for the original rule in the dataset.
+        original_rule_dl = rules_desc_lengths[i]
         original_rule_satmask = ruleset_masks[:, i]         # cache the satmask of the current rule
         original_rule_covered_indices = findall(x -> x == 1, original_rule_satmask)
-        default_dataset_satmask = merge_ruleset_satmasks(ruleset_masks, i)      # satmask of the dataset if 'rule' was not a part of it
+        default_dataset_satmask = optimized_ruleset_satmask .| (@view suffix_matrix[:, i])      # satmask of the ruleset if 'rule' were to be removed
 
-        # Consider newly grown rule as a variant to rule
-        # grow a new rule and prune it, 
+
+        # Consider newly grown rule as a variant to rule, this function below grows a new rule and prunes it
         rule_grown, rule_grown_covered_indices = _grow_and_prune_rule(
             searchmethod, split, original_y, poslabel, 
             labels, default_dataset_satmask, args; 
@@ -1400,15 +1419,16 @@ function _optimize_ruleset!(
             rule_grown_covered_indices = original_rule_covered_indices
         end
 
-        # substitute the new rule's sat mask in place of the i-th rule, and use the resulting sat matrix to calculate the TDL of the entire ruleset
+        # in these next two lines we conveniently reuse the already allocated memory in the i-th column of ruleset_masks to store the satmask of the grown rule. The original rule's satmask is saved in "original_rule_satmask"
         ruleset_masks[:, i] .= false                       
-        ruleset_masks[rule_grown_covered_indices, i] .= true
-        curr_ruleset[i] = rule_grown
-        rule_grown_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, default_dataset_satmask, ruleset_masks[:, i])   # ruleset_masks[:, i] has been set to the new rule's satmask two lines above
+        ruleset_masks[rule_grown_covered_indices, i] .= true 
+        rule_grown_dl = _r_theory_bits(rule_grown, num_selectors)
+        rule_grown_tdl = _calculate_TDL(y, rule_grown_dl, original_rule_dl, curr_ruleset_desc_length, 
+                                        default_dataset_satmask, ruleset_masks[:, i])   # ruleset_masks[:, i] has been set to the new rule's satmask two lines above
 
 
 
-        # refine a new rule starting from 'rule' and prune it, do the same as before
+        # Consider revised version of the rule as a variant to the original one, this function below revises the original rule and prunes it
         rule_revised, rule_revised_covered_indices = _revise_and_prune_rule(
             searchmethod, split, original_y, poslabel, 
             labels, default_dataset_satmask, 
@@ -1421,26 +1441,31 @@ function _optimize_ruleset!(
             rule_revised_covered_indices = original_rule_covered_indices
         end
 
+        # reuse the already allocated memory in the i-th column of ruleset_masks to store the satmask of the revised rule. The original rule's satmask is saved in "original_rule_satmask"
         ruleset_masks[:, i] .= false                       
-        ruleset_masks[rule_revised_covered_indices, i] .= true
-        curr_ruleset[i] = rule_revised
-        rule_revised_tdl = _calculate_TDL(y, curr_ruleset, num_selectors, default_dataset_satmask, ruleset_masks[:, i])
+        ruleset_masks[rule_revised_covered_indices, i] .= true 
+        rule_revised_dl = _r_theory_bits(rule_revised, num_selectors)
+        rule_revised_tdl = _calculate_TDL(y, rule_revised_dl, original_rule_dl, curr_ruleset_desc_length, 
+                                        default_dataset_satmask, ruleset_masks[:, i])
 
         # Select best rule amongst the three
         competing_TDLs = (curr_tdl, rule_grown_tdl, rule_revised_tdl)
         competing_rules = (rule, rule_grown, rule_revised)
         competing_rules_coverage_indices = (original_rule_covered_indices, rule_grown_covered_indices, rule_revised_covered_indices)
+        competing_rules_dl = (original_rule_dl, rule_grown_dl, rule_revised_dl)             # description lengths of the single rules, without taking into account the data
+
 
         # Extract best rule
         best_tdl_idx = argmin(competing_TDLs)
         best_rule = competing_rules[best_tdl_idx]
 
-        # Replace current rule with the best one
+        # Replace current rule with the best one. Update the ruleset, the current total description length, extract the coverage indices, and update the "ruleset_satmasks"
         curr_ruleset[i] = best_rule 
         curr_tdl = competing_TDLs[best_tdl_idx]
         chosen_rule_coverage_indices = competing_rules_coverage_indices[best_tdl_idx]
         ruleset_masks[:, i] .= false
         ruleset_masks[chosen_rule_coverage_indices, i] .= true
+        chosen_rule_dl = competing_rules_dl[best_tdl_idx]
 
         
         Base.@debug begin
@@ -1452,12 +1477,58 @@ function _optimize_ruleset!(
         end
 
         optimized_ruleset_satmask[chosen_rule_coverage_indices] .= true
+        curr_ruleset_desc_length += chosen_rule_dl - original_rule_dl           # apply the delta in description length of the single rule
 
     end     # ruleset optimization completed 
 
     return optimized_ruleset_satmask
 end
 
+
+
+"""
+Returns a BitMatrix with shape (n_samples, n_rules) where the i-th column is the coverage mask of
+rules i+1, i+2, ..., n_rules over the dataset. The last column is always filled wtih zeros.
+"""
+function compute_suffix_matrix(ruleset_masks::BitMatrix)::BitMatrix
+    num_samples, num_rules = size(ruleset_masks)
+    suffix_matrix = BitMatrix(falses(num_samples, num_rules))
+
+    for col_idx = num_rules-1 : -1 : 1
+        suffix_matrix[:, col_idx] .= (@view ruleset_masks[:, col_idx+1]) .| (@view suffix_matrix[:, col_idx+1])
+    end
+    return suffix_matrix
+end
+
+
+
+"""
+This function takes as arguments 
+    - the current ruleset satmask over the samples, with shape (n_samples,) 
+    - a BitMatrix with shape (n_samples, n_new_rules), such that the i-th column is the satmask of an i-th new rule added to the ruleset with satamsk 'curr_ruleset_satmask'
+The function updates curr_ruleset_satmask to take into account the coverage of the new rules
+"""
+function add_sat_coverage!(curr_ruleset_satmask::SatMask, new_masks::BitMatrix)
+    for col ∈ eachcol(new_masks)
+        curr_ruleset_satmask .|= col
+    end
+end
+
+
+"""
+Given a BitMatrix of shape (n_samples, n_rules), where the i-th column is the satmask of the i-th rule, this function returns the satmask of the entire ruleset, which is just
+the logical OR done computed element-wise between the columns of the matrix passed as an argument.
+"""
+function merge_rules_satmasks(masks::BitMatrix)
+    num_samples, num_rules = size(masks)
+    ruleset_satmask = falses(num_samples)
+
+    for col ∈ eachcol(masks)
+        ruleset_satmask .|= col
+    end
+
+    return ruleset_satmask
+end
 
 
 
@@ -1478,7 +1549,7 @@ two rules' coverage masks are adjacent in memory bit-by-bit.
 - `rules::AbstractVector{<:Rule}`: A vector of rules to precompute masks for.
 
 # Returns
-A `BitMatrix` of size `(num_samples × num_rules)` where each column `i` contains
+A `BitMatrix` of size `(num_samples x num_rules)` where each column `i` contains
 the satisfaction mask for rule `i`.
 """
 function _precalculate_rules_satmasks(
@@ -1494,7 +1565,7 @@ function _precalculate_rules_satmasks(
         rule = rules[rule_idx]
     
         rule_satmask = checkantecedent(rule, X)
-        ruleset_masks[:, rule_idx] = rule_satmask
+        ruleset_masks[:, rule_idx] .= rule_satmask
     end
 
     return ruleset_masks
@@ -1510,18 +1581,12 @@ function _calculate_TDL(
     y::AbstractVector{<:UInt32},
     rules::AbstractVector{<:Rule},
     num_possible_selectors::Int,
-    ruleset_masks::BitMatrix
+    ruleset_satmask::SatMask
 )::Real
-    # Calculate Description length of the ruleset itself, ignoring data (TDL(Ruleset)), we also use the loop to calculate the satmask of the ruleset
-    num_samples = length(y)
-    ruleset_satmask = falses(num_samples)
-
+    # Calculate Description length of the ruleset itself, ignoring data (TDL(Ruleset))
     ruleset_dl = 0.0
     for (i, rule) ∈ enumerate(rules)
         ruleset_dl += _r_theory_bits(rule, num_possible_selectors)
-        
-        rule_satmask = @view ruleset_masks[:, i]
-        ruleset_satmask .|= rule_satmask
     end
 
     # Calculate description length of the data, given the ruleset
@@ -1535,29 +1600,37 @@ end
 """
     _calculate_ruleset_length(X, y, rules)
 
-Calculate the total description length of a ruleset and of some data given that ruleset when a new rule is added.
+Calculate the total description length of a ruleset and of some data given that ruleset when a rule is replaced.
 ruleset_satmask_curr is the coverage mask of the current ruleset (without the new rule) over the data y. new_rule_satmask on the other hand is the 
 sat mask of the new rule over y.
+
+y -> vector of labels
+new_rule -> newly constructed rule
+previous_rule_tdl -> description length of the rule that is being replaced
+curr_ruleset_desc_length -> the current description length of the ruleset (just the rules, not the data)
+num_possible_selectors -> number of selectors used when building the rule
+ruleset_satmask_curr -> satmask of the ruleset over the dataset if 'new_rule' nor its original value are present
+new_rule_satmask -> satmask of the new rule being added
 """
 function _calculate_TDL(
     y::AbstractVector{<:UInt32},
-    rules::AbstractVector{<:Rule},
-    num_possible_selectors::Int,
+    new_rule_desc_length::Real,
+    previous_rule_tdl::Real,
+    curr_ruleset_desc_length::Real,
+    
     ruleset_satmask_curr::BitVector,
-    new_rule_satmask::BitVector
+    new_rule_satmask::BitVector,
 )::Real
     # Calculate Description length of the ruleset itself, ignoring data (TDL(Ruleset)), we also use the loop to calculate the satmask of the ruleset
     ruleset_satmask = ruleset_satmask_curr .| new_rule_satmask
 
-    ruleset_dl = 0.0
-    for rule ∈ rules
-        ruleset_dl += _r_theory_bits(rule, num_possible_selectors)
-    end
+    rule_replacement_dl_delta = new_rule_desc_length - previous_rule_tdl        # diff. in description length of the rules by substituting the previous rule with 'new_rule'
+    new_ruleset_dl = curr_ruleset_desc_length + rule_replacement_dl_delta
 
     # Calculate description length of the data, given the ruleset
     data_dl_given_ruleset = rs_dataset_bits(y, ruleset_satmask)
 
-    return ruleset_dl + data_dl_given_ruleset
+    return new_ruleset_dl + data_dl_given_ruleset
 end
 
 
@@ -1683,26 +1756,4 @@ function _prune_rule_over_dataset(
     rule = build_rule(pruned_ant, uncovered_original_y, poslabel, coverage_indices, labels)
 
     return rule, coverage_indices
-end
-
-
-""" Given the BitMatrix where each column is a satmask over a dataset for a certain rule, this function computes 
-the total satmask for entire ruleset over the same dataset, excluding the result from excluded_rule_idx (if it's not nothing)"""
-function merge_ruleset_satmasks(
-    ruleset_satmasks::BitMatrix,
-    excluded_rule_idx::Union{Nothing, Integer}
-)
-    num_samples = size(ruleset_satmasks, 1)     # num_samples = num_rows(ruleset_satmasks)
-    num_rules = size(ruleset_satmasks, 2)        # num_rules = num_cols(ruleset_satmasks)
-    ruleset_satmask::BitVector = falses(num_samples)
-
-    for i = 1 : num_rules
-        if !isnothing(excluded_rule_idx) && i == excluded_rule_idx
-            continue end
-
-        rule_satmask = @view ruleset_satmasks[:, i]
-        ruleset_satmask = ruleset_satmask .| rule_satmask
-    end
-
-    return ruleset_satmask
 end
