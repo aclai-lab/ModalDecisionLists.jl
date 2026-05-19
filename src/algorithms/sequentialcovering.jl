@@ -550,7 +550,7 @@ function irepstar(
     curr_min_TDL = curr_TDL
     
 
-    rulebase = Rule[]
+    rulebase = Vector{ClassificationRule{typeof(poslabel)}}()
     while true
 
         if !isnothing(max_rulebase_length) && length(rulebase) >= max_rulebase_length
@@ -1293,7 +1293,7 @@ function ripperk(
                             kwargs...)
 
         
-    curr_ruleset = rulebase(curr_ruleset)
+    curr_ruleset = Vector{ClassificationRule{<:CLabel}}(rulebase(curr_ruleset))
 
     # pre-calculate a matrix where each column is the satmask of the i-th rule in the current ruleset
     ruleset_masks = _precalculate_rules_satmasks(X, curr_ruleset)
@@ -1325,7 +1325,7 @@ function ripperk(
         if length(uncovered_slice) == 0
             break end
 
-        uncovered = sliceinstances(original_train_state, uncovered_slice; return_view = true)
+        uncovered = sliceinstances(original_train_state, uncovered_slice; return_view = false)
 
         # Check for stopping condition if no new rule can be constructed with such few samples. This also handles the case where no positive samples are remaining
         num_pos_samples_remaining = count(x -> x == 1, uncovered.y)
