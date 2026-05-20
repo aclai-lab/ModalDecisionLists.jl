@@ -100,11 +100,16 @@ function newconditions(
     ant::Antecedent;
 
     discretizedomain=false,
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing
+    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    precomputed_conditions::Union{Nothing,Vector{Tuple{Atom, BitVector}}}=nothing
 )::Vector{Tuple{Atom{ScalarCondition},SatMask}}
 
+    if !isnothing(precomputed_conditions)
+        return filterconditions(precomputed_conditions, ant)
+    end
+
     # dataset composed of the samples covered by 'ant'
-    _X = slicedataset(X, ant.covmask; return_view=false)
+    _X = slicedataset(X, ant.covmask; return_view=true)
     _y = y[ant.covmask]
 
     selectedalphabet = begin
@@ -114,7 +119,7 @@ function newconditions(
             alphabet(_X; discretizedomain, y=_y, test_operators=[<, ≥], keep_unique=true) :
             default_alphabet
 
-        UnionAlphabet([_alphabet])   # return is cleaner
+        UnionAlphabet([_alphabet])
     end
     
     conditions = alphabet2conditions(sm.conjuncts_generation_method, selectedalphabet, X)
@@ -144,7 +149,7 @@ function initialize_antecedents(
 
     conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)
     return [Antecedent([f], mask) for (f, mask) in conditions]
-end # TODO: Spostare in core.jl, non ha nulla di specifico che abbia a che fare con beamsearch
+end 
 
 
 
@@ -187,6 +192,7 @@ generated specializations and their starting antecedent.
     max_rule_length::Union{Nothing,Integer}=nothing,
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    precomputed_conditions::Union{Nothing, Vector{Tuple{Atom, BitVector}}}=nothing
 )::Vector{Tuple{Antecedent, Union{Nothing, Antecedent}}}
 
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "alphabet must be finite"
@@ -203,7 +209,8 @@ generated specializations and their starting antecedent.
     for antecedent ∈ antecedents
         conjconds = newconditions(sm, X, y, antecedent; 
                                  discretizedomain=discretizedomain, 
-                                 default_alphabet=default_alphabet)
+                                 default_alphabet=default_alphabet,
+                                 precomputed_conditions=precomputed_conditions)
 
         isempty(conjconds) && continue
 
@@ -377,6 +384,13 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
+    default_alphabet = get_no_nil(default_alphabet, alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥]))
+
+    precomputed_conditions = if !isnothing(default_alphabet)
+        alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X)
+    else
+        nothing
+    end
     
     # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
     loss_for_starting_candidate = (LossFunctions.is_delta_loss(loss_function)) ? effective_loss : loss_function
@@ -407,7 +421,8 @@ function findbestantecedent(
 
                                             max_rule_length,
                                             discretizedomain,
-                                            default_alphabet)
+                                            default_alphabet,
+                                            precomputed_conditions)
         
 
 

@@ -669,7 +669,7 @@ function irepstar(
         Base.@debug "Number of uncovered samples remaining: $(length(uncovered_slice))"
 
 
-        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = false)
+        uncovered = sliceinstances(uncovered, uncovered_slice; return_view = true)
     end
 
     default_prediction = "other"    # default prediction if no other Rule applies
