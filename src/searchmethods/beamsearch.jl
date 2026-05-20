@@ -544,7 +544,7 @@ function findbestantecedent(
     best, best_loss = if isnothing(starting_antecedent)
         init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
     else 
-        loss_function(y, w; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
+        best_loss = loss_function(y, w; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
         starting_antecedent, best_loss
     end
 
