@@ -558,10 +558,11 @@ function irepstar(
             break
         end
 
-        split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng)
+        split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng; stratified=true)
         split === nothing && break
 
         num_uncovered_pos = count(label -> label == 1, uncovered.y)    # total number of uncovered positive samples
+        positive_labels_ratio = num_uncovered_pos / length(uncovered.y)
 
         if num_uncovered_pos < min_rule_coverage
             Base.@debug "Training converged because the number of positive samples remaining is lower than min_rule_coverage = $min_rule_coverage"
@@ -614,7 +615,7 @@ function irepstar(
         istop(bestantecedent) && break
 
         # PRUNING
-        bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split)
+        bestantecedent, bestantecedent_prune_cov = pruneantecedent(bestantecedent, split, positive_labels_ratio)
 
         # Create the new Rule as an instance of "Rule" from SoleModels
         coverage_indices = compute_global_coverage(bestantecedent, split, bestantecedent_prune_cov)
@@ -812,7 +813,8 @@ end
 
 function pruneantecedent(
     antecedent::Antecedent,
-    split::DataSplit
+    split::DataSplit,
+    positive_labels_ratio::Real
 )
     if prune_size(split) == 0
         return antecedent.formula, BitVector([])
@@ -843,12 +845,13 @@ function pruneantecedent(
                 else
                     n += w[i]
                 end
-            end
+            end 
         end
 
 
         # v* (IREP* pruning criterion)
-        prec = (p + n != 0) ? (p + 1) / (p + n + 2) : 0.0
+        # positive_labels_ratio = 0.5
+        prec = (p + n != 0) ? (p + 2 * positive_labels_ratio) / (p + n + 2) : 0.0
         score = 2*prec - 1     # -1 is the lowest possible value of (p-n)/(p+n)
 
         if score >= _best_score

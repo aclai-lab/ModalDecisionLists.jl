@@ -234,19 +234,55 @@ function split_instances(
     y::AbstractVector{<:CLabel},
     w::AbstractVector{<:Real},
     split_ratio::Real,
-    rng::AbstractRNG = Random.default_rng()
+    rng::AbstractRNG = Random.default_rng();
+    stratified::Bool = true,
+    poslabel = 1
 )
     n = ninstances(X)
-    ngrow = round(Integer, n * split_ratio)
-
-    # return nothing if the split would put all the data either in the grow category or in the prune category
-    if ngrow == 0 # || n - ngrow == 0
+    ngrow_total = round(Integer, n * split_ratio)
+    
+    # return nothing if the split would put all the data in the prune category
+    if ngrow_total == 0
         return nothing
     end
 
-    perm_indices = randperm(rng, n)
-    grow_indices = perm_indices[1:ngrow]
-    prun_indices = perm_indices[ngrow+1:end]
+    # handle non-stratified case immediately
+    if !stratified
+        perm_indices = randperm(rng, n)
+        grow_indices = perm_indices[1:ngrow_total]
+        prun_indices = perm_indices[ngrow_total+1:end]
+        return DataSplit(X, y, w, grow_indices, prun_indices, perm_indices)
+    end
+
+    pos_indices = findall(==(poslabel), y)
+    neg_indices = findall(!=(poslabel), y) 
+    
+    n_pos = length(pos_indices)
+    
+    # number of positives and negatives that need to go in the grow set
+    n_grow_pos = round(Integer, n_pos * split_ratio)
+    n_grow_neg = ngrow_total - n_grow_pos
+    
+    # select the positives and negative groups and shuffle them for random selection between the growth and pruning set
+    shuffled_pos = shuffle(rng, pos_indices)
+    shuffled_neg = shuffle(rng, neg_indices)
+    
+    # create the actual grow and prune sets
+    grow_indices = vcat(
+        shuffled_pos[1:n_grow_pos],
+        shuffled_neg[1:n_grow_neg]
+    )
+    
+    prun_indices = vcat(
+        shuffled_pos[n_grow_pos+1:end],
+        shuffled_neg[n_grow_neg+1:end]
+    )
+
+    # shuffle the vectors again as to not have all the positives at first and all the negatives in the end
+    shuffle!(rng, grow_indices)
+    shuffle!(rng, prun_indices)
+    
+    perm_indices = vcat(grow_indices, prun_indices)
 
     return DataSplit(X, y, w, grow_indices, prun_indices, perm_indices)
 end
