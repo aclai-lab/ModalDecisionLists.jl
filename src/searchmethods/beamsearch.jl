@@ -68,8 +68,7 @@ function filterconditions(
     # An atom is considered active for a given antecedent iff its addition 
     # changes the set of covered instances in the dataset.
     is_active((atom, mask)) = 
-        ((ant.covmask .& mask) != ant.covmask) && 
-             (atom ∉ existing_atoms)
+        ((ant.covmask .& mask) != ant.covmask) && (atom ∉ existing_atoms)
 
     return filter(is_active, conditions)
 end
