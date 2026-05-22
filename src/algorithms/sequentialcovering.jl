@@ -831,13 +831,13 @@ function pruneantecedent(
     _best_covmask = nothing
     _best_score = -Inf              # this makes sure that at least one formula will be selected as _best_formula in the loop
     
-    # 3. Evaluate all possible pruned versions of the formula, including the original formula itself
+    # evaluate all possible pruned versions of the formula (this includes the original formula itself)
     for pformula in generate_pruned_formulas(antecedent)
 
         p_covmask = check(pformula, X)
 
-        p = 0.0
-        n = 0.0
+        p = 0.0     # sum of true positives' weights
+        n = 0.0     # sum of false positives' weights
         @inbounds for i in eachindex(p_covmask, y, w)
             if p_covmask[i]
                 if y[i] == target_class
@@ -850,7 +850,6 @@ function pruneantecedent(
 
 
         # v* (IREP* pruning criterion)
-        # positive_labels_ratio = 0.5
         prec = (p + n != 0) ? (p + 2 * positive_labels_ratio) / (p + n + 2) : 0.0
         score = 2*prec - 1     # -1 is the lowest possible value of (p-n)/(p+n)
 
@@ -1418,7 +1417,7 @@ function _optimize_ruleset!(
 
 
     # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
-    split = split_instances(X, y, w, split_ratio, rng)
+    split = split_instances(X, y, w, split_ratio, rng; stratified = true)
     split === nothing && return optimized_ruleset_satmask
 
     suffix_matrix = compute_suffix_matrix(ruleset_masks)
