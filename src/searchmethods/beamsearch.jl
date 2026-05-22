@@ -410,7 +410,8 @@ function findbestantecedent(
         X[:, selected_features]
     end
 
-    newcandidates = Antecedent[]
+    newcandidates = isnothing(starting_antecedent) ? Antecedent[] : Antecedent[starting_antecedent]
+    # newcandidates = Antecedent[]
     while true
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Antecedent[]
