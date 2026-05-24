@@ -94,7 +94,7 @@ function build_ensemble(
 
     models = Vector{AbstractModel}(undef, num_models)
 
-    Threads.@threads for model_num = 1 : num_models
+    for model_num = 1 : num_models
 		local_rng = copy(rng)
 
         # Extract 'n_samples_per_model' random integers in [1, num_samples] (with or without replacement depending on use_bootstrapping)

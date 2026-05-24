@@ -3,7 +3,7 @@ using Random
 using Tables
 
 mutable struct WeightedRandomFeatureSelector <: FeatureSelector
-    feature_extraction_counts::Dict{Symbol, Integer}
+    feature_extraction_counts::Union{Nothing, Dict{Symbol, Integer}}
     alpha::Real
     num_per_step::Int       # number of features extracted at each step
 
@@ -19,6 +19,11 @@ mutable struct WeightedRandomFeatureSelector <: FeatureSelector
     
         new(counts, alpha, num_per_step)
     end
+    
+    function WeightedRandomFeatureSelector(alpha::Real, num_per_step::Int)
+        new(nothing, alpha, num_per_step)
+    end
+
 end
 
 function selectfeatures!(
@@ -26,7 +31,13 @@ function selectfeatures!(
     cols::AbstractVector{Symbol}, 
     rng::AbstractRNG
 )::Vector{Symbol}    
-    (fs.num_per_step == length(cols)) && return cols
+    # dynamically initialize the features if they are not equal to 'cols' or not yet initialized
+    if isnothing(fs.feature_extraction_counts) || !issetequal(keys(fs.feature_extraction_counts), cols)
+        fs.feature_extraction_counts = Dict{Symbol, Integer}(f => 1 for f in cols)
+    end
+
+    # if we must return all the features anyways, or if the 'num_per_step' parameter is -1, then return all the features
+    (fs.num_per_step == length(cols) || fs.num_per_step == -1) && return cols
 
     weights_vector = map(cols) do f
         return Float64(fs.feature_extraction_counts[f])^fs.alpha

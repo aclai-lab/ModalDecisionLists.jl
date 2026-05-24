@@ -1,8 +1,8 @@
 module MLJInterface
 
 export ExtendedSequentialCovering, OrderedCN2Learner
-export DecisionListClassifier, RandomDecisionListClassifier
-export RipperListClassifier
+export DecisionListClassifier, BaggedEnsembleClassifier
+export RipperListClassifier, RandomDecisionListEnsembleClassifier
 
 using ModalDecisionLists
 using ModalDecisionLists: LossFunctions
@@ -20,6 +20,7 @@ import MLJModelInterface
 using Parameters
 using StatsBase
 using Random
+using CategoricalArrays: levels, isordered
 
 const MMI = MLJModelInterface
 const MDL = ModalDecisionLists
@@ -484,9 +485,9 @@ end
 
 
 # ---------------------------------------------------------------------------- #
-#                      random decision tree classifier                         #
+#                      bagging ensemble classifier                         #
 # ---------------------------------------------------------------------------- #
-mutable struct RandomDecisionListsClassifier <: CoveringStrategy
+mutable struct BaggedEnsembleClassifier <: CoveringStrategy
     num_models::Int
     use_bootstrapping::Bool
     samples_ratio_per_model::Real
@@ -497,20 +498,20 @@ mutable struct RandomDecisionListsClassifier <: CoveringStrategy
     model_kwargs::Dict{Symbol, Any}
 end
 
-function RandomDecisionListsClassifier(;
+function BaggedEnsembleClassifier(;
     # ensemble
     num_models::Int=50,
     use_bootstrapping::Bool=true,
     samples_ratio_per_model::Real=1.0,
     n_subfeatures_per_model::Union{Nothing,Int}=nothing,
     aggregation_function::Union{Nothing,Base.Callable}=nothing,
-    base_model::Symbol = :sequentialcovering,
+    base_model::Symbol = :irep,
 
     kwargs...
 )
     (base_model ∉ [:sequentialcovering, :irep, :ripper]) && error("Invalid base model type encountered: `$base_model`. Valid values are `:sequentialcovering`, `:irep` and `:ripper`")
 
-    model = RandomDecisionListsClassifier(
+    model = BaggedEnsembleClassifier(
         num_models,
         use_bootstrapping,
         samples_ratio_per_model,
@@ -525,19 +526,20 @@ function RandomDecisionListsClassifier(;
     return model
 end
 
-function MMI.clean!(model::RandomDecisionListsClassifier)
+function MMI.clean!(model::BaggedEnsembleClassifier)
     warning = ""
-    if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
-        warning *= "Need max_rulebase_length ≥ 1. " *
-            "Resetting max_rulebase_length = nothing."
-        model.max_rulebase_length = nothing
+    if !isnothing(model.num_models) <= 0
+        warning *= "Need num_models ≥ 1. " *
+            "Resetting num_models = 1."
+        model.max_rulebase_length = 1
     end
     return warning
 end
 
-function MMI.fit(m::RandomDecisionListsClassifier, verbosity::Int, X, y)
+function MMI.fit(m::BaggedEnsembleClassifier, verbosity::Int, X, y)
     featurenames = propertynames(X)
-    logiset = scalarlogiset(X; featurenames, allow_propositional=true)
+    # logiset = scalarlogiset(X; featurenames, allow_propositional=true)
+    logiset = PropositionalLogiset(X)
 
     model_wrappers = Dict(:sequentialcovering => sequentialcovering, :irep => irepstar, :ripper => ripperk)
     model_wrapper = model_wrappers[m.base_model]
@@ -547,24 +549,140 @@ function MMI.fit(m::RandomDecisionListsClassifier, verbosity::Int, X, y)
             logiset,
             y,
             m.num_models;
-            use_bootstrapping = m.use_bootstrapping,
-            samples_ratio_per_model = m.samples_ratio_per_model,
-            n_subfeatures_per_model = m.n_subfeatures_per_model,
-            aggregation_function = m.aggregation_function,
-            model_wrapper=model_wrapper,
+            featurenames,
+            use_bootstrapping           = m.use_bootstrapping,
+            samples_ratio_per_model     = m.samples_ratio_per_model,
+            n_subfeatures_per_model     = m.n_subfeatures_per_model,
+            aggregation_function        = m.aggregation_function,
+            model_wrapper               = model_wrapper,
 
-            model.model_kwargs...
+            m.model_kwargs...
         )
     end
 
     verbosity == 1 && println(model)
 
-    fitresult = (; model)
+    target_pool = MMI.categorical(y)        # extract y levels
+    fitresult = (; model, target_pool)
     report = (; model)
     cache = nothing
 
     return fitresult, cache, report
 end
+
+function MMI.predict(m::BaggedEnsembleClassifier, fitresult, Xnew)
+    raw_preds = apply(fitresult.model, PropositionalLogiset(Xnew); use_multithreads=false, suppress_parity_warning=true)
+    return MMI.categorical(raw_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
+end
+
+
+
+
+
+
+# ---------------------------------------------------------------------------- #
+#                      RandomDecisionListEnsembleClassifier                    #
+# ---------------------------------------------------------------------------- #
+mutable struct RandomDecisionListEnsembleClassifier <: MMI.Deterministic
+    num_models::Int
+    use_bootstrapping::Bool
+    samples_ratio_per_model::Real
+    n_subfeatures_per_model::Union{Nothing,Int}
+    alpha::Real
+    base_model::Symbol
+    num_features_per_proposition::Integer
+
+    model_kwargs::Dict{Symbol,Any}
+end
+
+function RandomDecisionListEnsembleClassifier(;
+    num_models::Int = 10,
+    use_bootstrapping::Bool = true,
+    samples_ratio_per_model::Real = 1.0,
+    n_subfeatures_per_model::Union{Nothing,Int} = nothing,
+    alpha::Real = 1.0,
+    base_model::Symbol = :irep,
+    num_features_per_proposition::Integer = -1,
+    
+    kwargs...
+)
+    (base_model ∉ [:sequentialcovering, :irep, :ripper]) &&
+        error("Invalid base model type: `$base_model`. Valid values are `:sequentialcovering`, `:irep` and `:ripper`")
+
+    model = RandomDecisionListEnsembleClassifier(
+        num_models,
+        use_bootstrapping,
+        samples_ratio_per_model,
+        n_subfeatures_per_model,
+        alpha,
+        base_model,
+        num_features_per_proposition,
+
+        Dict{Symbol,Any}(kwargs),
+    )
+    message = MMI.clean!(model)
+    isempty(message) || @warn message
+    return model
+end
+
+function MMI.clean!(model::RandomDecisionListEnsembleClassifier)
+    warning = ""
+    if model.samples_ratio_per_model <= 0.0 || model.samples_ratio_per_model > 1.0
+        warning *= "Need 0 < samples_ratio_per_model ≤ 1. " *
+            "Resetting samples_ratio_per_model = 1.0."
+        model.samples_ratio_per_model = 1.0
+    end
+    if model.alpha < 0.0
+        warning *= "Need alpha ≥ 0. Resetting alpha = 1.0."
+        model.alpha = 1.0
+    end
+    return warning
+end
+
+function MMI.fit(m::RandomDecisionListEnsembleClassifier, verbosity::Int, X, y)
+    featurenames = propertynames(X)
+    logiset = PropositionalLogiset(X)
+
+    model_wrappers = Dict(
+        :sequentialcovering => sequentialcovering,
+        :irep               => irepstar,
+        :ripper             => ripperk,
+    )
+    model_wrapper = model_wrappers[m.base_model]
+
+    feature_selection_strategy = WeightedRandomFeatureSelector(m.alpha, m.num_features_per_proposition)
+
+    model = build_random_lists(
+        logiset,
+        y,
+        m.num_models;
+        featurenames,
+        use_bootstrapping           = m.use_bootstrapping,
+        samples_ratio_per_model     = m.samples_ratio_per_model,
+        n_subfeatures_per_model     = m.n_subfeatures_per_model,
+        model_wrapper               = model_wrapper,
+        feature_selection_strategy,
+
+        m.model_kwargs...
+    )
+
+    verbosity == 1 && println(model)
+
+    target_pool = MMI.categorical(y)        # extract y levels
+    fitresult = (; model, target_pool)
+    report    = (; model)
+    cache     = nothing
+
+    return fitresult, cache, report
+end
+
+function MMI.predict(m::RandomDecisionListEnsembleClassifier, fitresult, Xnew)
+    raw_preds = ModalDecisionLists.apply_rdl(fitresult.model, PropositionalLogiset(Xnew))
+    return MMI.categorical(raw_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
+end
+
+
+
 
 # ---------------------------------------------------------------------------- #
 #                                   metadata                                   #
@@ -578,7 +696,8 @@ MMI.metadata_pkg.(
         ExtendedSequentialCovering,
         DecisionListClassifier,
         RipperListClassifier,
-        RandomDecisionListsClassifier,
+        BaggedEnsembleClassifier,
+        RandomDecisionListEnsembleClassifier
     ),
     name = "$(MDL)",
     package_uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8",

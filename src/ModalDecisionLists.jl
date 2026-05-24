@@ -41,22 +41,26 @@ include("algorithms/sequentialcovering.jl")
 # include("algorithms/sequentialcovering-unordered.jl")
 
 export irepstar
-export initialize_antecedents
 export ripperk
 
 include("ensemble_learning.jl")
 export build_ensemble
 export atoms, natoms
 
+include("random-lists.jl")
+export RandomDecisionListEnsemble
+export build_random_lists
+
+
 module BaseCN2
 using ModalDecisionLists: SatMask
 include("algorithms/base-cn2.jl")
 end
 
-export ExtendedSequentialCovering, OrderedCN2Learner
-export DecisionListClassifier, RandomDecisionListClassifier
-export RipperListClassifier
 include("interfaces/MLJ.jl")
+export ExtendedSequentialCovering, OrderedCN2Learner
+export DecisionListClassifier, BaggedEnsembleClassifier
+export RipperListClassifier, RandomDecisionListEnsembleClassifier
 
 
 include("deprecate.jl")

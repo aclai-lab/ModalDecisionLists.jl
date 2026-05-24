@@ -410,7 +410,7 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
-    default_alphabet = get_no_nil(default_alphabet, alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥]))
+    isnothing(default_alphabet) && (default_alphabet = alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥])) 
 
     precomputed_conditions = if !isnothing(default_alphabet)        # vector of (Atom{ScalarCondition}, BitVector)
         alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X)
@@ -557,16 +557,16 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
+    isnothing(default_alphabet) && (default_alphabet = alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥])) 
+
     precomputed_conditions = if !isnothing(default_alphabet)
         alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X)
     else
         nothing
     end
-    
 
     # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
     best, best_loss = init_best_antecedent(y, w, loss_function; starting_antecedent, nlabels, kwargs...)
-
 
     newcandidates = isnothing(starting_antecedent) ? Antecedent[] : Antecedent[starting_antecedent]
     while true
@@ -581,7 +581,6 @@ function findbestantecedent(
                                             default_alphabet,
                                             precomputed_conditions)
         
-        # extract the actual antecedents, dump their parents
         newcandidates = [ant for (ant, _) in newcandidates]
 
         # @show newcandidates

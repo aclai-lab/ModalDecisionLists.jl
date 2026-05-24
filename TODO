@@ -1,68 +1,12 @@
-IREP*: 
-    ✔ Ripulire codice @started(26-03-06 22:07) @done(26-03-06 22:23) @lasted(16m59s)
-    ✔ Chiedersi se il numero totale delle condizioni non equivalenti n, in _r_theory_bits deve essere richiamato oppure no @done(26-03-26 18:38)
-    ☐ Checking ordinato delle condizioni: guardare checkedatoms (specific to general o viceversa) per ottimizzazione 
-    ✔ Guardare pacchetto Logging.jl per gestire l'equivalente di verbosity @done(26-03-06 22:07)
-    ✔ Inserire gestione pesi nella funzione di pruning @done(25-11-24 16:00)
-    ✔ Fixare e testare la versione di IREP* multiclasse @done(26-03-08 22:33)
-    ✔ Fare più test sulla versione di IREP* multiclasse, aggiungere print di debug anche lì come nel caso a classe singola @done(26-03-09 19:35)
-    ☐ Il calcolo della description length in IREP* dovrebbe usare i pesi per determinare quanto costa descrivere ogni sample?
-        -> bisognerebbe assicurarsi che i pesi siano normalizzati
-
-Loss functions e Metrics:
-    ✔ Creare funzione wrapper per count, prendere codice da laplace_accuracy @started(25-11-24 14:52) @done(25-11-24 15:12) @lasted(20m4s)
-    ✔ Sostituire gli usi di counts() nel calcolo dell'entropia e di impurità di Gini con count_labels_distribution @done(26-03-02 17:37)
-    ✔ Scrivere il sistema di dispatching per le loss functions in findbestantecedent e sortedantecedents @done(25-12-11 19:10)
-    ✔ Gestire warning sugli import e più generalmente aggiornare il resto del codice/dei sistemando gli import @done(26-03-02 15:13)
-    ✔ Creare funzione information gain usando accuratezza su true positive e true negatives come in wittgenstein (base.py linea 387) @done(25-12-11 19:09)
-    ✔ Finire di implementare le varie loss functions @started(26-03-02 17:39) @done(26-03-06 18:38) @lasted(4d59m48s)
-    ✔ Scrivere tests per le funzioni in metrics @done(26-03-06 18:38)
-
-Test IREP*:
-    ✔ Rimpiazzare rand_seed con un oggetto rng così come è standard in Julia @done(26-03-10 15:36)
-    ✔ Testare che la riproducibilità di irep* funzioni davvero @done(26-03-10 15:36)
-    ✔ Implementare stopping condition descritta realmente nel paper e confrontare le performance con quella precedente @done(26-03-10 18:47)
-    ☐ Sviluppare benchmark su dataset vari di RDatasets, guardare anche quali tipi di test hanno fatto gli altri @started(26-03-10 14:55)
-        ✔ Iris @done(26-03-10 14:55)
-        ✔ Crab classification @done(26-03-10 14:55)
-        ☐ Abalone
-        ☐ Yeast
-    ☐ Confrontare performance con quella di altri metodi o di altre implementazioni (ex: quello in wittgenstein)
-
 RIPPER:
-    ✔ Implementare RIPPER @done(26-03-15 15:27)
-    ✔ Testare la riproducibilità dei risultati di RIPPER @done(26-03-15 17:14)
-    ✔ Implementare il caso non binario @done(26-03-26 18:38)
-    ☐ Sovolgere ottimizzazioni dove possibile per risparmiare delle operazioni
-    ☐ Introdurre la possibilità di controllare se la rimozione di una regola riduce la description length, oltre che al suo refinement o a una nuova regola costruita successivamente
+    ☐ Smettere di ricalcolare la DL(ruleset) ogni volta da zero, precalcolare la DL delle regole e riutilizzarle dove possibile (minor optimization)
+    ☐ Introdurre la possibilità di controllare se la rimozione di una regola riduce la description length?, oltre che al suo refinement o a una nuova regola costruita successivamente
 
 Pulizia codice RIPPER/IREP*:
-    ✔ Creare una struct ausiliaria "TrainingState" per gestire automaticamente le operazioni ripetute su uncoveredX, uncoveredy e così via @done(26-03-22 22:42)
-    ✔ Creare una struct ausiliaria "DataSplit" per gestire lo splitting dei dati nella parte di growth e di pruning @done(26-03-22 22:43)
-    ☐ Considerare la reintroduzione di InstanceSet? A quel punto TrainingState e DataSplit potrebbero usare InstanceSet a loro volta
-    ☐ Spostare alcune funzioni relative allo splitting in core.jl?
     ☐ Considerare la possibilità di modificare sliceinstances e TrainingSet in modo da usare una selezione ripetuta degli indici attivi nel dataset, in modo da non dover aggiungere progressivamente campi opzionali come original_y e original_y_labes: forse si può fare tutto con un semplice mapping (i-esimo indice attivo --> corrispondente indice nel dataset inziale)?
-
-RandomDecisionForests:
-    ✔ Implementare le ModalDecisionForest come stabilito in chiamata @done(26-03-08 18:00)
-    ✔ Fare un test sul dataset di crab classification @done(26-03-08 20:21)
-    ✔ Implementare repeated cross validation nei test di rdl e irep? @started(26-03-10 12:32) @done(26-03-10 14:44) @lasted(2h12m2s)
-    ✔ Testare la riproducibilità di RandomDecisionLists, assicurarsi che i risultati siano deterministici @done(26-03-10 15:55)
-    ✔ Far passare la funzione con cui addestrare il modello di base come parametro a build_rdl @done(26-03-15 17:25)
-        --> Automaticamente darebbe la possibilità di creare un modello misto, con subsampling di samples e features come random forest, ma unendo sia decision lists sia decision trees
-    ✔ Scrivere funzione per caso non binario di Random Decision Lists @done(26-03-26 18:38)
-    
-Test RandomDecisionForests:
-        --> mi servirà per fare i confronti con Random Forests, che sono agnostiche rispetto al tipo di classe
-    ✔ Scrivere template esperimenti vari per confrontare Random Decision Lists con Random Decision Forests e con modello misto tra alberi e Random Decision Lists @done(26-03-26 18:38)
-        ✔ Crab classification @done(26-03-26 18:38)
-        ✔ Iris dataset @done(26-03-30 15:07)
-        ✔ Biopsy @done(26-03-30 15:07)
-        ✔ Wine quality @done(26-03-30 15:08)
-        ☐ Altri?
-
-    ✔ Cambiare "build_rdl" in "build_ensemble" @done(26-03-30 13:55)
-
-Later:
-    ✔ Considerare la possibilità di introdurre delle funzioni astratte per fare k-fold cross validation e repeated cross validation, magari da mettere in SoleModels? @done(26-03-15 17:14)
-    ✔ Parallelizzare l'addestramento dei modelli in Random Decision Lists, o le parti di valutazione di ogni fold in repeated cross validation @done(26-03-30 15:15)
+    ☐ Creare funzioni separate per le due cose che sono fondamentalmente le stesse in ogni metodo 
+        ☐ Sanitizzazione dei parametri 
+            -> una funzione per il dataset (X,y,w), uguale per tutti i metodi sequentialcovering
+            -> una funzione per IREP*
+            -> una funzione per RIPPER che richiama quella per IREP* e poi fa sanitation su parametri aggiuntivi RIPPER
+        ☐ Preprocessing delle y

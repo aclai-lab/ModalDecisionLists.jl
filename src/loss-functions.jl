@@ -39,6 +39,9 @@ function (::GiniImpurity)(
     else
         y, w
     end
+
+    length(y_covered) == 0 && return Inf
+
     return Metrics.gini_impurity(y_covered, w_covered)            
 end
 
@@ -55,6 +58,8 @@ function (::Entropy)(
     else
         y, w
     end
+
+    length(y_covered) == 0 && return Inf
 
     return Metrics.entropy(y_covered, w_covered; kwargs...)                 
 end
@@ -74,6 +79,8 @@ function (::LaplaceMetric)(
     else
         y, w
     end
+
+    length(y_covered) == 0 && return Inf
 
     # Since the goal is to maximize the laplace metric, in order to turn this into a minimization problem we must
     # minimize the corresponding error, which is equal to 1 - laplace_metric

@@ -6,7 +6,7 @@ using SoleModels
 using FillArrays
 using StatsBase
 using Distributions
-
+using CategoricalArrays: unwrap
 
 
 """
@@ -70,6 +70,34 @@ function count_labels_distribution(
 
     return dist, y_offset   
 end
+
+
+
+
+"""
+    calculate_prior_distribution(y::AbstractVector{<:CLabel})
+
+Compute the empirical prior distribution of class labels in `y`.
+
+# Arguments
+- `y`: A vector of categorical labels.
+
+# Returns
+- `Dict{CLabel, Float64}`: relative frequency of each observed label in `y`.
+"""
+function calculate_prior_distribution(y::AbstractVector{<:CLabel})::Dict{CLabel, Real}
+    counts = countmap(y)
+    n = length(y)
+
+    class_priors = Dict{CLabel, Float64}(
+        label => get(counts, label, 0) / n
+        # unwrap(label) => get(counts, label, 0) / n
+        for (label, count) in counts
+    )
+
+    return class_priors
+end
+
 
 
 
@@ -179,3 +207,10 @@ end
 function get_no_nil(a, b)
     return (isnothing(a)) ? b : a
 end
+
+""" returns an approximation of ln(n!) using Stirling's approximation for numerical stability and optimization """
+log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)) + n * log2(n / ℯ) + 0.1201753 / n)     # 0.1201753 / n is just a term that minimizes the approximation error without modifying the asymptotic relationship
+
+
+""" returns an approximation of ln( n choose k ) using log2_factorial for numerical stability and optimization  """
+log2binomial(n::Integer, k::Integer)::Real = (k == 0) ? 0 : log2_factorial(n) - log2_factorial(k) - log2_factorial(n - k)
