@@ -494,7 +494,8 @@ mutable struct BaggedEnsembleClassifier <: CoveringStrategy
     n_subfeatures_per_model::Union{Nothing,Int}
     aggregation_function::Union{Nothing,Base.Callable}
     base_model::Symbol
-    
+    rng::AbstractRNG
+
     model_kwargs::Dict{Symbol, Any}
 end
 
@@ -506,6 +507,7 @@ function BaggedEnsembleClassifier(;
     n_subfeatures_per_model::Union{Nothing,Int}=nothing,
     aggregation_function::Union{Nothing,Base.Callable}=nothing,
     base_model::Symbol = :irep,
+    rng::AbstractRNG = TaskLocalRNG(),
 
     kwargs...
 )
@@ -518,6 +520,7 @@ function BaggedEnsembleClassifier(;
         n_subfeatures_per_model,
         aggregation_function,
         base_model,
+        rng,
         Dict{Symbol, Any}(kwargs)
     )
 
@@ -555,6 +558,7 @@ function MMI.fit(m::BaggedEnsembleClassifier, verbosity::Int, X, y)
             n_subfeatures_per_model     = m.n_subfeatures_per_model,
             aggregation_function        = m.aggregation_function,
             model_wrapper               = model_wrapper,
+            rng                         = m.rng,
 
             m.model_kwargs...
         )
@@ -591,6 +595,7 @@ mutable struct RandomDecisionListEnsembleClassifier <: MMI.Deterministic
     alpha::Real
     base_model::Symbol
     num_features_per_proposition::Integer
+    rng::AbstractRNG
 
     model_kwargs::Dict{Symbol,Any}
 end
@@ -603,6 +608,7 @@ function RandomDecisionListEnsembleClassifier(;
     alpha::Real = 1.0,
     base_model::Symbol = :irep,
     num_features_per_proposition::Integer = -1,
+    rng::AbstractRNG = TaskLocalRNG(),
     
     kwargs...
 )
@@ -617,6 +623,7 @@ function RandomDecisionListEnsembleClassifier(;
         alpha,
         base_model,
         num_features_per_proposition,
+        rng,
 
         Dict{Symbol,Any}(kwargs),
     )
@@ -662,6 +669,7 @@ function MMI.fit(m::RandomDecisionListEnsembleClassifier, verbosity::Int, X, y)
         n_subfeatures_per_model     = m.n_subfeatures_per_model,
         model_wrapper               = model_wrapper,
         feature_selection_strategy,
+        rng                         = m.rng,
 
         m.model_kwargs...
     )
