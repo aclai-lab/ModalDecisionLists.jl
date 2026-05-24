@@ -125,9 +125,9 @@ function sequentialcovering(
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
-    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "max_infogain_ratio must be in range [0,1], but $(max_infogain_ratio) encountered."
+    !isnothing(max_infogain_ratio) && @assert (0 <= max_infogain_ratio <= 1) "`max_infogain_ratio` must be in range [0,1], but $(max_infogain_ratio) encountered."
 
-    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter 'max_rule_length' cannot be less" *
+    !isnothing(max_rule_length) && @assert max_rule_length > 0 "Parameter `max_rule_length` cannot be less" *
                                                                "than one. Please provide a valid value."
 
     w = if isnothing(w) || w == :default
@@ -153,7 +153,6 @@ function sequentialcovering(
 
     rule_base = Rule[]       # the resulting rulebase
     while true
-        # bestantecedent_coverage è un array di 0 e 1 con 1 negli indici i dove la regola trovata copre il sample xi (in unconveredX)
         bestantecedent = findbestantecedent(searchmethod, uncovered.X, uncovered.y, uncovered.w,
             #
             loss_function,
@@ -172,7 +171,7 @@ function sequentialcovering(
         rule = begin
             justcoveredy = uncovered.y[bestantecedent.covmask]
             justcoveredw = uncovered.w[bestantecedent.covmask]
-            # indice della classe associata alla regola
+            # index of the label the rule predicts
             predlabel = SoleModels.bestguess(labels[justcoveredy], justcoveredw; suppress_parity_warning=suppress_parity_warning)
 
             info_cm = (;
@@ -419,10 +418,6 @@ subset to minimize classification error.
   and feature sampling.
 - `suppress_parity_warning::Bool=false`: If `true`, suppresses warnings when predicting 
   the most common class.
-- `num_features_considered_per_test::Union{Integer,Nothing}=nothing`: If provided as a 
-  positive integer, each rule is trained on a randomly sampled set of this many unique 
-  features, similar to the feature sampling strategy used in random forests. This can help 
-  with feature selection and reducing overfitting.
 - `kwargs...`: Additional keyword arguments passed to search and other internal functions.
 
 # Returns
@@ -480,11 +475,10 @@ function irepstar(
     rng::AbstractRNG = Random.default_rng(),
     suppress_parity_warning::Bool=false,
 
-    num_features_considered_per_test::Union{Integer, Nothing} = nothing,
-
     kwargs...
 )::DecisionList where {U<:Real}
 
+    # ================================== PARAMETER SANITATION ==================================
     !isnothing(max_rulebase_length) && @assert max_rulebase_length > 0 "`max_rulebase_length` must be  > 0"
 
     @assert w isa AbstractVector || w in [nothing, :rebalance, :default]
@@ -495,18 +489,6 @@ function irepstar(
 
     @assert (0 < split_ratio ≤ 1) "Parameter `split_ratio` must be in range (0,1]"
     @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
-
-    n_feats_per_test = isnothing(num_features_considered_per_test) ? nfeatures(X) : num_features_considered_per_test
-
-    # If feature-selection is necessary, materialize this to a dataset
-    if n_feats_per_test != nfeatures(X)
-        X_df = try
-            DataFrame(X)
-        catch
-            throw(ArgumentError("IREP* with the option `num_features_considered_per_test` currently requires a PropositionalLogiset materializable to a DataFrame"))
-        end
-        X = PropositionalLogiset(X_df)
-    end
 
     featurenames = get_no_nil(featurenames, names(X.tabulardataset))
 
@@ -523,24 +505,24 @@ function irepstar(
     !(ninstances(X) == length(w)) && error("Mismatching number of instances between X and w! ($(ninstances(X)) != $(length(w)))")
     (ninstances(X) == 0) && error("Empty training set")
 
-    # in Parameters.jl
+    # in utils.jl, but the actual "reconstruct" method is from Parameters.jl
     searchmethod = safe_reconstruct(searchmethod, kwargs)
 
-    info_dl = (;
-        featurenames = featurenames,
-        supporting_labels=y
-    )
-
+    
+    # ================================== VARIABLES INITIALIZATION ==================================
+    original_y_labels = y
     y, labels = y |> maptointeger
-    poslabel_idx = findfirst(x -> x == poslabel, labels) # indice in labels della classe positiva
+    poslabel_idx = findfirst(x -> x == poslabel, labels)            # index in 'labels' of the positive class
+    
+    class_priors, _ = count_labels_distribution(y, length(labels), w; return_distribution=true)          # class_priors[i] is the prior probability for labels[i]
 
     @assert !isnothing(poslabel_idx) "The dataset provided must contain at least one positive sample!"
 
-    uncovered_original_y = y
+    original_y = y
     y = UInt32.(y .== poslabel_idx) # convert y to an array of {0,1}, with 1 being the target class and 0 being anything else
 
     # samples yet to be covered by any Rule in the RuleSet
-    uncovered = TrainingState(X, y, w, uncovered_original_y)
+    uncovered = TrainingState(X, y, w, original_y, original_y_labels)
 
     rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
     data_curr_ruleset_desc_length = get_initial_dataset_bits(y)
@@ -583,7 +565,6 @@ function irepstar(
             max_rule_length=max_rule_length,
             nlabels=2,
             target_class=1,
-            num_features_considered_per_test = n_feats_per_test,
             rng = rng,
             kwargs...
         )
@@ -619,7 +600,7 @@ function irepstar(
 
         # Create the new Rule as an instance of "Rule" from SoleModels
         coverage_indices = compute_global_coverage(bestantecedent, split, bestantecedent_prune_cov)
-        rule = build_rule(bestantecedent, uncovered.original_y, poslabel, coverage_indices, labels)
+        rule = build_rule(bestantecedent, uncovered.original_y_labels, poslabel, coverage_indices)
 
 
         # Calculate the description length of the new Rule
@@ -674,6 +655,11 @@ function irepstar(
     end
 
     default_prediction = "other"    # default prediction if no other Rule applies
+
+    info_dl = (;
+        featurenames = featurenames,
+        supporting_labels=original_y_labels
+    )
 
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(uncovered.original_y)],
@@ -751,7 +737,7 @@ end
 
 
 """
-    build_rule(antecedent, uncovered_original_y, poslabel, coverage_indices, labels)
+    build_rule(antecedent, y_labels, poslabel, coverage_indices, labels)
 
 Create a `Rule` instance using the provided `antecedent`. 
 
@@ -761,34 +747,68 @@ by the rule.
 
 # Arguments
 - `antecedent`: The rule's antecedent/condition.
-- `uncovered_original_y`: Vector of class integers for the current dataset.
+- `y_labels`: Vector of class strings/labels for the current dataset.
 - `poslabel`: The label to be assigned as the prediction.
 - `coverage_indices`: Indices of the samples covered by the rule.
-- `labels`: The original mapping of class integers to `CLabel` objects.
+- `all_labels`: A Vector containing the labels of all the classes in the dataset
+- `class_priors`: Vector whose i-th element is the relative frequency of all_labels[i] in the original dataset
 """
 function build_rule(
     antecedent::LeftmostConjunctiveForm, 
-    uncovered_original_y::AbstractVector, 
+    y_labels::AbstractVector{<:CLabel}, 
     poslabel::CLabel, 
-    coverage_indices::AbstractVector{<:Integer}, 
-    labels::AbstractVector{<:CLabel}
+    coverage_indices::AbstractVector{<:Integer},
 )
-    justcoveredy = uncovered_original_y[coverage_indices]
+    justcoveredy = y_labels[coverage_indices]
     predlabel = poslabel
 
     info_cm = (;
-        supporting_labels=[labels[x] for x in collect(justcoveredy)],
+        supporting_labels=justcoveredy,
         supporting_predictions=fill(predlabel, length(justcoveredy)),
     )
     consequent = ConstantModel(predlabel, info_cm)
 
     info_r = (;
-        supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
+        supporting_labels=justcoveredy,
+        m_estimate=m_estimate,
     )
 
     return Rule(antecedent, consequent, info_r)
 end
 
+
+# function build_rule(
+#     antecedent::LeftmostConjunctiveForm, 
+#     y_labels::AbstractVector{<:CLabel}, 
+#     poslabel::CLabel, 
+#     coverage_indices::AbstractVector{<:Integer},
+#     all_labels::AbstractVector{<:CLabel},
+#     class_priors::AbstractVector{<:AbstractFloat},
+# )
+#     justcoveredy = y_labels[coverage_indices]
+#     predlabel = poslabel
+    
+#     n = length(justcoveredy)
+#     k = length(all_labels)      # k is the number of classes
+#     # m-estimate with m = k (equivalent to Laplace correction with empirical prior)
+#     m_estimate = Dict{CLabel, Float64}(
+#         label => (count(==(label), justcoveredy) + k * class_priors[i]) / (n + k)
+#         for (i, label) in enumerate(all_labels)
+#     )
+
+#     info_cm = (;
+#         supporting_labels=justcoveredy,
+#         supporting_predictions=fill(predlabel, length(justcoveredy)),
+#     )
+#     consequent = ConstantModel(predlabel, info_cm)
+
+#     info_r = (;
+#         supporting_labels=justcoveredy,
+#         m_estimate=m_estimate,
+#     )
+
+#     return Rule(antecedent, consequent, info_r)
+# end
 
 
 
@@ -1180,8 +1200,6 @@ optimization passes to revise the learned ruleset.
 - `max_rulebase_length::Union{Nothing,Integer}=nothing`: Maximum number of rules in the final list.
 - `rng::AbstractRNG = Random.default_rng()`: RNG used for reproducible splitting and sampling.
 - `suppress_parity_warning::Bool=false`: Suppresses parity warnings for default predictions.
-- `num_features_considered_per_test::Union{Integer, Nothing}=nothing`: Number of randomly sampled features considered for each candidate test.
-  This parameter has the same meaning as in `irepstar` and restricts rule growth to a random subset of the feature space when provided.
 - `kwargs...`: Additional keyword arguments forwarded to internal search routines.
 
 # Returns
@@ -1212,8 +1230,6 @@ function ripperk(
     rng::AbstractRNG = Random.default_rng(),
     suppress_parity_warning::Bool=false,
 
-    num_features_considered_per_test::Union{Integer, Nothing} = nothing,
-
     kwargs...
 )::DecisionList where {U<:Real}
 
@@ -1229,18 +1245,6 @@ function ripperk(
 
     @assert (0 < split_ratio ≤ 1) "Parameter `split_ratio` must be in range (0,1]"
     @assert (min_rule_coverage > 0) "Parameter `min_rule_coverage` must be ≥ 1"
-
-    n_feats_per_test = isnothing(num_features_considered_per_test) ? nfeatures(X) : num_features_considered_per_test
-
-    # If feature-selection is necessary, materialize this to a dataset
-    if n_feats_per_test != nfeatures(X)
-        X_df = try
-            DataFrame(X)
-        catch
-            throw(ArgumentError("RIPPERk used with the option `num_features_considered_per_test` currently requires a PropositionalLogiset materializable to a DataFrame"))
-        end
-        X = PropositionalLogiset(X_df)
-    end
 
     featurenames = get_no_nil(featurenames, names(X.tabulardataset))
     
@@ -1292,7 +1296,6 @@ function ripperk(
                             max_rulebase_length,
                             rng, 
                             suppress_parity_warning,
-                            num_features_considered_per_test,
                             kwargs...)
 
         
@@ -1313,9 +1316,9 @@ function ripperk(
         args = (loss_function, max_infogain_ratio, default_alphabet, discretizedomain, significance_alpha, min_rule_coverage)       # Findbestantecedent args
         
         _optimize_ruleset!(curr_ruleset_satmask,
-            ruleset_masks, curr_ruleset, X, y, w, original_y,
-            labels, poslabel, args, curr_tdl, searchmethod, num_selectors, 
-            split_ratio, rng, max_rule_length, num_features_considered_per_test,
+            ruleset_masks, curr_ruleset, X, y, w, original_y_labels,
+            poslabel, args, curr_tdl, searchmethod, num_selectors, 
+            split_ratio, rng, max_rule_length, 
         )
 
         # Calculate indices covered and not covered by the ruleset
@@ -1357,7 +1360,6 @@ function ripperk(
                             max_rulebase_length,
                             rng, 
                             suppress_parity_warning,
-                            num_features_considered_per_test,
                             kwargs...)
 
         # Append the residual ruleset to the end of the current one
@@ -1399,8 +1401,7 @@ function _optimize_ruleset!(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
     w::AbstractVector{<:Real},
-    original_y::AbstractVector{<:CLabel},
-    labels::AbstractVector{<:CLabel},
+    original_y_labels::AbstractVector{<:CLabel},
     poslabel::CLabel,
     args::Tuple,
     curr_tdl::Real,
@@ -1410,7 +1411,6 @@ function _optimize_ruleset!(
     split_ratio::Real,
     rng::AbstractRNG,
     max_rule_length::Union{Nothing, Integer},
-    num_features_considered_per_test::Union{Integer, Nothing},
 )
 
     optimized_ruleset_satmask .= falses( ninstances(X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
@@ -1435,10 +1435,10 @@ function _optimize_ruleset!(
 
         # Consider newly grown rule as a variant to rule, this function below grows a new rule and prunes it
         rule_grown, rule_grown_covered_indices = _grow_and_prune_rule(
-            searchmethod, split, original_y, poslabel, 
-            labels, default_dataset_satmask, args; 
+            searchmethod, split, original_y_labels, poslabel, 
+            default_dataset_satmask, args; 
             nlabels = 2, max_rule_length = max_rule_length,
-            target_class = 1, num_features_considered_per_test
+            target_class = 1
         )
         if rule_grown === nothing
             rule_grown = rule
@@ -1456,11 +1456,11 @@ function _optimize_ruleset!(
 
         # Consider revised version of the rule as a variant to the original one, this function below revises the original rule and prunes it
         rule_revised, rule_revised_covered_indices = _revise_and_prune_rule(
-            searchmethod, split, original_y, poslabel, 
-            labels, default_dataset_satmask, 
+            searchmethod, split, original_y_labels, poslabel, 
+            default_dataset_satmask, 
             rule, original_rule_satmask, args; 
             nlabels = 2, max_rule_length = max_rule_length,
-            target_class = 1, num_features_considered_per_test
+            target_class = 1
         )
         if rule_revised === nothing
             rule_revised = rule
@@ -1711,9 +1711,8 @@ The grown rule and the indices of the samples it covers.  """
 function _grow_and_prune_rule(
     sm::SearchMethod,
     split::DataSplit,
-    uncovered_original_y::AbstractVector,
+    original_y_labels::AbstractVector{<:CLabel},
     poslabel::CLabel,
-    labels::AbstractVector{<:CLabel},
     default_dataset_satmask::BitVector,
     args;
     kwargs...
@@ -1723,7 +1722,7 @@ function _grow_and_prune_rule(
     istop(bestantecedent) && return nothing, nothing
 
     # PRUNING
-    rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, bestantecedent, uncovered_original_y, poslabel, labels)
+    rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, bestantecedent, original_y_labels, poslabel)
     return rule, coverage_indices
 end
 
@@ -1734,9 +1733,8 @@ The revised rule and the indices of the samples it covers. """
 function _revise_and_prune_rule(
     sm::SearchMethod,
     split::DataSplit,
-    uncovered_original_y::AbstractVector,
+    uncovered_original_y_labels::AbstractVector{<:CLabel},
     poslabel::CLabel,
-    labels::AbstractVector{<:CLabel},
     default_dataset_satmask::BitVector,
 
     starting_rule::Rule,
@@ -1754,7 +1752,7 @@ function _revise_and_prune_rule(
     istop(revised_antecedent) && return nothing, nothing
 
     # PRUNING
-    rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, revised_antecedent, uncovered_original_y, poslabel, labels)
+    rule, coverage_indices = _prune_rule_over_dataset(split, default_dataset_satmask, revised_antecedent, uncovered_original_y_labels, poslabel)
     return rule, coverage_indices
 end
 
@@ -1765,10 +1763,9 @@ function _prune_rule_over_dataset(
     split::DataSplit,
     default_dataset_satmask::BitVector,
     antecedent::Antecedent,
-    uncovered_original_y::AbstractVector,
+    uncovered_original_y_labels::AbstractVector{<:CLabel},
 
     poslabel::CLabel,
-    labels::AbstractVector{<:CLabel}
 )
     pruning_default_dataset_satmask = default_dataset_satmask[prune_indices(split)]
     pruned_ant, pruned_ant_covmask = reduced_error_prune_rule(split, pruning_default_dataset_satmask, antecedent)
@@ -1776,7 +1773,7 @@ function _prune_rule_over_dataset(
     coverage_indices = compute_global_coverage(pruned_ant, split, pruned_ant_covmask)
     
     # Transform Antecedent -> Rule
-    rule = build_rule(pruned_ant, uncovered_original_y, poslabel, coverage_indices, labels)
+    rule = build_rule(pruned_ant, uncovered_original_y_labels, poslabel, coverage_indices)
 
     return rule, coverage_indices
 end

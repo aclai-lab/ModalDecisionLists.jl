@@ -21,11 +21,18 @@ using .Metrics
 
 include("core.jl")
 
+
+include("featureselection/default-selector.jl")
+include("featureselection/weighted-random-selector.jl")
+
+export DefaultFeatureSelector, WeightedRandomFeatureSelector
+
 include("loss-functions.jl")
 
 using .LossFunctions
 
 include("search.jl")
+
 
 export AtomGenerator
 export sequentialcovering

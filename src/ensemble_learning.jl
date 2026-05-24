@@ -89,7 +89,7 @@ function build_ensemble(
     end 
 
     num_samples = ninstances(X)
-    all_feats = collect(Tables.columnnames(Tables.columns(X)))                   # list of feature names 
+    all_feats = collect(Symbol, Tables.columnnames(Tables.columns(X)))                   # list of features
     n_samples_per_model = round(Integer, ninstances(X) * samples_ratio_per_model)
 
     models = Vector{AbstractModel}(undef, num_models)

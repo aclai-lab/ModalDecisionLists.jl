@@ -3,18 +3,14 @@ module MLJInterface
 export ExtendedSequentialCovering, OrderedCN2Learner
 export DecisionListClassifier, RandomDecisionListClassifier
 export RipperListClassifier
-# export BeamSearch, RandSearch
 
 using ModalDecisionLists
 using ModalDecisionLists: LossFunctions
 using ModalDecisionLists: Metrics
 using ModalDecisionLists: AbstractGenerator, AtomGenerator
 
-# import ModalDecisionLists: SearchMethod, BeamSearch, RandSearch
-# import ModalDecisionLists: sequentialcovering
 
 using SoleLogics: AbstractAlphabet
-# using MLJ
 
 using SoleData
 import SoleBase: CLabel
@@ -341,10 +337,8 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    # target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
-        # target_pool = target_pool
     )
     report = (
         model = model,
@@ -396,14 +390,14 @@ function RipperListClassifier(;
     max_rule_length::Union{Nothing,Int}=nothing,
     max_rulebase_length::Union{Nothing,Int}=nothing,
     max_k::Integer = 2,
+    invert_class_orders::Bool = false,
 
     # BeamSearch
     conjuncts_generation_method::AbstractGenerator=AtomGenerator(),
     beam_width::Int=3,
     # utils
     rng::AbstractRNG=TaskLocalRNG(),
-    suppress_parity_warning::Bool=false,
-    invert_class_orders::Bool = false
+    suppress_parity_warning::Bool=false
 )
     model = RipperListClassifier(
         searchmethod, 
@@ -470,10 +464,8 @@ function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    # target_pool = MLJModelInterface.classes(y)
     fitresult = (
         model = model,
-        # target_pool = target_pool
     )
     report = (
         model = model,
@@ -494,83 +486,46 @@ end
 # ---------------------------------------------------------------------------- #
 #                      random decision tree classifier                         #
 # ---------------------------------------------------------------------------- #
-mutable struct RandomDecisionListClassifier <: CoveringStrategy
+mutable struct RandomDecisionListsClassifier <: CoveringStrategy
     num_models::Int
     use_bootstrapping::Bool
     samples_ratio_per_model::Real
     n_subfeatures_per_model::Union{Nothing,Int}
     aggregation_function::Union{Nothing,Base.Callable}
-    searchmethod::SearchMethod 
-    tdl_threshold::Int
-    split_ratio::Real
-    loss_function::LossFunctions.AsymmetricLoss
-    max_infogain_ratio::Union{Nothing,Real}
-    default_alphabet::Union{Nothing,AbstractAlphabet}
-    discretizedomain::Bool
-    significance_alpha::Union{Real,Nothing}
-    min_rule_coverage::Int
-    max_rule_length::Union{Nothing,Int}
-    max_rulebase_length::Union{Nothing,Int}
-    conjuncts_generation_method::AbstractGenerator
-    beam_width::Int
-    rng::AbstractRNG
-    suppress_parity_warning::Bool
+    base_model::Symbol
+    
+    model_kwargs::Dict{Symbol, Any}
 end
 
-function RandomDecisionListClassifier(;
+function RandomDecisionListsClassifier(;
     # ensemble
     num_models::Int=50,
     use_bootstrapping::Bool=true,
     samples_ratio_per_model::Real=1.0,
     n_subfeatures_per_model::Union{Nothing,Int}=nothing,
     aggregation_function::Union{Nothing,Base.Callable}=nothing,
-    #irepstar
-    searchmethod::SearchMethod=BeamSearch(), 
-    tdl_threshold::Int=64,
-    split_ratio::Real=0.7, 
-    loss_function::LossFunctions.AsymmetricLoss=LossFunctions.LaplaceAccuracy(),
-    max_infogain_ratio::Union{Nothing,Real}=nothing,
-    default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
-    discretizedomain::Bool=false,
-    significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Int=1, 
-    max_rule_length::Union{Nothing,Int}=nothing,
-    max_rulebase_length::Union{Nothing,Int}=nothing,
-    # BeamSearch
-    conjuncts_generation_method::AbstractGenerator=AtomGenerator(),
-    beam_width::Int=3,
-    # utils
-    rng::AbstractRNG=TaskLocalRNG(),
-    suppress_parity_warning::Bool=false,
+    base_model::Symbol = :sequentialcovering,
+
+    kwargs...
 )
-    model = RandomDecisionListClassifier(
+    (base_model ∉ [:sequentialcovering, :irep, :ripper]) && error("Invalid base model type encountered: `$base_model`. Valid values are `:sequentialcovering`, `:irep` and `:ripper`")
+
+    model = RandomDecisionListsClassifier(
         num_models,
         use_bootstrapping,
         samples_ratio_per_model,
         n_subfeatures_per_model,
         aggregation_function,
-        searchmethod, 
-        tdl_threshold,
-        split_ratio, 
-        loss_function,
-        max_infogain_ratio,
-        default_alphabet,
-        discretizedomain,
-        significance_alpha,
-        min_rule_coverage, 
-        max_rule_length,
-        max_rulebase_length,
-        conjuncts_generation_method,
-        beam_width,
-        rng,
-        suppress_parity_warning,
+        base_model,
+        Dict{Symbol, Any}(kwargs)
     )
+
     message = MMI.clean!(model)
     isempty(message) || @warn message
     return model
 end
 
-function MMI.clean!(model::RandomDecisionListClassifier)
+function MMI.clean!(model::RandomDecisionListsClassifier)
     warning = ""
     if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
         warning *= "Need max_rulebase_length ≥ 1. " *
@@ -580,44 +535,30 @@ function MMI.clean!(model::RandomDecisionListClassifier)
     return warning
 end
 
-function MMI.fit(m::RandomDecisionListClassifier, verbosity::Int, X, y)
+function MMI.fit(m::RandomDecisionListsClassifier, verbosity::Int, X, y)
     featurenames = propertynames(X)
     logiset = scalarlogiset(X; featurenames, allow_propositional=true)
+
+    model_wrappers = Dict(:sequentialcovering => sequentialcovering, :irep => irepstar, :ripper => ripperk)
+    model_wrapper = model_wrappers[m.base_model]
 
     model = begin
         build_ensemble(
             logiset,
             y,
             m.num_models;
-            use_bootstrapping=m.use_bootstrapping,
-            samples_ratio_per_model=m.samples_ratio_per_model,
-            n_subfeatures_per_model=m.n_subfeatures_per_model,
-            aggregation_function=m.aggregation_function,
-            model_wrapper=sequentialcovering,
-            rng=m.rng,
+            use_bootstrapping = m.use_bootstrapping,
+            samples_ratio_per_model = m.samples_ratio_per_model,
+            n_subfeatures_per_model = m.n_subfeatures_per_model,
+            aggregation_function = m.aggregation_function,
+            model_wrapper=model_wrapper,
 
-            max_rulebase_length=15
-            # irepstar kwargs
-            # searchmethod=m.searchmethod,
-            # tdl_threshold=m.tdl_threshold,
-            # split_ratio=m.split_ratio,
-            # loss_function=m.loss_function,
-            # max_infogain_ratio=m.max_infogain_ratio,
-            # default_alphabet=m.default_alphabet,
-            # discretizedomain=m.discretizedomain,
-            # significance_alpha=m.significance_alpha,
-            # min_rule_coverage=m.min_rule_coverage,
-            # max_rule_length=m.max_rule_length,
-            # max_rulebase_length=m.max_rulebase_length,
-            # conjuncts_generation_method=m.conjuncts_generation_method,
-            # beam_width=m.beam_width,
-            # suppress_parity_warning=m.suppress_parity_warning
+            model.model_kwargs...
         )
     end
 
     verbosity == 1 && println(model)
 
-    # target_pool = MLJModelInterface.classes(y)
     fitresult = (; model)
     report = (; model)
     cache = nothing
@@ -637,7 +578,7 @@ MMI.metadata_pkg.(
         ExtendedSequentialCovering,
         DecisionListClassifier,
         RipperListClassifier,
-        RandomDecisionListClassifier,
+        RandomDecisionListsClassifier,
     ),
     name = "$(MDL)",
     package_uuid = "dbece2fb-9d58-4710-9902-4ec759308ae8",

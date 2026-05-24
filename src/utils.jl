@@ -12,7 +12,8 @@ using Distributions
 """
     count_labels_distribution(y::AbstractVector{<:Integer}, 
         nlabels::Integer, 
-        w=default_weights(length(y))
+        w=default_weights(length(y));
+        return_distribution::Bool = false
     )::Tuple{AbstractVector{<:Real}, Integer}
 
 
@@ -22,6 +23,7 @@ Compute the weighted distribution of labels in a vector.
 - `y::AbstractVector{<:Integer}`: A vector of label indices.
 - `nlabels::Integer`: The total number of distinct labels.
 - `w`: Optional weight vector for each sample. Defaults to uniform weights if not provided.
+- `return_distribution`: Optional flag to normalize the resulting distribution so that the sum of the elements is 1. 
 
 # Returns
 A tuple containing:
@@ -39,7 +41,7 @@ julia> y = UInt32[1, 2, 1, 3]
 julia> counts, offset = count_labels_distribution(y, 5)  # 5 is the number of labels, although only {1, 2, 3} appear in y
 ([2, 1, 1, 0, 0], 0)  # offset is zero because the labels were already one-adjusted
 
-# with non‑1-based labels and custom weights
+# with non-1-based labels and custom weights
 julia> y = UInt32[10, 12, 10, 11]
 julia> w = [0.5, 1.0, 0.5, 2.0]
 julia> counts, offset = count_labels_distribution(y, 12, w)
@@ -51,7 +53,8 @@ julia> counts, offset = count_labels_distribution(y, 12, w)
 function count_labels_distribution( 
     y::AbstractVector{<:Integer},
     n::Integer,
-    w=default_weights(length(y))
+    w=default_weights(length(y));
+    return_distribution::Bool = false
 )::Tuple{AbstractVector{<:Real}, Integer}
 
     y_min = convert(Int64, minimum(y)) # this is necesssary, otherwise -y_min underflows when calculating y_offset
@@ -62,6 +65,8 @@ function count_labels_distribution(
 
     # dist[i] is the number of occurrences of the label i in y_adj
     dist = counts(y_adj, n, Weights(w))
+
+    return_distribution && (dist ./ sum(dist))
 
     return dist, y_offset   
 end
@@ -104,42 +109,6 @@ function maptointeger(y::AbstractVector{<:CLabel})
 end
 
 
-"""
-    get_binary_labels_distribution(y::AbstractVector{<:Integer}, w::AbstractVector, target_class::Union{Integer,Nothing} = nothing) -> Tuple
-
-Compute the weighted distribution of binary labels for a given target class.
-
-This function calculates the sum of weights for positive and negative instances, where positive 
-instances are those whose labels match the target class, and negative instances are all others.
-If target class is nothing, the tuple (0,0) is returned
-
-# Arguments
-- `y::AbstractVector{<:Integer}`: Vector of class labels.
-- `w::AbstractVector`: Vector of weights corresponding to each instance.
-- `target_class::Union{Integer,Nothing}`: The class label to treat as positive. If `nothing`, 
-  defaults to binary classification with the first unique label as positive. Default: `nothing`.
-
-# Returns
-- `Tuple`: A tuple `(p, n)` where:
-  - `p`: Sum of weights for positive instances (labels equal to `target_class`).
-  - `n`: Sum of weights for negative instances (labels not equal to `target_class`).
-
-"""
-function get_binary_labels_distribution(
-    y::AbstractVector{<:Integer}, 
-    w::AbstractVector,
-    target_class::Union{Integer,Nothing} = nothing
-)
-    if isnothing(target_class)
-        return 0,0
-    end
-
-    pos_mask = (y .== target_class)
-    neg_mask = (y .!= target_class)
-    p = sum(w[pos_mask])
-    n = sum(w[neg_mask])
-    return p, n
-end
 
 
 """

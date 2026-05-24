@@ -139,6 +139,7 @@ function initialize_antecedents(
     y::AbstractVector{<:CLabel};
     discretizedomain::Bool=false,
     default_alphabet::Union{Nothing,AbstractAlphabet}=nothing,
+    precomputed_conditions::Union{Nothing, Vector{Tuple{Atom, BitVector}}}=nothing
 )::Vector{Antecedent}
 
     _alphabet = isnothing(default_alphabet) ?
@@ -146,7 +147,7 @@ function initialize_antecedents(
         alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥]) : 
             default_alphabet
 
-    conditions = alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X)
+    conditions = isnothing(precomputed_conditions) ? alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X) : precomputed_conditions
     return [Antecedent([f], mask) for (f, mask) in conditions]
 end 
 
@@ -197,7 +198,7 @@ generated specializations and their starting antecedent.
     !isnothing(default_alphabet) && @assert isfinite(default_alphabet) "alphabet must be finite"
 
     if isempty(antecedents)
-        initial_ants = initialize_antecedents(sm, X, y; discretizedomain, default_alphabet)
+        initial_ants = initialize_antecedents(sm, X, y; discretizedomain, default_alphabet, precomputed_conditions)
         return [(ant, nothing) for ant in initial_ants]
     end
 
@@ -279,21 +280,48 @@ function init_best_antecedent(y, w, loss_function::LossFunctions.AbstractLossFun
 end
 
 # For symmetric losses
-function init_best_antecedent(y, w, loss_function::LossFunctions.SymmetricLoss; nlabels, kwargs...)
-    antecedent = bot_antecedent(length(y))
-    loss_val = loss_function(y, w; antecedent=antecedent, nlabels=nlabels, kwargs...)
-    return antecedent, loss_val 
+function init_best_antecedent(
+    y, 
+    w, 
+    loss_function::LossFunctions.SymmetricLoss; 
+    starting_antecedent::Union{Nothing, Antecedent} = nothing,
+    nlabels, 
+    kwargs...
+)
+    if isnothing(starting_antecedent)
+        antecedent = bot_antecedent(length(y))
+        loss_val = loss_function(y, w; antecedent=antecedent, nlabels, kwargs...)
+        return antecedent, loss_val
+    end
+
+
+    best_loss = loss_function(y, w; antecedent = starting_antecedent, nlabels, kwargs...)
+    return starting_antecedent, best_loss
 end
 
 # For asymmetric losses (the "target_class" attribute must be passed)
-function init_best_antecedent(y, w, loss_function::LossFunctions.AsymmetricLoss; nlabels, target_class::Union{Integer,Nothing}=nothing, kwargs...)
+function init_best_antecedent(
+    y, 
+    w, 
+    loss_function::LossFunctions.AsymmetricLoss; 
+    nlabels, 
+    target_class::Union{Integer,Nothing}=nothing, 
+    starting_antecedent::Union{Nothing, Antecedent} = nothing,
+    kwargs...
+)
     if isnothing(target_class)
         return error("If init_best_antecedent is called with an AsymmetricLoss function, the attribute target_class must be specified")
     end 
 
-    antecedent = bot_antecedent(length(y))
-    loss_val = loss_function(y, w, target_class; antecedent=antecedent, nlabels=nlabels, kwargs...)
-    return antecedent, loss_val 
+    if isnothing(starting_antecedent)
+        antecedent = bot_antecedent(length(y))
+        loss_val = loss_function(y, w, target_class; antecedent=antecedent, nlabels, kwargs...)
+        return antecedent, loss_val
+    end
+
+    best_loss = loss_function(y, w, target_class; antecedent = starting_antecedent, nlabels, kwargs...)
+
+    return starting_antecedent, best_loss
 end
 
 
@@ -347,7 +375,6 @@ loss found by the beam search.
 - `target_class::Union{Integer,Nothing}`: target class for asymmetric losses.
 - `starting_antecedent::Union{Nothing, Antecedent}`: optional antecedent from which to start the search.
 - `effective_loss::LossFunctions.AsymmetricLoss`: effective loss used when the provided loss is a delta loss.
-- `num_features_considered_per_test::Union{Nothing, Integer}`: number of randomly selected features to consider per test.
 - `rng::AbstractRNG`: random number generator for feature selection.
 - `kwargs...`: additional keyword arguments forwarded to the loss function.
 
@@ -374,9 +401,9 @@ function findbestantecedent(
     starting_antecedent::Union{Nothing, Antecedent} = nothing,
 
     effective_loss::LossFunctions.AsymmetricLoss = LossFunctions.LaplaceAccuracy(),
-
-    num_features_considered_per_test::Union{Nothing, Integer} = nothing,
     rng::AbstractRNG = Random.default_rng(),        # necessary for random feature selection when building tests if num_features_considered_per_test is not equal to nfeatures(X)
+
+    feature_selection_strategy = DefaultFeatureSelector(),
 
     kwargs...
 )::Antecedent
@@ -385,44 +412,36 @@ function findbestantecedent(
 
     default_alphabet = get_no_nil(default_alphabet, alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥]))
 
-    precomputed_conditions = if !isnothing(default_alphabet)
+    precomputed_conditions = if !isnothing(default_alphabet)        # vector of (Atom{ScalarCondition}, BitVector)
         alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X)
     else
         nothing
     end
-    
+
     # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
     loss_for_starting_candidate = (LossFunctions.is_delta_loss(loss_function)) ? effective_loss : loss_function
-    best, best_loss = if isnothing(starting_antecedent)
-        init_best_antecedent(y, w, loss_for_starting_candidate; nlabels, target_class = target_class, kwargs...)
-    else 
-        best_loss = loss_for_starting_candidate(y, w, target_class; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
-        starting_antecedent, best_loss
-    end
+    best, best_loss = init_best_antecedent(y, w, loss_for_starting_candidate; nlabels, target_class, starting_antecedent, kwargs...)
 
-    # Selects the features if 'num_features_considered_per_test' is specified and not equal to the number of features
-    X_specialization = if isnothing(num_features_considered_per_test) || num_features_considered_per_test == nfeatures(X)
-        X
-    else
-        all_feats = collect(Tables.columnnames(Tables.columns(X)))                   # list of feature names, this requires X to be a PropositionalLogiset supporting DataFrame indexing
-        # all_feats = features(X)
-        selected_features = shuffle(rng, all_feats)[1 : num_features_considered_per_test]   # extract features to be used in the test
-        X[:, selected_features]
-    end
+    dataset_features = collect(Symbol, Tables.columnnames(Tables.columns(X)))
 
     newcandidates = isnothing(starting_antecedent) ? Antecedent[] : Antecedent[starting_antecedent]
-    # newcandidates = Antecedent[]
     while true
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Antecedent[]
 
+        # select the relevant features for this test using the selection strategy 'feature_selection_strategy'
+        selected_features = selectfeatures!(feature_selection_strategy, dataset_features, rng)
+        relevant_precomputed_conds = extract_conditions(precomputed_conditions, selected_features, dataset_features)
+
+        X_specialized = (selected_features == dataset_features) ? X : X[:, selected_features]       # avoid making a copy if all the features have been selected
+
         newcandidates = specializeantecedents(bs,
-                                            candidates, X_specialization, y,
+                                            candidates, X_specialized, y,
 
                                             max_rule_length,
                                             discretizedomain,
                                             default_alphabet,
-                                            precomputed_conditions)
+                                            relevant_precomputed_conds)
         
 
 
@@ -505,7 +524,6 @@ minimizes the symmetric loss across the beam's candidate specializations.
 - `max_rule_length::Union{Integer,Nothing}`: maximum rule length allowed for candidate antecedents.
 - `target_class::Union{Integer,Nothing}`: included for signature compatibility; ignored by symmetric losses.
 - `starting_antecedent::Union{Nothing, Antecedent}`: optional antecedent from which to start the search.
-- `num_features_considered_per_test::Union{Nothing, Integer}`: number of randomly selected features to consider per test.
 - `rng::AbstractRNG`: random number generator for feature selection.
 - `kwargs...`: additional keyword arguments forwarded to the loss function.
 
@@ -532,7 +550,6 @@ function findbestantecedent(
     target_class::Union{Integer,Nothing} = nothing,  # this is passed down to the loss function
     starting_antecedent::Union{Nothing, Antecedent} = nothing,
 
-    num_features_considered_per_test::Union{Nothing, Integer} = nothing,
     rng::AbstractRNG = Random.default_rng(),        # necessary for random feature selection when building tests if num_features_considered_per_test is not equal to nfeatures(X)
 
     kwargs...
@@ -540,36 +557,29 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
-    # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
-    best, best_loss = if isnothing(starting_antecedent)
-        init_best_antecedent(y, w, loss_function; nlabels, target_class = target_class, kwargs...)
-    else 
-        best_loss = loss_function(y, w; antecedent = starting_antecedent, nlabels=nlabels, kwargs...)
-        starting_antecedent, best_loss
-    end
-
-
-    # Selects the features if 'num_features_considered_per_test' is specified and not equal to the number of features
-    X_specialization = if isnothing(num_features_considered_per_test) || num_features_considered_per_test == nfeatures(X)
-        X
+    precomputed_conditions = if !isnothing(default_alphabet)
+        alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X)
     else
-        all_feats = collect(Tables.columnnames(Tables.columns(X)))                   # list of feature names, this requires X to be a PropositionalLogiset supporting DataFrame indexing
-        # all_feats = features(X)
-        selected_features = shuffle(rng, all_feats)[1 : num_features_considered_per_test]   # extract features to be used in the test
-        X[:, selected_features]
+        nothing
     end
+    
 
-    newcandidates = Antecedent[]
+    # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
+    best, best_loss = init_best_antecedent(y, w, loss_function; starting_antecedent, nlabels, kwargs...)
+
+
+    newcandidates = isnothing(starting_antecedent) ? Antecedent[] : Antecedent[starting_antecedent]
     while true
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Antecedent[]
 
         newcandidates = specializeantecedents(bs,
-                                            candidates, X_specialization, y,
+                                            candidates, X, y,
 
                                             max_rule_length,
                                             discretizedomain,
-                                            default_alphabet)
+                                            default_alphabet,
+                                            precomputed_conditions)
         
         # extract the actual antecedents, dump their parents
         newcandidates = [ant for (ant, _) in newcandidates]

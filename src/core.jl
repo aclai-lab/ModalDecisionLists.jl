@@ -1,11 +1,15 @@
 using DataFrames
 
+using SoleLogics
+using SoleData
 using SoleBase: CLabel
 using SoleData: AbstractLogiset, PropositionalLogiset
 using SoleModels: bestguess
 using Parameters
 using FillArrays
 using StatsBase
+using Random
+
 
 const SatMask = BitVector
 
@@ -191,43 +195,32 @@ prune_size(ds::DataSplit) = length(ds.prune_inds)
 permutation_indices(ds::DataSplit) = ds.permutation_indices
 
 
+
 """
-    split_instances(
-        X::AbstractLogiset,
-        y::AbstractVector{<:CLabel},
-        w::AbstractVector{<:Real},
-        split_ratio::Real,
-        rng::AbstractRNG = Random.default_rng()
-    ) -> Union{DataSplit, Nothing}
+    split_instances(X, y, w, split_ratio, rng; stratified=true, poslabel=1)
 
-Split the dataset `(X, y, w)` into two disjoint subsets: a "grow" set and a "prune" set,
-based on the specified `split_ratio`. The split is performed randomly using the provided
-random number generator `rng`.
+Split a labeled dataset into growth and pruning subsets.
 
-# Arguments
-- `X::AbstractLogiset`: The input dataset, containing the instances to be split.
-- `y::AbstractVector{<:CLabel}`: The labels corresponding to the instances in `X`.
-- `w::AbstractVector{<:Real}`: The weights associated with each instance in `X`.
-- `split_ratio::Real`: The proportion of instances to allocate to the "grow" set.
-- `rng::AbstractRNG`: The random number generator to use for shuffling the instances.
+This helper function is used during rule learning to reserve a portion of the data for
+rule growth while using the remainder for pruning / validation. The returned
+`DataSplit` contains indices for the growth set, the pruning set, and the full
+permutation used to construct them.
 
-# Returns
-- `DataSplit`: An object containing the split dataset information, including:
-  - The original `X`, `y`, and `w`.
-  - `grow_inds`: Indices of instances in the grow set.
-  - `prune_inds`: Indices of instances in the prune set.
-  - `permutation_indices`: The random permutation used for splitting.
-- `Nothing`: If the split would result in an empty grow set or an empty prune set
-  (i.e., if `round(n * split_ratio) == 0` or `round(n * split_ratio) == n`, where `n`
-  is the number of instances).
+Arguments:
+- `X::AbstractLogiset`: input dataset.
+- `y::AbstractVector{<:CLabel}`: class labels for each instance.
+- `w::AbstractVector{<:Real}`: instance weights.
+- `split_ratio::Real`: fraction of the dataset assigned to the growth set.
+- `rng::AbstractRNG`: random number generator used to shuffle indices.
+- `stratified::Bool`: if `true`, preserve the class distribution of `poslabel`
+  between growth and prune subsets.
+- `poslabel`: label value treated as the positive class for stratified splitting.
 
-# Notes
-- The split is performed by generating a random permutation of instance indices and
-  assigning the first `ngrow = round(Integer, n * split_ratio)` indices to the grow set,
-  with the remaining indices going to the prune set.
-- The function ensures that both subsets are non-empty to avoid degenerate splits.
-
-See also: [`DataSplit`](@ref), [`growth_X`](@ref), [`prune_X`](@ref).
+Returns:
+- `DataSplit`: object containing `grow_inds`, `prune_inds`, and
+  `permutation_indices`.
+- `nothing`: if `split_ratio` is too small to assign any instances to the
+growth set.
 """
 function split_instances(
     X::AbstractLogiset,
@@ -252,6 +245,12 @@ function split_instances(
         grow_indices = perm_indices[1:ngrow_total]
         prun_indices = perm_indices[ngrow_total+1:end]
         return DataSplit(X, y, w, grow_indices, prun_indices, perm_indices)
+    end
+
+    # the case where stratified = true and split_ratio = 1 is handled manually to avoid shuffling and calling findall() for no reason
+    if split_ratio == 1.0
+        perm_indices = randperm(rng, n)
+        return DataSplit(X, y, w, perm_indices, Int[], perm_indices) 
     end
 
     pos_indices = findall(==(poslabel), y)
@@ -353,4 +352,51 @@ Implementations should define at least:
 
 abstract type AbstractGenerator end
 
+
+
 ############################################################################################
+############ Feature Selection #############################################################
+############################################################################################
+
+"""
+Abstract type representing a selector of a certain set S ⊆ F of features selected from
+the set of all features F.
+"""
+abstract type FeatureSelector end
+
+
+"""
+Obtain the set of feature indices to be extracted
+"""
+function selectfeatures!(fs::FeatureSelector, cols::AbstractVector{Symbol}, rng::AbstractRNG)::Vector{Symbol}
+    return error("Please, provide method selectfeatures(fs::$(typeof(fs))")
+end
+
+"""
+Given a set of selected features, this function extracts from "conditions" the set of conditions that involve
+one of the features in selected_features
+"""
+function extract_conditions(
+    conditions::Union{Nothing, Vector{Tuple{Atom, BitVector}}}, 
+    selected_features::Vector{Symbol},
+    features::Vector{Symbol}
+)::Vector{Tuple{Atom, SatMask}}
+    
+    isnothing(conditions) && return nothing
+
+    # if all the features have been selected, simply return the original list. This can speed up some time when using the default strategy
+    if selected_features == features
+        return conditions end
+
+    # a Set() allows for O(1) search
+    features_set = Set(selected_features)
+
+    filtered_conditions = filter(conditions) do (atom, mask)
+        # return atom.value.metacond.feature.i_variable ∈ features_set
+        scalar_condition = SoleLogics.value(atom)
+        feat = SoleData.feature(scalar_condition)
+        return feat.i_variable ∈ features_set
+    end
+
+    return Vector{Tuple{Atom, SatMask}}(filtered_conditions)
+end
