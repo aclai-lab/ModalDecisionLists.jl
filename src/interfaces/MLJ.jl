@@ -124,8 +124,11 @@ function ExtendedSequentialCovering(;
 end
 
 function MMI.predict(m::CoveringStrategy, fitresult, Xnew)
-    yhat = apply(fitresult.model, PropositionalLogiset(Xnew))
-    return yhat
+    raw_preds = apply(fitresult.model, PropositionalLogiset(Xnew))
+    
+    unwrapped_preds = unwrap.(raw_preds)
+
+    return MMI.categorical(unwrapped_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
 end
 
 ############################################################################################
@@ -220,11 +223,10 @@ function MMI.fit(m::CoveringStrategy, verbosity::Int, X, y)
     if verbosity == 1
         println(model)
     end
-    # target_pool = MLJModelInterface.classes(y)
-    fitresult = (
-        model = model,
-        # target_pool = target_pool
-    )
+
+    target_pool = MMI.categorical(y)        # extract y levels
+    fitresult = (; model, target_pool)
+    
     report = (
         model = model,
     )
@@ -338,9 +340,8 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    fitresult = (
-        model = model,
-    )
+    target_pool = MMI.categorical(y)        # extract y levels
+    fitresult = (; model, target_pool)
     report = (
         model = model,
     )
@@ -465,9 +466,9 @@ function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
 
     verbosity == 1 && println(model)
 
-    fitresult = (
-        model = model,
-    )
+    target_pool = MMI.categorical(y)        # extract y levels
+    fitresult = (; model, target_pool)
+
     report = (
         model = model,
     )
