@@ -577,7 +577,8 @@ end
 
 function MMI.predict(m::BaggedEnsembleClassifier, fitresult, Xnew)
     raw_preds = apply(fitresult.model, PropositionalLogiset(Xnew); use_multithreads=false, suppress_parity_warning=true)
-    return MMI.categorical(raw_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
+    unwrapped_preds = unwrap.(raw_preds)
+    return MMI.categorical(unwrapped_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
 end
 
 
@@ -687,7 +688,8 @@ end
 
 function MMI.predict(m::RandomDecisionListEnsembleClassifier, fitresult, Xnew)
     raw_preds = ModalDecisionLists.apply_rdl(fitresult.model, PropositionalLogiset(Xnew))
-    return MMI.categorical(raw_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
+    unwrapped_preds = unwrap.(raw_preds)
+    return MMI.categorical(unwrapped_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
 end
 
 
