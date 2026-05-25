@@ -214,3 +214,41 @@ log2_factorial(n::Integer)::Real = (n == 0) ? 0 : max(0, 0.5 * (1 + log2(π * n)
 
 """ returns an approximation of ln( n choose k ) using log2_factorial for numerical stability and optimization  """
 log2binomial(n::Integer, k::Integer)::Real = (k == 0) ? 0 : log2_factorial(n) - log2_factorial(k) - log2_factorial(n - k)
+
+
+"""
+    compute_mestimate_distribution(covered_y::AbstractVector{<:CLabel}, class_priors::Dict{<:CLabel, Real})
+
+Compute an m-estimate distribution for a covered subset of class labels.
+
+# Arguments
+- `covered_y::AbstractVector{<:CLabel}`: Labels for the subset of instances covered by a rule.
+- `class_priors::Dict{<:CLabel, Real}`: Prior probabilities for each class label.
+
+# Returns
+- `Dict{CLabel, Float64}`: Estimated posterior probability of each label under the m-estimate.
+
+# Details
+The function uses the m-estimate with `m = k`, where `k` is the number of distinct labels in
+`class_priors`. This is equivalent to a Laplace correction with the empirical prior.
+Each label probability is computed as:
+
+```text
+(count(label in covered_y) + k * prior(label)) / (n + k)
+```
+
+where `n` is the number of covered instances.
+"""
+function compute_mestimate_distribution(covered_y::AbstractVector{<:CLabel}, class_priors::Dict{<:CLabel, Real})
+    all_labels = keys(class_priors)
+    n = length(covered_y)
+    k = length(all_labels)
+
+    # m-estimate with m = k (equivalent to Laplace correction with empirical prior)
+    m_estimate = Dict{CLabel, Float64}(
+        label => (count(==(label), covered_y) + k * get(class_priors, label, 0)) / (n + k)
+        for label in all_labels
+    )
+
+    return m_estimate
+end

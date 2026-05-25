@@ -125,9 +125,7 @@ end
 
 function MMI.predict(m::CoveringStrategy, fitresult, Xnew)
     raw_preds = apply(fitresult.model, PropositionalLogiset(Xnew))
-    
     unwrapped_preds = unwrap.(raw_preds)
-
     return MMI.categorical(unwrapped_preds, levels=levels(fitresult.target_pool), ordered=isordered(fitresult.target_pool))
 end
 

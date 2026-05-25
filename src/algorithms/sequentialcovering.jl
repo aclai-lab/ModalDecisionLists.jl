@@ -15,7 +15,6 @@ using FillArrays
 using ModalDecisionLists
 using Parameters
 using Random
-using CategoricalArrays: unwrap
 
 ############################################################################################
 ################### SequentialCovering - DecisionList ######################################
@@ -196,9 +195,13 @@ function sequentialcovering(
     end
     prediction = SoleModels.bestguess(uncovered.y; suppress_parity_warning=suppress_parity_warning)
     prediction = labels[prediction]
+    
+    default_mestimate = compute_mestimate_distribution(uncovered.original_y_labels, class_priors)
+
     info_cm = (;
         supporting_labels=[labels[x] for x in collect(uncovered.y)],
         supporting_predictions=fill(prediction, length(uncovered.y)),
+        m_estimate = default_mestimate
     )
     default_consequent = ConstantModel(prediction, info_cm)
     return DecisionList(rule_base, default_consequent, info_dl)
@@ -280,6 +283,7 @@ function irepstar(
     isnothing(class_priors) && (class_priors = calculate_prior_distribution(y))
     
     # corresponding to the integer value in the targets in y
+    original_y_labels = y
     y_int, labels = y |> maptointeger
     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
 
@@ -289,7 +293,7 @@ function irepstar(
     # the actual list of rules that is obtained from the various calls 
     rules = Rule[]
 
-    uncovered = TrainingState(X, y, w)
+    uncovered = TrainingState(X, y, w, nothing, original_y_labels)
 
     # starting from the least common class index and going up to the most common, the last class is used as the default consequent. This is the standard behavior for IREP*
     # If "invert_class_orders" is true, the order is inverted, and the method starts with the most frequent class.
@@ -342,6 +346,8 @@ function irepstar(
     default_class_index = invert_class_orders ? sorted_indices[1] : sorted_indices[end]
     default_class = labels[default_class_index]     # default prediction if no other rule applies
 
+    default_mestimate = compute_mestimate_distribution(uncovered.original_y_labels, class_priors)
+
     Base.@debug "Resorting to default class $default_class if no other rule applies"
 
     info_cm = (;
@@ -349,6 +355,7 @@ function irepstar(
         supporting_labels=y,
         # supporting_weights=collect(justcoveredw), # TODO
         supporting_predictions=fill(default_class, length(y)),
+        m_estimate = default_mestimate
     )
 
     default_consequent = ConstantModel(default_class, info_cm)
@@ -775,14 +782,7 @@ function build_rule(
     justcoveredy = y_labels[coverage_indices]
     predlabel = poslabel
     
-    all_labels = keys(class_priors)
-    n = length(justcoveredy)
-    k = length(all_labels)
-    # m-estimate with m = k (equivalent to Laplace correction with empirical prior)
-    m_estimate = Dict{CLabel, Float64}(
-        label => (count(==(label), justcoveredy) + k * get(class_priors, label, 0)) / (n + k)
-        for label in all_labels
-    )
+    m_estimate = compute_mestimate_distribution(justcoveredy, class_priors)
 
     info_cm = (;
         supporting_labels=justcoveredy,
@@ -828,15 +828,7 @@ function build_rule(
     class_priors::Dict{<:CLabel, <:Real},
 )
     # TODO: take instance weights into account in the probability estimate
-    all_labels = keys(class_priors)
-    n = length(justcoveredy)
-    k = length(all_labels)
-
-    # m-estimate with m = k (equivalent to Laplace correction with empirical prior)
-    m_estimate = Dict{CLabel, Float64}(
-        label => (count(==(label), justcoveredy) + k * get(class_priors, label, 0)) / (n + k)
-        for label in all_labels
-    )
+    m_estimate = compute_mestimate_distribution(justcoveredy, class_priors)
 
     info_cm = (;
         supporting_labels=justcoveredy,
@@ -851,7 +843,6 @@ function build_rule(
 
     return Rule(antecedent, consequent, info_r)
 end
-
 
 
 
@@ -1120,6 +1111,7 @@ function ripperk(
     isnothing(class_priors) && (class_priors = calculate_prior_distribution(y))
 
     # corresponding to the integer value in the targets in y
+    original_y_labels = y
     y_int, labels = y |> maptointeger
     y_dist = counts(y_int)    # y_dist[i] is the number of times the label i occurs in y_int
 
@@ -1133,7 +1125,7 @@ function ripperk(
     # the actual list of rules that is obtained from the various calls 
     rules = Rule[]
 
-    uncovered = TrainingState(X, y, w)
+    uncovered = TrainingState(X, y, w, nothing, original_y_labels)
 
     # starting from the least common class index and going up to the most common, the last class
     # is used as the default consequent
@@ -1184,12 +1176,15 @@ function ripperk(
     default_class_index = invert_class_orders ? sorted_indices[1] : sorted_indices[end]
     default_class = labels[default_class_index]     # default prediction if no other rule applies
 
+    default_mestimate = compute_mestimate_distribution(uncovered.original_y_labels, class_priors)
+
     Base.@debug "Resorting to default class $default_class if no other rule applies"
 
     info_cm = (;
         # supporting_labels=[labels[x] for x in collect(uncovered_original_y)],
         # supporting_weights=collect(justcoveredw), # TODO
         supporting_predictions=fill(default_class, length(y)),
+        m_estimate = default_mestimate
     )
 
     default_consequent = ConstantModel(default_class, info_cm)
