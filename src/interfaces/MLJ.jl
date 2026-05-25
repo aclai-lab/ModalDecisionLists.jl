@@ -20,7 +20,7 @@ import MLJModelInterface
 using Parameters
 using StatsBase
 using Random
-using CategoricalArrays: levels, isordered
+using CategoricalArrays: levels, isordered, unwrap
 
 const MMI = MLJModelInterface
 const MDL = ModalDecisionLists
