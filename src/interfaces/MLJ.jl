@@ -595,6 +595,7 @@ mutable struct RandomDecisionListEnsembleClassifier <: MMI.Deterministic
     samples_ratio_per_model::Real
     n_subfeatures_per_model::Union{Nothing,Int}
     alpha::Real
+    num_features_per_proposition::Union{Integer, Nothing}
     base_model::CoveringStrategy
     prop_features_ratio::Real
     rng::AbstractRNG
@@ -606,6 +607,7 @@ function RandomDecisionListEnsembleClassifier(;
     samples_ratio_per_model::Real = 1.0,
     n_subfeatures_per_model::Union{Nothing,Int} = nothing,
     alpha::Real = 1.0,
+    num_features_per_proposition::Union{Integer, Nothing} = nothing,
     base_model::CoveringStrategy = DecisionListClassifier(),
     prop_features_ratio::Real = 1.0,
     rng::AbstractRNG = TaskLocalRNG(),
@@ -616,6 +618,7 @@ function RandomDecisionListEnsembleClassifier(;
         samples_ratio_per_model,
         n_subfeatures_per_model,
         alpha,
+        num_features_per_proposition,
         base_model,
         prop_features_ratio,
         rng,
@@ -653,8 +656,12 @@ function MMI.fit(m::RandomDecisionListEnsembleClassifier, verbosity::Int, X, y)
     )
     model_wrapper = model_wrappers[typeof(m.base_model)]
 
-    n_sub = isnothing(m.n_subfeatures_per_model) ? length(featurenames) : m.n_subfeatures_per_model
-    num_features_per_proposition = max(1, round(Int, m.prop_features_ratio * n_sub))
+    num_features_per_proposition = if isnothing(m.num_features_per_proposition)
+        n_sub = isnothing(m.n_subfeatures_per_model) ? length(featurenames) : m.n_subfeatures_per_model
+        max(1, round(Int, m.prop_features_ratio * n_sub))
+    else
+        m.num_features_per_proposition
+    end
 
     feature_selection_strategy = WeightedRandomFeatureSelector(m.alpha, num_features_per_proposition)
 
