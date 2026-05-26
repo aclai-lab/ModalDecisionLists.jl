@@ -595,9 +595,9 @@ mutable struct RandomDecisionListEnsembleClassifier <: MMI.Deterministic
     samples_ratio_per_model::Real
     n_subfeatures_per_model::Union{Nothing,Int}
     alpha::Real
-    num_features_per_proposition::Union{Integer, Nothing}
     base_model::CoveringStrategy
     prop_features_ratio::Real
+    num_features_per_proposition::Union{Integer, Nothing}
     rng::AbstractRNG
 end
 
@@ -607,9 +607,9 @@ function RandomDecisionListEnsembleClassifier(;
     samples_ratio_per_model::Real = 1.0,
     n_subfeatures_per_model::Union{Nothing,Int} = nothing,
     alpha::Real = 1.0,
-    num_features_per_proposition::Union{Integer, Nothing} = nothing,
     base_model::CoveringStrategy = DecisionListClassifier(),
     prop_features_ratio::Real = 1.0,
+    num_features_per_proposition::Union{Integer, Nothing} = nothing,
     rng::AbstractRNG = TaskLocalRNG(),
 )
     model = RandomDecisionListEnsembleClassifier(
@@ -618,9 +618,9 @@ function RandomDecisionListEnsembleClassifier(;
         samples_ratio_per_model,
         n_subfeatures_per_model,
         alpha,
-        num_features_per_proposition,
         base_model,
         prop_features_ratio,
+        num_features_per_proposition,
         rng,
     )
     message = MMI.clean!(model)
