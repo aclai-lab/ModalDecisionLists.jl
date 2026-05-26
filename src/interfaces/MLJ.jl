@@ -492,10 +492,8 @@ mutable struct BaggedEnsembleClassifier <: CoveringStrategy
     samples_ratio_per_model::Real
     n_subfeatures_per_model::Union{Nothing,Int}
     aggregation_function::Union{Nothing,Base.Callable}
-    base_model::Symbol
+    base_model::CoveringStrategy
     rng::AbstractRNG
-
-    model_kwargs::Dict{Symbol, Any}
 end
 
 function BaggedEnsembleClassifier(;
@@ -505,13 +503,9 @@ function BaggedEnsembleClassifier(;
     samples_ratio_per_model::Real=1.0,
     n_subfeatures_per_model::Union{Nothing,Int}=nothing,
     aggregation_function::Union{Nothing,Base.Callable}=nothing,
-    base_model::Symbol = :irep,
+    base_model::CoveringStrategy = DecisionListClassifier(),
     rng::AbstractRNG = TaskLocalRNG(),
-
-    kwargs...
 )
-    (base_model ∉ [:sequentialcovering, :irep, :ripper]) && error("Invalid base model type encountered: `$base_model`. Valid values are `:sequentialcovering`, `:irep` and `:ripper`")
-
     model = BaggedEnsembleClassifier(
         num_models,
         use_bootstrapping,
@@ -520,7 +514,6 @@ function BaggedEnsembleClassifier(;
         aggregation_function,
         base_model,
         rng,
-        Dict{Symbol, Any}(kwargs)
     )
 
     message = MMI.clean!(model)
@@ -535,6 +528,9 @@ function MMI.clean!(model::BaggedEnsembleClassifier)
             "Resetting num_models = 1."
         model.max_rulebase_length = 1
     end
+    if isa(model.base_model, BaggedEnsembleClassifier) || isa(model.base_model, RandomDecisionListEnsembleClassifier)
+        error("Cannot create a RandomDecisionListEnsembleClassifier with a base model type: $(typeof(model.base_model))")
+    end 
     return warning
 end
 
@@ -543,8 +539,14 @@ function MMI.fit(m::BaggedEnsembleClassifier, verbosity::Int, X, y)
     # logiset = scalarlogiset(X; featurenames, allow_propositional=true)
     logiset = PropositionalLogiset(X)
 
-    model_wrappers = Dict(:sequentialcovering => sequentialcovering, :irep => irepstar, :ripper => ripperk)
-    model_wrapper = model_wrappers[m.base_model]
+    model_wrappers = Dict(
+        ExtendedSequentialCovering      => sequentialcovering,
+        DecisionListClassifier          => irepstar,
+        RipperListClassifier            => ripperk,
+    )
+    model_wrapper = model_wrappers[typeof(m.base_model)]
+
+    base_model_kwargs = Dict(p => getproperty(m.base_model, p) for p in propertynames(m.base_model))
 
     model = begin
         build_ensemble(
@@ -559,7 +561,7 @@ function MMI.fit(m::BaggedEnsembleClassifier, verbosity::Int, X, y)
             model_wrapper               = model_wrapper,
             rng                         = m.rng,
 
-            m.model_kwargs...
+            base_model_kwargs...
         )
     end
 
@@ -593,11 +595,9 @@ mutable struct RandomDecisionListEnsembleClassifier <: MMI.Deterministic
     samples_ratio_per_model::Real
     n_subfeatures_per_model::Union{Nothing,Int}
     alpha::Real
-    base_model::Symbol
+    base_model::CoveringStrategy
     num_features_per_proposition::Integer
     rng::AbstractRNG
-
-    model_kwargs::Dict{Symbol,Any}
 end
 
 function RandomDecisionListEnsembleClassifier(;
@@ -606,15 +606,10 @@ function RandomDecisionListEnsembleClassifier(;
     samples_ratio_per_model::Real = 1.0,
     n_subfeatures_per_model::Union{Nothing,Int} = nothing,
     alpha::Real = 1.0,
-    base_model::Symbol = :irep,
+    base_model::CoveringStrategy = DecisionListClassifier(),
     num_features_per_proposition::Integer = -1,
     rng::AbstractRNG = TaskLocalRNG(),
-    
-    kwargs...
 )
-    (base_model ∉ [:sequentialcovering, :irep, :ripper]) &&
-        error("Invalid base model type: `$base_model`. Valid values are `:sequentialcovering`, `:irep` and `:ripper`")
-
     model = RandomDecisionListEnsembleClassifier(
         num_models,
         use_bootstrapping,
@@ -624,8 +619,6 @@ function RandomDecisionListEnsembleClassifier(;
         base_model,
         num_features_per_proposition,
         rng,
-
-        Dict{Symbol,Any}(kwargs),
     )
     message = MMI.clean!(model)
     isempty(message) || @warn message
@@ -643,6 +636,9 @@ function MMI.clean!(model::RandomDecisionListEnsembleClassifier)
         warning *= "Need alpha ≥ 0. Resetting alpha = 1.0."
         model.alpha = 1.0
     end
+    if isa(model.base_model, BaggedEnsembleClassifier) || isa(model.base_model, RandomDecisionListEnsembleClassifier)
+        error("Cannot create a RandomDecisionListEnsembleClassifier with a base model type: $(typeof(model.base_model))")
+    end 
     return warning
 end
 
@@ -651,13 +647,16 @@ function MMI.fit(m::RandomDecisionListEnsembleClassifier, verbosity::Int, X, y)
     logiset = PropositionalLogiset(X)
 
     model_wrappers = Dict(
-        :sequentialcovering => sequentialcovering,
-        :irep               => irepstar,
-        :ripper             => ripperk,
+        ExtendedSequentialCovering       => sequentialcovering,
+        DecisionListClassifier           => irepstar,
+        RipperListClassifier             => ripperk,
     )
-    model_wrapper = model_wrappers[m.base_model]
+    model_wrapper = model_wrappers[typeof(m.base_model)]
 
     feature_selection_strategy = WeightedRandomFeatureSelector(m.alpha, m.num_features_per_proposition)
+
+    base_model_kwargs = Dict(p => getproperty(m.base_model, p) for p in propertynames(m.base_model))
+
 
     model = build_random_lists(
         logiset,
@@ -671,7 +670,7 @@ function MMI.fit(m::RandomDecisionListEnsembleClassifier, verbosity::Int, X, y)
         feature_selection_strategy,
         rng                         = m.rng,
 
-        m.model_kwargs...
+        base_model_kwargs...
     )
 
     verbosity == 1 && println(model)
