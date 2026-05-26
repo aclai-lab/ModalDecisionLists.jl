@@ -523,7 +523,7 @@ end
 
 function MMI.clean!(model::BaggedEnsembleClassifier)
     warning = ""
-    if !isnothing(model.num_models) <= 0
+    if model.num_models <= 0
         warning *= "Need num_models ≥ 1. " *
             "Resetting num_models = 1."
         model.max_rulebase_length = 1
@@ -596,7 +596,7 @@ mutable struct RandomDecisionListEnsembleClassifier <: MMI.Deterministic
     n_subfeatures_per_model::Union{Nothing,Int}
     alpha::Real
     base_model::CoveringStrategy
-    num_features_per_proposition::Integer
+    prop_features_ratio::Real
     rng::AbstractRNG
 end
 
@@ -607,7 +607,7 @@ function RandomDecisionListEnsembleClassifier(;
     n_subfeatures_per_model::Union{Nothing,Int} = nothing,
     alpha::Real = 1.0,
     base_model::CoveringStrategy = DecisionListClassifier(),
-    num_features_per_proposition::Integer = -1,
+    prop_features_ratio::Real = 1.0,
     rng::AbstractRNG = TaskLocalRNG(),
 )
     model = RandomDecisionListEnsembleClassifier(
@@ -617,7 +617,7 @@ function RandomDecisionListEnsembleClassifier(;
         n_subfeatures_per_model,
         alpha,
         base_model,
-        num_features_per_proposition,
+        prop_features_ratio,
         rng,
     )
     message = MMI.clean!(model)
@@ -627,14 +627,14 @@ end
 
 function MMI.clean!(model::RandomDecisionListEnsembleClassifier)
     warning = ""
-    if model.samples_ratio_per_model <= 0.0 || model.samples_ratio_per_model > 1.0
-        warning *= "Need 0 < samples_ratio_per_model ≤ 1. " *
+    if model.samples_ratio_per_model <= 0.0
+        warning *= "Need samples_ratio_per_model > 0. " *
             "Resetting samples_ratio_per_model = 1.0."
         model.samples_ratio_per_model = 1.0
     end
     if model.alpha < 0.0
-        warning *= "Need alpha ≥ 0. Resetting alpha = 1.0."
-        model.alpha = 1.0
+        warning *= "Need alpha ≥ 0. Resetting alpha = 0.0."
+        model.alpha = 0.0
     end
     if isa(model.base_model, BaggedEnsembleClassifier) || isa(model.base_model, RandomDecisionListEnsembleClassifier)
         error("Cannot create a RandomDecisionListEnsembleClassifier with a base model type: $(typeof(model.base_model))")
@@ -653,7 +653,10 @@ function MMI.fit(m::RandomDecisionListEnsembleClassifier, verbosity::Int, X, y)
     )
     model_wrapper = model_wrappers[typeof(m.base_model)]
 
-    feature_selection_strategy = WeightedRandomFeatureSelector(m.alpha, m.num_features_per_proposition)
+    n_sub = isnothing(m.n_subfeatures_per_model) ? length(featurenames) : m.n_subfeatures_per_model
+    num_features_per_proposition = max(1, round(Int, m.prop_features_ratio * n_sub))
+
+    feature_selection_strategy = WeightedRandomFeatureSelector(m.alpha, num_features_per_proposition)
 
     base_model_kwargs = Dict(p => getproperty(m.base_model, p) for p in propertynames(m.base_model))
 
