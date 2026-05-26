@@ -169,8 +169,8 @@ function build_random_lists(
     
     kwargs...
 )::RandomLists where {U<:Real}
-    @assert (use_bootstrapping && (samples_ratio_per_model > 0)) "Parameter `samples_ratio_per_model` must be > 0!"
-    @assert (!use_bootstrapping && (0.0 < samples_ratio_per_model ≤ 1.0)) "Parameter `samples_ratio_per_model` must be in (0, 1] when not using bootstrapping!"
+    @assert !use_bootstrapping || (samples_ratio_per_model > 0) "Parameter `samples_ratio_per_model` must be > 0 when bootstrapping!"
+    @assert use_bootstrapping || (0.0 < samples_ratio_per_model <= 1.0) "Parameter `samples_ratio_per_model` must be in (0, 1] when not using bootstrapping!"
     @assert (num_models > 0) "Parameter `num_models must be ≥ 1."
     
     num_features = nfeatures(X)
