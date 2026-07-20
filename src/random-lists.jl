@@ -24,12 +24,12 @@ struct RandomLists{O} <: SoleModels.AbstractDecisionEnsemble{O}
     end
 
     function RandomLists(
-        models::AbstractVector,
+        models::AbstractVector{<:DecisionList},
         info::NamedTuple = (;)
     )
         @assert length(models) > 0 "Cannot instantiate empty ensemble!"
-        O = Union{outcometype.(models)...}
-        RandomLists{O}(models, info)
+        outcome_union = Union{outcometype.(models)...}
+        RandomLists{outcome_union}(models, info)
     end
     
 end
@@ -191,7 +191,7 @@ function build_random_lists(
     models = Vector{DecisionList}(undef, num_models)
 
     for model_num = 1 : num_models
-		local_rng = copy(rng)
+        local_rng = rng
 
         # Extract 'n_samples_per_model' random integers in [1, num_samples] (with or without replacement depending on use_bootstrapping)
         if use_bootstrapping
@@ -202,7 +202,7 @@ function build_random_lists(
         end
 
         # Extract 'n_subfeatures_per_model' features randomly 
-		model_feature_names = if (n_subfeatures_per_model != num_features)
+        model_feature_names = if (n_subfeatures_per_model != num_features)
             shuffle(local_rng, all_feats)[1 : n_subfeatures_per_model]
         else
             all_feats
@@ -235,8 +235,11 @@ function build_random_lists(
         supporting_predictions=eltype(y)[]
     )
 
-    O = Union{outcometype.(models)...}
-    typed_models = Vector{DecisionList{O}}(models)
+    # make sure to handle the types properly. If a model is trained on a subset of features with a certain type, it might have a different
+    # outcome than the others. By combining all the possible types, we make sure this doesn't happen. The [m for m in models] also automatically
+    # casts every DecisionList to the right output type for the list
+    outcome_union = Union{outcometype.(models)...}
+    typed_models = DecisionList{outcome_union}[m for m in models]
 
     return RandomLists(typed_models, info)
 end

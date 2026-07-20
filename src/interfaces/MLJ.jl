@@ -107,7 +107,7 @@ function ExtendedSequentialCovering(;
     discretizedomain::Bool=false,
     max_infogain_ratio::Real=1.0,
     significance_alpha::Union{Real,Nothing}=0.0,
-    min_rule_coverage::Int=1,
+    min_rule_coverage::Int=3,
 
     suppress_parity_warning::Bool=false,
     kwargs...
@@ -594,7 +594,7 @@ mutable struct RandomDecisionListEnsembleClassifier <: MMI.Deterministic
     use_bootstrapping::Bool
     samples_ratio_per_model::Real
     n_subfeatures_per_model::Union{Nothing,Int}
-    alpha::Real
+    beta::Real
     base_model::CoveringStrategy
     prop_features_ratio::Real
     num_features_per_proposition::Union{Integer, Nothing}
@@ -606,7 +606,7 @@ function RandomDecisionListEnsembleClassifier(;
     use_bootstrapping::Bool = true,
     samples_ratio_per_model::Real = 1.0,
     n_subfeatures_per_model::Union{Nothing,Int} = nothing,
-    alpha::Real = 1.0,
+    beta::Real = 1.0,
     base_model::CoveringStrategy = DecisionListClassifier(),
     prop_features_ratio::Real = 1.0,
     num_features_per_proposition::Union{Integer, Nothing} = nothing,
@@ -617,7 +617,7 @@ function RandomDecisionListEnsembleClassifier(;
         use_bootstrapping,
         samples_ratio_per_model,
         n_subfeatures_per_model,
-        alpha,
+        beta,
         base_model,
         prop_features_ratio,
         num_features_per_proposition,
@@ -635,9 +635,9 @@ function MMI.clean!(model::RandomDecisionListEnsembleClassifier)
             "Resetting samples_ratio_per_model = 1.0."
         model.samples_ratio_per_model = 1.0
     end
-    if model.alpha < 0.0
+    if model.beta < 0.0
         warning *= "Need alpha ≥ 0. Resetting alpha = 0.0."
-        model.alpha = 0.0
+        model.beta = 0.0
     end
     if isa(model.base_model, BaggedEnsembleClassifier) || isa(model.base_model, RandomDecisionListEnsembleClassifier)
         error("Cannot create a RandomDecisionListEnsembleClassifier with a base model type: $(typeof(model.base_model))")
@@ -663,7 +663,7 @@ function MMI.fit(m::RandomDecisionListEnsembleClassifier, verbosity::Int, X, y)
         m.num_features_per_proposition
     end
 
-    feature_selection_strategy = WeightedRandomFeatureSelector(m.alpha, num_features_per_proposition)
+    feature_selection_strategy = WeightedRandomFeatureSelector(m.beta, num_features_per_proposition)
 
     base_model_kwargs = Dict(p => getproperty(m.base_model, p) for p in propertynames(m.base_model))
 

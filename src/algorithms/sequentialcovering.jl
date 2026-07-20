@@ -164,8 +164,9 @@ function sequentialcovering(
             discretizedomain,
             significance_alpha,
             min_rule_coverage; 
-            max_rule_length=max_rule_length,
+            max_rule_length,
             nlabels=length(labels),
+            rng,
             kwargs...
         )
 
@@ -537,7 +538,7 @@ function irepstar(
     # samples yet to be covered by any Rule in the RuleSet
     uncovered = TrainingState(X, y, w, original_y, original_y_labels)
 
-    rulebase_sat_mask = falses(ninstances(X))   # sat mask della rulebase su uncoveredX
+    rulebase_sat_mask = falses(ninstances(X))   # sat mask of the rulebase on uncoveredX
     data_curr_ruleset_desc_length = get_initial_dataset_bits(y)
     dataset_num_selectors = get_num_independent_selectors(X, y, discretizedomain)
     
@@ -575,25 +576,25 @@ function irepstar(
             significance_alpha,
             min_rule_coverage;
 
-            max_rule_length=max_rule_length,
+            max_rule_length,
             nlabels=2,
             target_class=1,
-            rng = rng,
+            rng,
             kwargs...
         )
 
         Base.@debug begin
-            # 1. Total distribution in the current split
+            # calculate the total distribution in the current split
             tp_potential = count(==(1), growth_y(split))
             fp_potential = count(!=(1), growth_y(split))
 
-            # 2. Coverage counts (True Positives and False Positives)
+            # calculate true and false positives
             covered_labels = @views growth_y(split)[bestantecedent.covmask]
             
             rule_tp = count(==(1), covered_labels)
             rule_fp = count(!=(1), covered_labels) 
             
-            # Total samples covered by the rule
+            # total samples covered by the rule
             total_covered = rule_tp + rule_fp
 
             """
@@ -1483,7 +1484,7 @@ function _optimize_ruleset!(
             searchmethod, split, original_y_labels, poslabel, 
             default_dataset_satmask, class_priors, args; 
             nlabels = 2, max_rule_length = max_rule_length,
-            target_class = 1
+            target_class = 1, rng = rng
         )
         if rule_grown === nothing
             rule_grown = rule
@@ -1505,7 +1506,7 @@ function _optimize_ruleset!(
             default_dataset_satmask, 
             rule, original_rule_satmask, class_priors, args; 
             nlabels = 2, max_rule_length = max_rule_length,
-            target_class = 1
+            target_class = 1, rng = rng
         )
         if rule_revised === nothing
             rule_revised = rule

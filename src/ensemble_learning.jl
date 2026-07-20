@@ -95,7 +95,7 @@ function build_ensemble(
     models = Vector{AbstractModel}(undef, num_models)
 
     for model_num = 1 : num_models
-		local_rng = copy(rng)
+        local_rng = rng
 
         # Extract 'n_samples_per_model' random integers in [1, num_samples] (with or without replacement depending on use_bootstrapping)
         if use_bootstrapping
@@ -106,7 +106,7 @@ function build_ensemble(
         end
 
         # Extract 'n_subfeatures_per_model' features randomly 
-		model_feature_names = if (n_subfeatures_per_model != num_features)
+        model_feature_names = if (n_subfeatures_per_model != num_features)
             shuffle(local_rng, all_feats)[1 : n_subfeatures_per_model]
         else
             all_feats

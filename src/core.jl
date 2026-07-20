@@ -209,7 +209,7 @@ permutation used to construct them.
 Arguments:
 - `X::AbstractLogiset`: input dataset.
 - `y::AbstractVector{<:CLabel}`: class labels for each instance.
-- `w::AbstractVector{<:Real}`: instance weights.
+- `w::Union{Nothing,AbstractVector{<:Real}}`: instance weights.
 - `split_ratio::Real`: fraction of the dataset assigned to the growth set.
 - `rng::AbstractRNG`: random number generator used to shuffle indices.
 - `stratified::Bool`: if `true`, preserve the class distribution of `poslabel`
@@ -225,7 +225,7 @@ growth set.
 function split_instances(
     X::AbstractLogiset,
     y::AbstractVector{<:CLabel},
-    w::AbstractVector{<:Real},
+    w::Union{Nothing,AbstractVector{<:Real}},
     split_ratio::Real,
     rng::AbstractRNG = Random.default_rng();
     stratified::Bool = true,
