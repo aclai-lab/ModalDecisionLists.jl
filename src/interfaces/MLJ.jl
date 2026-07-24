@@ -134,7 +134,6 @@ end
 ############################################################################################
 
 mutable struct OrderedCN2Learner <: CoveringStrategy
-
     beam_width::Int
     loss_function::LossFunctions.SymmetricLoss
     discretizedomain::Bool
@@ -194,7 +193,7 @@ function MMI.fit(m::CoveringStrategy, verbosity::Int, X, y)
                         searchmethod              = m.searchmethod,
                         loss_function             = m.loss_function,
                         discretizedomain          = m.discretizedomain,
-                        max_infogain_ratio             = m.max_infogain_ratio,
+                        max_infogain_ratio        = m.max_infogain_ratio,
                         significance_alpha        = m.significance_alpha,
                         min_rule_coverage         = m.min_rule_coverage,
                         max_rulebase_length       = m.max_rulebase_length,
@@ -275,6 +274,8 @@ function DecisionListClassifier(;
     suppress_parity_warning::Bool=false,
     invert_class_orders::Bool = false
 )
+    searchmethod.beam_width = beam_width
+
     model = DecisionListClassifier(
         searchmethod, 
         tdl_threshold,
@@ -317,22 +318,22 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
             logiset,
             y;
             featurenames,
-            searchmethod=m.searchmethod,
-            tdl_threshold=m.tdl_threshold,
-            split_ratio=m.split_ratio,
-            loss_function=m.loss_function,
-            max_infogain_ratio=m.max_infogain_ratio,
-            default_alphabet=m.default_alphabet,
-            discretizedomain=m.discretizedomain,
-            significance_alpha=m.significance_alpha,
-            min_rule_coverage=m.min_rule_coverage,
-            max_rule_length=m.max_rule_length,
-            max_rulebase_length=m.max_rulebase_length,
-            conjuncts_generation_method=m.conjuncts_generation_method,
-            beam_width=m.beam_width,
-            rng=m.rng,
-            suppress_parity_warning=m.suppress_parity_warning,
-            invert_class_orders=m.invert_class_orders
+            searchmethod                    = m.searchmethod,
+            tdl_threshold                   = m.tdl_threshold,
+            split_ratio                     = m.split_ratio,
+            loss_function                   = m.loss_function,
+            max_infogain_ratio              = m.max_infogain_ratio,
+            default_alphabet                = m.default_alphabet,
+            discretizedomain                = m.discretizedomain,
+            significance_alpha              = m.significance_alpha,
+            min_rule_coverage               = m.min_rule_coverage,
+            max_rule_length                 = m.max_rule_length,
+            max_rulebase_length             = m.max_rulebase_length,
+            conjuncts_generation_method     = m.conjuncts_generation_method,
+            beam_width                      = m.beam_width,
+            rng                             = m.rng,
+            suppress_parity_warning         = m.suppress_parity_warning,
+            invert_class_orders             = m.invert_class_orders
         )
     end
 
@@ -399,6 +400,8 @@ function RipperListClassifier(;
     rng::AbstractRNG=TaskLocalRNG(),
     suppress_parity_warning::Bool=false
 )
+    searchmethod.beam_width = beam_width
+
     model = RipperListClassifier(
         searchmethod, 
         tdl_threshold,
