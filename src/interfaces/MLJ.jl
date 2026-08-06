@@ -252,6 +252,7 @@ mutable struct DecisionListClassifier <: CoveringStrategy
     rng::AbstractRNG
     suppress_parity_warning::Bool
     invert_class_orders::Bool
+    stratified_splitting:Bool
 end
 
 function DecisionListClassifier(;
@@ -272,7 +273,8 @@ function DecisionListClassifier(;
     # utils
     rng::AbstractRNG=TaskLocalRNG(),
     suppress_parity_warning::Bool=false,
-    invert_class_orders::Bool = false
+    invert_class_orders::Bool = false,
+    stratified_splitting::Bool = true
 )
     searchmethod.beam_width = beam_width
 
@@ -292,7 +294,8 @@ function DecisionListClassifier(;
         beam_width,
         rng,
         suppress_parity_warning,
-        invert_class_orders
+        invert_class_orders,
+        stratified_splitting
     )
     message = MMI.clean!(model)
     isempty(message) || @warn message
@@ -333,7 +336,8 @@ function MMI.fit(m::DecisionListClassifier, verbosity::Int, X, y)
             beam_width                      = m.beam_width,
             rng                             = m.rng,
             suppress_parity_warning         = m.suppress_parity_warning,
-            invert_class_orders             = m.invert_class_orders
+            invert_class_orders             = m.invert_class_orders,
+            stratified_splitting            = m.stratified_splitting
         )
     end
 
@@ -376,6 +380,7 @@ mutable struct RipperListClassifier <: CoveringStrategy
     rng::AbstractRNG
     suppress_parity_warning::Bool
     invert_class_orders::Bool
+    stratified_splitting::Bool
 end
 
 function RipperListClassifier(;
@@ -398,7 +403,8 @@ function RipperListClassifier(;
     beam_width::Int=3,
     # utils
     rng::AbstractRNG=TaskLocalRNG(),
-    suppress_parity_warning::Bool=false
+    suppress_parity_warning::Bool=false,
+    stratified_splitting::Bool = true
 )
     searchmethod.beam_width = beam_width
 
@@ -419,7 +425,8 @@ function RipperListClassifier(;
         beam_width,
         rng,
         suppress_parity_warning,
-        invert_class_orders
+        invert_class_orders,
+        stratified_splitting
     )
     message = MMI.clean!(model)
     isempty(message) || @warn message
@@ -461,7 +468,8 @@ function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
             beam_width=m.beam_width,
             rng=m.rng,
             suppress_parity_warning=m.suppress_parity_warning,
-            invert_class_orders=m.invert_class_orders
+            invert_class_orders=m.invert_class_orders,
+            stratified_splitting=m.stratified_splitting
         )
     end
 

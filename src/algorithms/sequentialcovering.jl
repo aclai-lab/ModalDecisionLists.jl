@@ -427,6 +427,8 @@ subset to minimize classification error.
   and feature sampling.
 - `suppress_parity_warning::Bool=false`: If `true`, suppresses warnings when predicting 
   the most common class.
+- `class_priors::Union{Nothing, Dict{CLabel, Real}} = nothing`: Optional class prior probabilities used for probabilistic estimates in the consequent metadata of the resulting model.
+- `stratified_splitting::Bool=true`: If `true`, the grow/prune split preserves the class distribution of the training data.
 - `kwargs...`: Additional keyword arguments passed to search and other internal functions.
 
 # Returns
@@ -485,6 +487,7 @@ function irepstar(
     suppress_parity_warning::Bool=false,
 
     class_priors::Union{Nothing, Dict{CLabel, Real}} = nothing,
+    stratified_splitting::Bool = true,
 
     kwargs...
 )::DecisionList where {U<:Real}
@@ -554,7 +557,7 @@ function irepstar(
             break
         end
 
-        split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng; stratified=true)
+        split = split_instances(uncovered.X, uncovered.y, uncovered.w, split_ratio, rng; stratified=stratified_splitting)
         split === nothing && break
 
         num_uncovered_pos = count(label -> label == 1, uncovered.y)    # total number of uncovered positive samples
@@ -1266,6 +1269,7 @@ function ripperk(
     suppress_parity_warning::Bool=false,
 
     class_priors::Union{Nothing, Dict{CLabel, Real}} = nothing,
+    stratified_splitting::Bool = true,
 
     kwargs...
 )::DecisionList where {U<:Real}
@@ -1334,6 +1338,7 @@ function ripperk(
                             rng, 
                             suppress_parity_warning,
                             class_priors,
+                            stratified_splitting,
                             kwargs...)
 
         
@@ -1356,7 +1361,8 @@ function ripperk(
         _optimize_ruleset!(curr_ruleset_satmask,
             ruleset_masks, curr_ruleset, X, y, w, original_y_labels,
             poslabel, args, curr_tdl, searchmethod, num_selectors, 
-            split_ratio, rng, max_rule_length, class_priors
+            split_ratio, rng, max_rule_length, class_priors,
+            stratified_splitting
         )
 
         # Calculate indices covered and not covered by the ruleset
@@ -1399,6 +1405,7 @@ function ripperk(
                             rng, 
                             suppress_parity_warning,
                             class_priors,
+                            stratified_splitting,
                             kwargs...)
 
         # Append the residual ruleset to the end of the current one
@@ -1457,13 +1464,14 @@ function _optimize_ruleset!(
     max_rule_length::Union{Nothing, Integer},
 
     class_priors::Dict{CLabel, Real},
+    stratified_splitting::Bool
 )
 
     optimized_ruleset_satmask .= falses( ninstances(X) )                # whilst we optimize the rules, we also calculate which samples are covered by the new ruleset
 
 
     # generate a Grow/Prune split of the data to be used to grow and prune other variants of the rule
-    split = split_instances(X, y, w, split_ratio, rng; stratified = true)
+    split = split_instances(X, y, w, split_ratio, rng; stratified = stratified_splitting)
     split === nothing && return optimized_ruleset_satmask
 
     suffix_matrix = compute_suffix_matrix(ruleset_masks)
