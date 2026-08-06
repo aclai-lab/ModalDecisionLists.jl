@@ -107,7 +107,7 @@ function (::FOILGain)(
     if isnothing(prev_antecedent) && isnothing(antecedent)
         throw(ArgumentError("`antecedent`and `prev_antecedent` cannot both be nothing")) end
 
-+    # If there is no antecedent or previous antecedent we can't compare anything, we return 0 as there is no information gain to possibly be calculated.
+    # If there is no antecedent or previous antecedent we can't compare anything, we return 0 as there is no information gain to possibly be calculated.
     if isnothing(prev_antecedent) || isnothing(antecedent)
         return 0 end
 

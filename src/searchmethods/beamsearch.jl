@@ -375,6 +375,7 @@ loss found by the beam search.
 - `target_class::Union{Integer,Nothing}`: target class for asymmetric losses.
 - `starting_antecedent::Union{Nothing, Antecedent}`: optional antecedent from which to start the search.
 - `effective_loss::LossFunctions.AsymmetricLoss`: effective loss used when the provided loss is a delta loss.
+- `feature_selection_strategy`: strategy used to select which features are considered when generating candidate conditions; defaults to `DefaultFeatureSelector()`.
 - `rng::AbstractRNG`: random number generator for feature selection.
 - `kwargs...`: additional keyword arguments forwarded to the loss function.
 
@@ -524,13 +525,13 @@ minimizes the symmetric loss across the beam's candidate specializations.
 - `max_rule_length::Union{Integer,Nothing}`: maximum rule length allowed for candidate antecedents.
 - `target_class::Union{Integer,Nothing}`: included for signature compatibility; ignored by symmetric losses.
 - `starting_antecedent::Union{Nothing, Antecedent}`: optional antecedent from which to start the search.
+- `feature_selection_strategy`: strategy used to select which features are considered when generating candidate conditions; defaults to `DefaultFeatureSelector()`.
 - `rng::AbstractRNG`: random number generator for feature selection.
 - `kwargs...`: additional keyword arguments forwarded to the loss function.
 
 # Returns
 The best `Antecedent` found by the beam search.
 """
-
 function findbestantecedent(
     bs::BeamSearch,
 
@@ -552,6 +553,8 @@ function findbestantecedent(
 
     rng::AbstractRNG = Random.default_rng(),        # necessary for random feature selection when building tests if num_features_considered_per_test is not equal to nfeatures(X)
 
+    feature_selection_strategy = DefaultFeatureSelector(),
+
     kwargs...
 )::Antecedent
 
@@ -568,18 +571,26 @@ function findbestantecedent(
     # Initializes the best antecedent as the formuala ⊤, unless starting_antecedent is set
     best, best_loss = init_best_antecedent(y, w, loss_function; starting_antecedent, nlabels, kwargs...)
 
+    dataset_features = collect(Symbol, Tables.columnnames(Tables.columns(X)))
+
     newcandidates = isnothing(starting_antecedent) ? Antecedent[] : Antecedent[starting_antecedent]
     while true
         # Generate new specialized candidates
         (candidates, newcandidates) = newcandidates, Antecedent[]
 
+        # select the relevant features for this test using the selection strategy 'feature_selection_strategy'
+        selected_features = selectfeatures!(feature_selection_strategy, dataset_features, rng)
+        relevant_precomputed_conds = extract_conditions(precomputed_conditions, selected_features, dataset_features)
+
+        X_specialized = (selected_features == dataset_features) ? X : X[:, selected_features]
+
         newcandidates = specializeantecedents(bs,
-                                            candidates, X, y,
+                                            candidates, X_specialized, y,
 
                                             max_rule_length,
                                             discretizedomain,
                                             default_alphabet,
-                                            precomputed_conditions)
+                                            relevant_precomputed_conds)
         
         newcandidates = [ant for (ant, _) in newcandidates]
 

@@ -92,11 +92,11 @@ function selectfeatures!(
     end
 
     # apply the softmax on the logits. The subtraction of max_logit achieves greater numerical stability. 
-    # This way, the largest weight will always be 1, and the ratio between each weight pair does not change 
+    # this way, the largest weight will always be 1, and the ratio between each weight pair does not change 
     max_logit = maximum(logits)
     weights_vector = exp.(logits .- max_logit)
 
-    # extract the features based on the weights
+    # extract the features based on the weights, replace=false makes sure the same feature cannot be picked more than once
     selected = sample(rng, cols, Weights(weights_vector), fs.num_per_step, replace=false)
 
     selected_set = Set(selected)

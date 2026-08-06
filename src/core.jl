@@ -359,7 +359,7 @@ abstract type AbstractGenerator end
 ############################################################################################
 
 """
-Abstract type representing a selector of a certain set S ⊆ F of features selected from
+Abstract type representing a selector of a certain set S ⊆ F of features extracted from
 the set of all features F.
 """
 abstract type FeatureSelector end
@@ -388,7 +388,7 @@ function extract_conditions(
     if selected_features == features
         return conditions end
 
-    # a Set() allows for O(1) search
+    # a Set allows for O(1) search
     features_set = Set(selected_features)
 
     filtered_conditions = filter(conditions) do (atom, mask)
