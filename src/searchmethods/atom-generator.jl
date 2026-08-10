@@ -94,10 +94,17 @@ function alphabet2conditions(
 )::Vector{Tuple{Atom,SatMask}}
 
     _conditions = Tuple{Atom{ScalarCondition},SatMask}[]
-
+    processed_features = Set{Any}()
+    
     for subalph in subalphabets(a)
         # newconds = checkedatoms(X, subalph)
         # append!(_conditions, newconds)
+
+        # recursive call on each union alphabet. This loop processes each univariate alphabet at a time
+        if subalph isa UnionAlphabet
+            append!(_conditions, alphabet2conditions(AtomGenerator(), subalph, X))
+            continue
+        end
 
         # if the domain is discretized, it makes no sense to create tests only in between two successive feature values, because
         # those values are already the points at which the splits make the most sense
@@ -106,16 +113,25 @@ function alphabet2conditions(
             append!(_conditions, newconds)
             continue
         end
+        
+        # the feature on which this univariate scalar alphabet is based. We make sure 
+        feature = SoleData.feature(metacond(subalph))
 
-        if subalph isa UnionAlphabet
-            append!(_conditions, alphabet2conditions(AtomGenerator(), subalph, X))
-        elseif subalph isa UnivariateScalarAlphabet
+        # make sure each feature gets processed exactly once
+        (feature ∈ processed_features) && continue
+        push!(processed_features, feature)
+
+
+        if subalph isa UnivariateScalarAlphabet
             threshs = SoleData.thresholds(subalph)
+            
+            # call midpointconditions if feature is numeric, and pairedconditions otherwise
             if !isempty(threshs) && eltype(threshs) <: Number
-                append!(_conditions, midpointconditions(X, subalph))
+                append!(_conditions, midpointconditions(X, feature, threshs))
             else
-                append!(_conditions, checkedatoms(X, subalph))
+                append!(_conditions, pairedconditions(X, feature, threshs))
             end
+
         else
             append!(_conditions, checkedatoms(X, subalph))
         end
@@ -126,22 +142,19 @@ end
 """
     midpointconditions(X::AbstractLogiset, univalph::UnivariateScalarAlphabet)
 
-Generate additional scalar conditions at the midpoints between consecutive threshold
+Generate scalar conditions at the midpoints between consecutive threshold
 values of a numeric feature. This is useful for creating split points that lie
 between observed values, e.g. turning a threshold pair `[3, 4]` into a midpoint at
 `3.5` for conditions such as `< 3.5` or `≥ 3.5`.
 """
 function midpointconditions(
     X::AbstractLogiset,
-    univalph::UnivariateScalarAlphabet
+    feature::AbstractFeature,
+    thresholds::AbstractVector
 )::Vector{Tuple{Atom,SatMask}}
 
-    thresholds = collect(SoleData.thresholds(univalph))
     thresholds = sort(unique(thresholds))
     isempty(thresholds) && return Tuple{Atom,SatMask}[]
-
-    mc = metacond(univalph)
-    feature = SoleData.feature(mc)
 
     conditions = Tuple{Atom{ScalarCondition},SatMask}[]
     
@@ -172,6 +185,37 @@ function midpointconditions(
 
     push!(conditions, (atom_lt, check(atom_lt, X)))
     push!(conditions, (atom_ge, check(atom_ge, X)))
+
+    return conditions
+end
+
+
+function pairedconditions(
+    X::AbstractLogiset,
+    feature::AbstractFeature,
+    thresholds::AbstractVector
+)::Vector{Tuple{Atom,SatMask}}
+
+    conditions = Tuple{Atom{ScalarCondition},SatMask}[]
+
+    for threshold in thresholds
+        atom_lt = Atom(
+            ScalarCondition(
+                ScalarMetaCondition(feature, <),
+                threshold
+            )
+        )
+
+        atom_ge = Atom(
+            ScalarCondition(
+                ScalarMetaCondition(feature, ≥),
+                threshold
+            )
+        )
+
+        push!(conditions, (atom_lt, check(atom_lt, X)))
+        push!(conditions, (atom_ge, check(atom_ge, X)))
+    end
 
     return conditions
 end
