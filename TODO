@@ -1,5 +1,5 @@
 RIPPER:
-    ☐ Smettere di ricalcolare la DL(ruleset) ogni volta da zero, precalcolare la DL delle regole e riutilizzarle dove possibile (minor optimization)
+    ✔ Smettere di ricalcolare la DL(ruleset) ogni volta da zero, precalcolare la DL delle regole e riutilizzarle dove possibile (minor optimization) @done(26-08-08 15:32)
     ☐ Introdurre la possibilità di controllare se la rimozione di una regola riduce la description length?, oltre che al suo refinement o a una nuova regola costruita successivamente
 
 Pulizia codice RIPPER/IREP*:
@@ -10,3 +10,7 @@ Pulizia codice RIPPER/IREP*:
             -> una funzione per IREP*
             -> una funzione per RIPPER che richiama quella per IREP* e poi fa sanitation su parametri aggiuntivi RIPPER
         ☐ Preprocessing delle y
+
+
+Gestione feature categoriche:
+    ☐ Implementare meccanismo di Breiman (https://www.sciencedirect.com/science/article/abs/pii/S0167715200001887) per usare i test operator [<, >=] anche su feature categoriche

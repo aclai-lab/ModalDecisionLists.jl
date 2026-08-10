@@ -74,8 +74,8 @@ function filterconditions(
 end
 
 
-
-
+custom_ops(::Type{<:Number}) = [<, ≥]
+custom_ops(::Type{<:Any}) = [(==), (≠)]
 
 """
 Return the list of all possible antecedents containing a single condition from the alphabet.
@@ -114,14 +114,13 @@ function newconditions(
     selectedalphabet = begin
         # make sure to create the alphabet automatically if default_alphabet is null
         _alphabet = isnothing(default_alphabet) ? 
-            # alphabet(_X; discretizedomain, y=_y, sortingmode = :generalfirst) :
-            alphabet(_X; discretizedomain, y=_y, test_operators=[<, ≥], keep_unique=true) :
+            alphabet(_X; discretizedomain, y=_y, keep_unique=true, test_operators = [<, ≥]) :
             default_alphabet
 
         UnionAlphabet([_alphabet])
     end
     
-    conditions = alphabet2conditions(sm.conjuncts_generation_method, selectedalphabet, X)
+    conditions = alphabet2conditions(sm.conjuncts_generation_method, selectedalphabet, X, discretizedomain)
     return filterconditions(conditions, ant)
 end
 
@@ -143,11 +142,10 @@ function initialize_antecedents(
 )::Vector{Antecedent}
 
     _alphabet = isnothing(default_alphabet) ?
-        # alphabet(X; discretizedomain, y, sortingmode = :generalfirst) :
-        alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥]) : 
+        alphabet(X; discretizedomain, y, keep_unique = true, test_operators = [<, ≥]) : 
             default_alphabet
 
-    conditions = isnothing(precomputed_conditions) ? alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X) : precomputed_conditions
+    conditions = isnothing(precomputed_conditions) ? alphabet2conditions(sm.conjuncts_generation_method, _alphabet, X, discretizedomain) : precomputed_conditions
     return [Antecedent([f], mask) for (f, mask) in conditions]
 end 
 
@@ -411,10 +409,10 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
-    isnothing(default_alphabet) && (default_alphabet = alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥])) 
+    isnothing(default_alphabet) && (default_alphabet = alphabet(X; discretizedomain, y, keep_unique = true, test_operators = [<, ≥])) 
 
     precomputed_conditions = if !isnothing(default_alphabet)        # vector of (Atom{ScalarCondition}, BitVector)
-        alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X)
+        alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X, discretizedomain)
     else
         nothing
     end
@@ -560,10 +558,10 @@ function findbestantecedent(
 
     @unpack conjuncts_generation_method, beam_width = bs
 
-    isnothing(default_alphabet) && (default_alphabet = alphabet(X; discretizedomain, y, keep_unique = true, test_operators=[<, ≥])) 
+    isnothing(default_alphabet) && (default_alphabet = alphabet(X; discretizedomain, y, keep_unique = true, test_operators = [<, ≥])) 
 
     precomputed_conditions = if !isnothing(default_alphabet)
-        alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X)
+        alphabet2conditions(bs.conjuncts_generation_method, UnionAlphabet([default_alphabet]), X, discretizedomain)
     else
         nothing
     end

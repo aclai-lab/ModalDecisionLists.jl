@@ -428,7 +428,7 @@ subset to minimize classification error.
 - `suppress_parity_warning::Bool=false`: If `true`, suppresses warnings when predicting 
   the most common class.
 - `class_priors::Union{Nothing, Dict{CLabel, Real}} = nothing`: Optional class prior probabilities used for probabilistic estimates in the consequent metadata of the resulting model.
-- `stratified_splitting::Bool=true`: If `true`, the grow/prune split preserves the class distribution of the training data.
+- `stratified_splitting::Bool=false`: If `true`, the grow/prune split preserves the class distribution of the training data.
 - `kwargs...`: Additional keyword arguments passed to search and other internal functions.
 
 # Returns
@@ -487,7 +487,7 @@ function irepstar(
     suppress_parity_warning::Bool=false,
 
     class_priors::Union{Nothing, Dict{CLabel, Real}} = nothing,
-    stratified_splitting::Bool = true,
+    stratified_splitting::Bool = false,
 
     kwargs...
 )::DecisionList where {U<:Real}
@@ -929,7 +929,6 @@ function get_num_independent_selectors(
     alph = alphabet(X;
         discretizedomain=discretizedomain,
         y=y,
-        test_operators=[<, ≥], 
         keep_unique=true
     )
 
@@ -943,6 +942,8 @@ end
     Returns the TDL (Total Description Length) of a Rule
 """
 function _r_theory_bits(rule::Rule, n::Int)
+    n <= 0 && return 0
+    
     k = min(1 + nconnectives(rule.antecedent), n - 1)  # make sure not to get Inf on the logarithms. if k = n then pr = 1 and we get a division by zero when calculating S
     pr = k / n
 
@@ -1238,6 +1239,8 @@ optimization passes to revise the learned ruleset.
 - `max_rulebase_length::Union{Nothing,Integer}=nothing`: Maximum number of rules in the final list.
 - `rng::AbstractRNG = Random.default_rng()`: RNG used for reproducible splitting and sampling.
 - `suppress_parity_warning::Bool=false`: Suppresses parity warnings for default predictions.
+- `class_priors::Union{Nothing, Dict{CLabel, Real}} = nothing`: Optional class prior probabilities used for probabilistic estimates in the consequent metadata of the resulting model.
+- `stratified_splitting::Bool=false`: If `true`, the grow/prune split preserves the class distribution of the training data.
 - `kwargs...`: Additional keyword arguments forwarded to internal search routines.
 
 # Returns
@@ -1269,7 +1272,7 @@ function ripperk(
     suppress_parity_warning::Bool=false,
 
     class_priors::Union{Nothing, Dict{CLabel, Real}} = nothing,
-    stratified_splitting::Bool = true,
+    stratified_splitting::Bool = false,
 
     kwargs...
 )::DecisionList where {U<:Real}

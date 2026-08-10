@@ -1,5 +1,5 @@
 
-using SoleData: AbstractLogiset, PropositionalLogiset
+using SoleData: AbstractLogiset, PropositionalLogiset, UnivariateScalarAlphabet
 using SoleData
 using SoleLogics
 
@@ -89,14 +89,89 @@ In both cases, once we have mask_prev we only re-check the samples that are stil
 function alphabet2conditions(
     ::AtomGenerator,
     a::UnionAlphabet,
-    X::AbstractLogiset
+    X::AbstractLogiset,
+    discretizedomain::Bool = false
 )::Vector{Tuple{Atom,SatMask}}
 
     _conditions = Tuple{Atom{ScalarCondition},SatMask}[]
 
-    for univalph in subalphabets(a)
-        newconds = checkedatoms(X, univalph)
-        append!(_conditions, newconds)
+    for subalph in subalphabets(a)
+        # newconds = checkedatoms(X, subalph)
+        # append!(_conditions, newconds)
+
+        # if the domain is discretized, it makes no sense to create tests only in between two successive feature values, because
+        # those values are already the points at which the splits make the most sense
+        if discretizedomain
+            newconds = checkedatoms(X, subalph)
+            append!(_conditions, newconds)
+            continue
+        end
+
+        if subalph isa UnionAlphabet
+            append!(_conditions, alphabet2conditions(AtomGenerator(), subalph, X))
+        elseif subalph isa UnivariateScalarAlphabet
+            threshs = SoleData.thresholds(subalph)
+            if !isempty(threshs) && eltype(threshs) <: Number
+                append!(_conditions, midpointconditions(X, subalph))
+            else
+                append!(_conditions, checkedatoms(X, subalph))
+            end
+        else
+            append!(_conditions, checkedatoms(X, subalph))
+        end
     end
     return _conditions
+end
+
+"""
+    midpointconditions(X::AbstractLogiset, univalph::UnivariateScalarAlphabet)
+
+Generate additional scalar conditions at the midpoints between consecutive threshold
+values of a numeric feature. This is useful for creating split points that lie
+between observed values, e.g. turning a threshold pair `[3, 4]` into a midpoint at
+`3.5` for conditions such as `< 3.5` or `≥ 3.5`.
+"""
+function midpointconditions(
+    X::AbstractLogiset,
+    univalph::UnivariateScalarAlphabet
+)::Vector{Tuple{Atom,SatMask}}
+
+    thresholds = collect(SoleData.thresholds(univalph))
+    thresholds = sort(unique(thresholds))
+    isempty(thresholds) && return Tuple{Atom,SatMask}[]
+
+    mc = metacond(univalph)
+    feature = SoleData.feature(mc)
+
+    conditions = Tuple{Atom{ScalarCondition},SatMask}[]
+    
+    for i in 1:(length(thresholds) - 1)
+        prev_threshold = thresholds[i]
+        next_threshold = thresholds[i + 1]
+
+        midpoint = (prev_threshold + next_threshold) / 2
+        if midpoint == prev_threshold || midpoint == next_threshold
+            continue
+        end
+
+        new_mc_lt = ScalarMetaCondition(feature, <)
+        new_mc_ge = ScalarMetaCondition(feature, ≥)
+
+        atom_lt = Atom(ScalarCondition(new_mc_lt, midpoint))
+        atom_ge = Atom(ScalarCondition(new_mc_ge, midpoint))
+        
+        push!(conditions, (atom_lt, check(atom_lt, X)))
+        push!(conditions, (atom_ge, check(atom_ge, X)))
+    end
+
+    # manually insert the upper threshold 
+    max_threshold = thresholds[end]
+
+    atom_lt = Atom(ScalarCondition(ScalarMetaCondition(feature, <), max_threshold))
+    atom_ge = Atom(ScalarCondition(ScalarMetaCondition(feature, ≥), max_threshold))
+
+    push!(conditions, (atom_lt, check(atom_lt, X)))
+    push!(conditions, (atom_ge, check(atom_ge, X)))
+
+    return conditions
 end

@@ -252,7 +252,7 @@ mutable struct DecisionListClassifier <: CoveringStrategy
     rng::AbstractRNG
     suppress_parity_warning::Bool
     invert_class_orders::Bool
-    stratified_splitting:Bool
+    stratified_splitting::Bool
 end
 
 function DecisionListClassifier(;
@@ -274,7 +274,7 @@ function DecisionListClassifier(;
     rng::AbstractRNG=TaskLocalRNG(),
     suppress_parity_warning::Bool=false,
     invert_class_orders::Bool = false,
-    stratified_splitting::Bool = true
+    stratified_splitting::Bool = false
 )
     searchmethod.beam_width = beam_width
 
@@ -404,7 +404,7 @@ function RipperListClassifier(;
     # utils
     rng::AbstractRNG=TaskLocalRNG(),
     suppress_parity_warning::Bool=false,
-    stratified_splitting::Bool = true
+    stratified_splitting::Bool = false
 )
     searchmethod.beam_width = beam_width
 
