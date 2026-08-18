@@ -67,16 +67,21 @@ function apply_distribution(
         idxs_sat = uncovered_idxs[idxs_sat]
         uncovered_idxs = setdiff(uncovered_idxs, idxs_sat)
 
-        dist = info(rule).m_estimate   # Dict{CLabel, Real}
+        dist = info(rule).relative_frequency   # Dict{CLabel, Real}
         foreach(i -> (dists[i] = dist), idxs_sat)
     end
 
     # fallback: default consequent for uncovered instances
     if length(uncovered_idxs) != 0
         default = defaultconsequent(m)
-        default_dist = haskey(info(default), :m_estimate) ?
-            info(default).m_estimate :
+        default_info = info(default)
+        
+        default_dist = if haskey(default_info, :relative_frequency)
+            default_info.relative_frequency
+        else
             Dict{CLabel, Float64}(outcome(default) => 1.0)
+        end
+        
         foreach(i -> (dists[i] = default_dist), uncovered_idxs)
     end
 
@@ -93,7 +98,6 @@ Each list contributes its activated rule's distribution, weighted by the probabi
 mass assigned to the predicted class (i.e. the Laplace-corrected precision of that rule).
 The final prediction is the class with the highest total weighted score.
 
-Intended to be passed as `aggregation` to `DecisionEnsemble`.
 The outer weights (one per list) are handled by `DecisionEnsemble`'s `weighted_aggregation`.
 """
 function list_ensemble_aggregation(
@@ -102,10 +106,11 @@ function list_ensemble_aggregation(
 )
     all_classes = union(keys.(dists)...)                            # union makes sure elements are not repeated
     scores = Dict{CLabel, Float64}(c => 0.0 for c in all_classes)
+    # k = length(dists)
 
     for dist in dists
         for c in all_classes
-            scores[c] += get(dist, c, 0.0)
+            scores[c] += get(dist, c, 0.0)      # / k, if we wanted scores to be a probability distribution. Since we just need the maximum argument it doesn't really matter
         end
     end
 

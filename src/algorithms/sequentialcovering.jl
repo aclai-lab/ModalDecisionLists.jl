@@ -773,33 +773,19 @@ by the rule.
 - `y_labels`: Vector of class strings/labels for the current dataset.
 - `poslabel`: The label to be assigned as the prediction.
 - `coverage_indices`: Indices of the samples covered by the rule.
-- `class_priors`: A dictionary that maps every unique label in the dataset to its prior probability.
+- `class_priors`: A dictionary that maps every unique label in the dataset to its prior probability, used for computing m-estimate distribution conditioned on the rule's validity.
 """
 function build_rule(
     antecedent::LeftmostConjunctiveForm, 
     y_labels::AbstractVector{<:CLabel}, 
-    poslabel::CLabel, 
+    predlabel::CLabel, 
     coverage_indices::AbstractVector{<:Integer},
     class_priors::Dict{<:CLabel, <:Real},
 )
     # TODO: take instance weights into account in the probability estimate
     justcoveredy = y_labels[coverage_indices]
-    predlabel = poslabel
-    
-    m_estimate = compute_mestimate_distribution(justcoveredy, class_priors)
 
-    info_cm = (;
-        supporting_labels=justcoveredy,
-        supporting_predictions=fill(predlabel, length(justcoveredy)),
-    )
-    consequent = ConstantModel(predlabel, info_cm)
-
-    info_r = (;
-        supporting_labels=justcoveredy,
-        m_estimate=m_estimate,
-    )
-
-    return Rule(antecedent, consequent, info_r)
+    return build_rule(antecedent, predlabel, justcoveredy, class_priors)
 end
 
 
@@ -831,8 +817,11 @@ function build_rule(
     justcoveredy::AbstractVector{<:CLabel},
     class_priors::Dict{<:CLabel, <:Real},
 )
+    all_classes = keys(class_priors)        # Vector{<:CLabel} with one entry for all the classes in the data
+
     # TODO: take instance weights into account in the probability estimate
     m_estimate = compute_mestimate_distribution(justcoveredy, class_priors)
+    rel_freq = compute_relative_frequency_distribution(justcoveredy, all_classes)
 
     info_cm = (;
         supporting_labels=justcoveredy,
@@ -843,6 +832,7 @@ function build_rule(
     info_r = (;
         supporting_labels=justcoveredy,
         m_estimate=m_estimate,
+        relative_frequency=rel_freq
     )
 
     return Rule(antecedent, consequent, info_r)

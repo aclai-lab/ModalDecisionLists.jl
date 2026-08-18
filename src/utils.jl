@@ -240,15 +240,53 @@ Each label probability is computed as:
 where `n` is the number of covered instances.
 """
 function compute_mestimate_distribution(covered_y::AbstractVector{<:CLabel}, class_priors::Dict{<:CLabel, Real})
-    all_labels = keys(class_priors)
+    all_classes = keys(class_priors)
     n = length(covered_y)
-    k = length(all_labels)
+    k = length(all_classes)
 
     # m-estimate with m = k (equivalent to Laplace correction with empirical prior)
     m_estimate = Dict{CLabel, Float64}(
         label => (count(==(label), covered_y) + k * get(class_priors, label, 0)) / (n + k)
-        for label in all_labels
+        for label in all_classes
     )
 
     return m_estimate
+end
+
+
+"""
+    compute_relative_frequency_distribution(covered_y::AbstractVector{<:CLabel}, all_classes::Vector{<:CLabel})
+
+Compute the relative frequency distribution for a covered subset of class labels.
+
+# Arguments
+- `covered_y::AbstractVector{<:CLabel}`: Labels for the subset of instances covered by a rule.
+- `all_classes::Vector{<:CLabel}`: Vector of all possible class labels.
+
+# Returns
+- `Dict{CLabel, Float64}`: Relative frequency (empirical probability) of each label in the covered subset.
+
+# Details
+The function computes the empirical probability of each class label based solely on the observed
+frequencies in the covered subset. Each label's probability is the count of that label divided by
+the total number of covered instances. Unlike `compute_mestimate_distribution`, this function
+does not use class priors or apply any smoothing.
+
+Each label probability is computed as:
+
+```text
+count(label in covered_y) / n
+```
+
+where `n` is the number of covered instances.
+"""
+function compute_relative_frequency_distribution(covered_y::AbstractVector{<:CLabel}, all_classes)
+    n = length(covered_y)
+
+    rel_freq = Dict{CLabel, Float64}(
+        label => n > 0 ? count(==(label), covered_y) / n : 0.0
+        for label in all_classes
+    )
+
+    return rel_freq
 end
