@@ -413,15 +413,15 @@ function RipperListClassifier(;
     return model
 end
 
-function MMI.clean!(model::DecisionListClassifier)
-    warning = ""
-    if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
-        warning *= "Need max_rulebase_length ≥ 1. " *
-            "Resetting max_rulebase_length = nothing."
-        model.max_rulebase_length = nothing
-    end
-    return warning
-end
+# function MMI.clean!(model::DecisionListClassifier)
+#     warning = ""
+#     if !isnothing(model.max_rulebase_length) && model.max_rulebase_length < 1
+#         warning *= "Need max_rulebase_length ≥ 1. " *
+#             "Resetting max_rulebase_length = nothing."
+#         model.max_rulebase_length = nothing
+#     end
+#     return warning
+# end
 
 function MMI.fit(m::RipperListClassifier, verbosity::Int, X, y)
     featurenames = propertynames(X)
