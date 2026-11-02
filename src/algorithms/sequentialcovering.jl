@@ -208,6 +208,7 @@ function sequentialcovering(
         supporting_predictions=fill(prediction, length(uncovered.y)),
     )
     default_consequent = ConstantModel(prediction, info_cm)
+
     return DecisionList(rule_base, default_consequent, info_dl)
 end
 
