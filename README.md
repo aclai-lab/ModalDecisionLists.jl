@@ -22,7 +22,7 @@ using Pkg; Pkg.add("MLJ");
 using Pkg; Pkg.add("ModalDecisionLists");
 
 # Import packages
-using MLJ
+# using MLJ
 using ModalDecisionLists
 using Random
 

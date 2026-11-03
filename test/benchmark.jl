@@ -4,7 +4,7 @@ using SoleBase: CLabel
 using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, parse_orange_decision_list
 using SoleData
-using MLJ
+# using MLJ
 using StatsBase
 using Random
 using RDatasets
@@ -12,7 +12,7 @@ using ModalDecisionLists
 using ModalDecisionLists: BaseCN2, MLJInterface
 using ModalDecisionLists: preprocess_inputdata
 using CategoricalArrays: CategoricalValue, CategoricalArray
-using ModalDecisionLists. LossFunctions: laplace_accuracy
+using ModalDecisionLists: laplace_accuracy
 using BenchmarkTools
 
 

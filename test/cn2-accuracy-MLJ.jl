@@ -4,15 +4,15 @@ using SoleBase: CLabel
 using DataFrames
 using SoleModels: ClassificationRule, apply, DecisionList, bestguess
 using SoleData
-using MLJ
+# using MLJ
 using StatsBase
 using Random
 using RDatasets
-using MLJDecisionTreeInterface
+# using MLJDecisionTreeInterface
 using ModalDecisionLists
 using ModalDecisionLists: BaseCN2, MLJInterface
 using ModalDecisionLists: preprocess_inputdata
-using ModalDecisionLists.LossFunctions: laplace_accuracy
+using ModalDecisionLists: laplace_accuracy
 using CategoricalArrays: CategoricalValue, CategoricalArray
 using CSV
 

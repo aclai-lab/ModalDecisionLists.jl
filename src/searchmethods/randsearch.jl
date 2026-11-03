@@ -3,7 +3,7 @@ using SoleLogics: randatom
 using SoleData: thresholds
 using FillArrays
 using Random
-using ModalDecisionLists.LossFunctions: entropy, significance_test
+using ModalDecisionLists.Metrics: entropy, significance_test
 ############################################################################################
 ############## Random search ###############################################################
 ############################################################################################
@@ -96,7 +96,7 @@ function newconditions(
         else
             alph = alphabet(coveredX;
                 discretizedomain = discretizedomain,
-                y = coveredy
+                y = coveredy, force_i_variables=true
             )
         end
     end
