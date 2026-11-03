@@ -96,7 +96,7 @@ function newconditions(
         else
             alph = alphabet(coveredX;
                 discretizedomain = discretizedomain,
-                y = coveredy
+                y = coveredy, force_i_variables=true
             )
         end
     end

@@ -847,7 +847,7 @@ function get_num_independent_selectors(
 )::Int
     alph = alphabet(X;
         discretizedomain=discretizedomain,
-        y=y
+        y=y, force_i_variables=true
     )
 
     independent_conds = alphabet2conditions(AtomGenerator(), alph, X)
